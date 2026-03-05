@@ -1,3 +1,6 @@
+import { mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { resolve, join } from 'node:path'
 import { Database } from 'bun:sqlite'
 import { Kysely } from 'kysely'
 import { BunSqliteDialect } from 'kysely-bun-sqlite'
@@ -46,6 +49,25 @@ const SCHEMA_SQL = `
   );
 `
 
+/** Derive the zuler state directory for a given repo root, matching Claude Code's path convention. */
+export const stateDir = (repoRoot: string): string => {
+  const absolute = resolve(repoRoot)
+  const slug = absolute.replace(/\//g, '-')
+  return join(homedir(), '.zuler', slug)
+}
+
+/** Resolve the DB path for a repo root. */
+export const statePath = (repoRoot: string): string =>
+  join(stateDir(repoRoot), 'state.db')
+
+/** Open (or create) the zuler database for a given repo root. */
+export const openDatabase = (repoRoot: string): Kysely<ZulerDatabase> => {
+  const dir = stateDir(repoRoot)
+  mkdirSync(dir, { recursive: true })
+  return createDatabase(join(dir, 'state.db'))
+}
+
+/** Open a database at an explicit path (for tests or custom locations). */
 export const createDatabase = (path: string): Kysely<ZulerDatabase> => {
   const sqliteDb = new Database(path)
   sqliteDb.exec('PRAGMA journal_mode = WAL;')
