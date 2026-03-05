@@ -105,6 +105,10 @@ bun --hot ./index.ts
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.md`.
 
+## Git
+
+- Default to squash merge when merging PRs: `gh pr merge --squash --delete-branch`
+
 ## Project Conventions
 
 ### Libraries
@@ -117,4 +121,5 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 - Functional + statically typed. Standalone functions over classes. No inheritance.
 - Type annotations at all function boundaries. No `any`.
+- Single quotes in TypeScript files.
 - File names lowercase kebab-case (e.g., `zulip-client.ts`, not `ZulipClient.ts`).
