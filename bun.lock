@@ -4,16 +4,29 @@
   "workspaces": {
     "": {
       "name": "zuler",
-      "dependencies": {
-        "neverthrow": "^8.2.0",
-        "type-fest": "^5.4.4",
-        "zod": "^4.3.6",
-      },
       "devDependencies": {
         "@types/bun": "latest",
       },
       "peerDependencies": {
         "typescript": "^5",
+      },
+    },
+    "packages/zuler": {
+      "name": "zuler",
+      "version": "0.1.0",
+      "dependencies": {
+        "neverthrow": "^8.2.0",
+        "type-fest": "^5.4.4",
+        "zod": "^4.3.6",
+        "zulip-ts": "workspace:*",
+      },
+    },
+    "packages/zulip-ts": {
+      "name": "zulip-ts",
+      "version": "0.1.0",
+      "dependencies": {
+        "neverthrow": "^8.2.0",
+        "zod": "^4.3.6",
       },
     },
   },
@@ -37,5 +50,9 @@
     "undici-types": ["undici-types@7.18.2", "", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
     "zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
+
+    "zuler": ["zuler@workspace:packages/zuler"],
+
+    "zulip-ts": ["zulip-ts@workspace:packages/zulip-ts"],
   }
 }
