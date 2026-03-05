@@ -1,0 +1,13 @@
+{
+  "name": "zuler",
+  "version": "0.1.0",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "neverthrow": "^8.2.0",
+    "type-fest": "^5.4.4",
+    "zod": "^4.3.6",
+    "zulip-ts": "workspace:*"
+  }
+}
