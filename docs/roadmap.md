@@ -15,7 +15,7 @@ Port the Zulip API interactions to TypeScript. No MCP yet — just a clean, well
 
 ## Phase 2 — MCP server
 
-Expose the Zulip operations as MCP tools. One shared MCP server process serves all agents — each agent passes its name when calling tools, and the server maintains per-agent inboxes and subscriptions.
+Expose the Zulip operations as MCP tools. One shared MCP server process serves all agents — each agent passes its name when calling tools, and the server maintains per-agent subscriptions.
 
 Tools to expose:
 - `post` — send a DM or stream/topic message
@@ -24,9 +24,8 @@ Tools to expose:
 - `subscriptions` — list current subscriptions
 - `register` — create or look up a bot for a new teammate
 - `teammates` — list registered teammates
-- `check_inbox` — fetch buffered inbound messages for this agent
 
-The MCP server is a long-lived process. It runs Zulip event listeners as background tasks: one admin-level listener handles all stream messages and fans them out to subscribed teammates; each registered bot also has its own listener to receive DMs. Agents poll for buffered inbound messages via `check_inbox`. MCP is still request/response at the protocol level — the server can't interrupt an agent — but no separate sidecar process is needed.
+The MCP server is a long-lived process. It runs Zulip event listeners as background tasks: one admin-level listener handles all stream messages and fans them out to subscribed teammates; each registered bot also has its own listener to receive DMs. Inbound messages are written directly to Claude Code's teammate inbox files (`~/.claude/teams/<team>/inboxes/<agent>.json`), so agents receive them through the standard Claude Code messaging system with no polling required.
 
 ## Phase 3 — Configuration and packaging
 
