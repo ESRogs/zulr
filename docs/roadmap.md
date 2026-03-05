@@ -15,7 +15,7 @@ Port the Zulip API interactions to TypeScript. No MCP yet — just a clean, well
 
 ## Phase 2 — MCP server
 
-Expose the Zulip operations as MCP tools. An agent with this MCP server configured can send and receive Zulip messages directly.
+Expose the Zulip operations as MCP tools. One shared MCP server process serves all agents — each agent passes its name when calling tools, and the server maintains per-agent inboxes and subscriptions.
 
 Tools to expose:
 - `post` — send a DM or stream/topic message
@@ -26,7 +26,7 @@ Tools to expose:
 - `teammates` — list registered teammates
 - `check_inbox` — fetch buffered inbound messages for this agent
 
-The MCP server is a long-lived process, so the Zulip event listener runs as a background task inside it. It listens on Zulip's event queue continuously, buffers inbound messages addressed to this agent, and surfaces them when the agent calls `check_inbox`. MCP is still request/response at the protocol level — the server can't interrupt the agent — but no separate sidecar process is needed.
+The MCP server is a long-lived process. It runs one Zulip event listener per registered bot as background tasks, continuously buffering inbound messages. Agents poll for new messages via `check_inbox`. MCP is still request/response at the protocol level — the server can't interrupt an agent — but no separate sidecar process is needed.
 
 ## Phase 3 — Configuration and packaging
 
