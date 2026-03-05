@@ -26,7 +26,7 @@ Tools to expose:
 - `teammates` — list registered teammates
 - `check_inbox` — fetch buffered inbound messages for this agent
 
-The MCP server is a long-lived process. It runs one Zulip event listener per registered bot as background tasks, continuously buffering inbound messages. Agents poll for new messages via `check_inbox`. MCP is still request/response at the protocol level — the server can't interrupt an agent — but no separate sidecar process is needed.
+The MCP server is a long-lived process. It runs Zulip event listeners as background tasks: one admin-level listener handles all stream messages and fans them out to subscribed teammates; each registered bot also has its own listener to receive DMs. Agents poll for buffered inbound messages via `check_inbox`. MCP is still request/response at the protocol level — the server can't interrupt an agent — but no separate sidecar process is needed.
 
 ## Phase 3 — Configuration and packaging
 
