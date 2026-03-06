@@ -2,26 +2,39 @@ import { z } from 'zod'
 
 // --- Messages ---
 
-export const MessageSchema = z.object({
+const BaseMessageFields = {
   id: z.number(),
   sender_id: z.number(),
   sender_email: z.string(),
   sender_full_name: z.string(),
-  type: z.enum(['stream', 'private']),
-  display_recipient: z.union([
-    z.string(),
-    z.array(
-      z.object({
-        id: z.number(),
-        email: z.string(),
-        full_name: z.string(),
-      }),
-    ),
-  ]),
-  subject: z.string().optional(),
   content: z.string(),
   timestamp: z.number(),
+}
+
+export const DmRecipientSchema = z.object({
+  id: z.number(),
+  email: z.string(),
+  full_name: z.string(),
 })
+export type DmRecipient = z.infer<typeof DmRecipientSchema>
+
+export const StreamMessageSchema = z.object({
+  ...BaseMessageFields,
+  type: z.literal('stream'),
+  display_recipient: z.string(),
+  subject: z.string(),
+})
+export type StreamMessage = z.infer<typeof StreamMessageSchema>
+
+export const DmMessageSchema = z.object({
+  ...BaseMessageFields,
+  type: z.literal('private'),
+  display_recipient: z.array(DmRecipientSchema),
+  subject: z.string().optional(),
+})
+export type DmMessage = z.infer<typeof DmMessageSchema>
+
+export const MessageSchema = z.discriminatedUnion('type', [StreamMessageSchema, DmMessageSchema])
 export type Message = z.infer<typeof MessageSchema>
 
 export const SendMessageResponseSchema = z.object({
