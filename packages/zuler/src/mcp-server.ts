@@ -433,30 +433,29 @@ export function createMcpServer(config: ServerConfig) {
         return { content: [{ type: 'text' as const, text: '(no subscriptions)' }] }
       }
 
-      // Fetch unread messages from each subscription
-      const allMessages: FormattedMessage[] = []
-      for (const sub of subs) {
-        const narrow = [
-          { operator: 'stream', operand: sub.stream },
-          ...(sub.topic ? [{ operator: 'topic', operand: sub.topic }] : []),
-        ]
+      // Fetch unread messages from all subscriptions in parallel
+      const fetchResults = await Promise.all(
+        subs.map((sub) => {
+          const narrow = [
+            { operator: 'stream', operand: sub.stream },
+            ...(sub.topic ? [{ operator: 'topic', operand: sub.topic }] : []),
+          ]
+          return fetchAndMarkRead(
+            botClient,
+            {
+              anchor: 'first_unread',
+              numBefore: 0,
+              numAfter: maxMessages,
+              narrow,
+              applyMarkdown: false,
+            },
+            sub.stream,
+            sub.topic,
+          )
+        }),
+      )
 
-        const result = await fetchAndMarkRead(
-          botClient,
-          {
-            anchor: 'first_unread',
-            numBefore: 0,
-            numAfter: maxMessages,
-            narrow,
-            applyMarkdown: false,
-          },
-          sub.stream,
-          sub.topic,
-        )
-        if (result.isOk()) {
-          allMessages.push(...result.value)
-        }
-      }
+      const allMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
 
       // Sort by timestamp, take most recent maxMessages
       allMessages.sort((a, b) => a.timestamp - b.timestamp)
