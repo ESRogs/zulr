@@ -14,6 +14,11 @@ type EventListenerOptions = {
     readonly topic?: string
     readonly sender: string
     readonly deliveredTo: readonly string[]
+    readonly autoSubscribed: readonly {
+      readonly teammate: string
+      readonly stream: string
+      readonly topic: string
+    }[]
   }) => void
   /** Called on errors for logging. Listener continues after errors. */
   readonly onError?: (error: unknown) => void
@@ -71,12 +76,13 @@ export async function startEventListener(options: EventListenerOptions): Promise
 
         if (result.delivered.length > 0) {
           const msg = event.message
-          const isStream = typeof msg.display_recipient === 'string'
+          const recipient = msg.display_recipient
           onRoute?.({
-            stream: isStream ? (msg.display_recipient as string) : undefined,
-            topic: isStream ? msg.subject : undefined,
+            stream: typeof recipient === 'string' ? recipient : undefined,
+            topic: typeof recipient === 'string' ? msg.subject : undefined,
             sender: msg.sender_full_name,
             deliveredTo: result.delivered.map((d) => d.teammate),
+            autoSubscribed: result.autoSubscribed,
           })
         }
       }
