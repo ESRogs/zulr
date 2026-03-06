@@ -1,9 +1,9 @@
 import type { Kysely } from 'kysely'
 import type { ZulipClient } from 'zulip-ts'
-import { createClient, getEvents, markAsRead, registerQueue } from 'zulip-ts'
+import { getEvents, markAsRead, registerQueue } from 'zulip-ts'
+import { clientForTeammate } from './bot-manager.ts'
 import type { ZulerDatabase } from './db.ts'
 import { routeMessage } from './routing.ts'
-import { listTeammates } from './state.ts'
 
 type EventListenerOptions = {
   readonly client: ZulipClient
@@ -32,19 +32,21 @@ const RETRY_DELAY_MS = 5000
 /** Cache of per-bot ZulipClients, keyed by teammate name. */
 type BotClientCache = Map<string, ZulipClient>
 
-/** Build or refresh the bot client cache from the DB. */
-async function refreshBotClientCache(
+/** Get or create a cached bot client for a teammate. */
+async function getCachedBotClient(
+  cache: BotClientCache,
   db: Kysely<ZulerDatabase>,
   site: string,
-  cache: BotClientCache,
-): Promise<void> {
-  const result = await listTeammates(db)
-  if (result.isErr()) return
-  for (const t of result.value) {
-    if (!cache.has(t.name)) {
-      cache.set(t.name, createClient({ site, email: t.botEmail, apiKey: t.apiKey }))
-    }
-  }
+  name: string,
+): Promise<ZulipClient | undefined> {
+  const cached = cache.get(name)
+  if (cached) return cached
+
+  const result = await clientForTeammate(db, site, name)
+  if (result.isErr()) return undefined
+
+  cache.set(name, result.value)
+  return result.value
 }
 
 /**
@@ -53,12 +55,14 @@ async function refreshBotClientCache(
  */
 async function markReadForTeammates(
   cache: BotClientCache,
+  db: Kysely<ZulerDatabase>,
+  site: string,
   messageId: number,
   teammateNames: readonly string[],
   onError?: (error: unknown) => void,
 ): Promise<void> {
   for (const name of teammateNames) {
-    const botClient = cache.get(name)
+    const botClient = await getCachedBotClient(cache, db, site, name)
     if (!botClient) continue
     const result = await markAsRead(botClient, [messageId])
     if (result.isErr()) {
@@ -84,9 +88,6 @@ export async function startEventListener(options: EventListenerOptions): Promise
   const botClientCache: BotClientCache = new Map()
 
   while (!signal?.aborted) {
-    // Refresh the cache on each queue registration (picks up new teammates)
-    await refreshBotClientCache(db, client.config.site, botClientCache)
-
     // Register a new event queue
     const regResult = await registerQueue(client, { eventTypes: ['message'] })
 
@@ -132,11 +133,15 @@ export async function startEventListener(options: EventListenerOptions): Promise
             autoSubscribed: result.autoSubscribed,
           })
 
-          // Refresh cache in case new teammates were registered since last refresh
-          await refreshBotClientCache(db, client.config.site, botClientCache)
-
-          // Mark as read for each teammate using their cached bot client
-          await markReadForTeammates(botClientCache, result.messageId, deliveredNames, onError)
+          // Mark as read for each teammate (cache populates on miss)
+          await markReadForTeammates(
+            botClientCache,
+            db,
+            client.config.site,
+            result.messageId,
+            deliveredNames,
+            onError,
+          )
         }
       }
     }
