@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join } from 'node:path'
 import { homedir } from 'node:os'
 
 type InboxMessage = {
@@ -52,7 +52,7 @@ export const writeToInbox = (
     from,
     text,
     summary,
-    timestamp: new Date().toISOString().replace('+00:00', 'Z'),
+    timestamp: new Date().toISOString(),
     read: false,
   })
 

@@ -4,12 +4,6 @@ import type { ZulerDatabase } from './db.ts'
 import { shouldReceive, addTopicSubscription, listTeammates } from './state.ts'
 import { writeToInbox } from './inbox.ts'
 
-type DmRecipient = {
-  readonly id: number
-  readonly email: string
-  readonly full_name: string
-}
-
 type RouteResult = {
   readonly delivered: readonly {
     readonly teammate: string
@@ -96,12 +90,13 @@ export const routeStreamMessage = async (
   const location = `${stream}/${topic}`
   const summary = truncate(content, 60)
 
-  const emailMap = await buildEmailMap(db)
   const teammatesResult = await listTeammates(db)
   if (teammatesResult.isErr()) {
     return { delivered: [], autoSubscribed: [] }
   }
-  const allNames = new Set(teammatesResult.value.map((t) => t.name))
+  const teammates = teammatesResult.value
+  const emailMap = new Map(teammates.map((t) => [t.botEmail, t.name]))
+  const allNames = new Set(teammates.map((t) => t.name))
 
   const senderTeammate = identifySender(
     message.sender_email,
