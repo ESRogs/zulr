@@ -40,7 +40,7 @@ function fetchMessages(
   params: GetMessagesParams,
   options?: { markRead?: boolean; streamFallback?: string; topicFallback?: string },
 ): ResultAsync<readonly FormattedMessage[], ZulipError> {
-  const { markRead = false, streamFallback, topicFallback } = options ?? {}
+  const { markRead = true, streamFallback, topicFallback } = options ?? {}
 
   return getMessages(client, params).andThen((res) => {
     const messages: FormattedMessage[] = res.messages.map((msg) => ({
@@ -210,20 +210,16 @@ export function createMcpServer(config: ServerConfig) {
         readClient = botClientResult.value
       }
 
-      return fetchMessages(
-        readClient,
-        {
-          anchor: 'newest',
-          numBefore: count,
-          numAfter: 0,
-          narrow: [
-            { operator: 'stream', operand: stream },
-            { operator: 'topic', operand: topic },
-          ],
-          applyMarkdown: false,
-        },
-        { markRead: !!sender },
-      ).match(
+      return fetchMessages(readClient, {
+        anchor: 'newest',
+        numBefore: count,
+        numAfter: 0,
+        narrow: [
+          { operator: 'stream', operand: stream },
+          { operator: 'topic', operand: topic },
+        ],
+        applyMarkdown: false,
+      }).match(
         (messages) => {
           if (messages.length === 0) {
             return textResult(`(no messages in ${stream}/${topic})`)
