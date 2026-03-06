@@ -38,12 +38,16 @@ async function getCachedBotClient(
   db: Kysely<ZulerDatabase>,
   site: string,
   name: string,
+  onError?: (error: unknown) => void,
 ): Promise<ZulipClient | undefined> {
   const cached = cache.get(name)
   if (cached) return cached
 
   const result = await clientForTeammate(db, site, name)
-  if (result.isErr()) return undefined
+  if (result.isErr()) {
+    onError?.(result.error)
+    return undefined
+  }
 
   cache.set(name, result.value)
   return result.value
@@ -51,7 +55,7 @@ async function getCachedBotClient(
 
 /**
  * Mark a message as read for each teammate that received it,
- * using their cached bot clients.
+ * using their cached bot clients. Runs in parallel.
  */
 async function markReadForTeammates(
   cache: BotClientCache,
@@ -61,14 +65,16 @@ async function markReadForTeammates(
   teammateNames: readonly string[],
   onError?: (error: unknown) => void,
 ): Promise<void> {
-  for (const name of teammateNames) {
-    const botClient = await getCachedBotClient(cache, db, site, name)
-    if (!botClient) continue
-    const result = await markAsRead(botClient, [messageId])
-    if (result.isErr()) {
-      onError?.(result.error)
-    }
-  }
+  await Promise.all(
+    teammateNames.map(async (name) => {
+      const botClient = await getCachedBotClient(cache, db, site, name, onError)
+      if (!botClient) return
+      const result = await markAsRead(botClient, [messageId])
+      if (result.isErr()) {
+        onError?.(result.error)
+      }
+    }),
+  )
 }
 
 /**
