@@ -16,8 +16,7 @@ const wrapState = (e: StateError): BotManagerError => ({ type: 'state', inner: e
 /** Derive bot email from teammate name and Zulip site URL. */
 export const botEmail = (name: string, site: string): string => {
   const host = new URL(site).hostname
-  const shortName = name.replace(/-/g, '')
-  return `${shortName}-bot@${host}`
+  return `${name}-bot@${host}`
 }
 
 /** Find an existing bot by email, returning its API key if found. */
@@ -39,7 +38,7 @@ const createNewBot = (
 ): ResultAsync<string, BotManagerError> =>
   createBot(adminClient, {
     fullName: name,
-    shortName: name.replace(/-/g, ''),
+    shortName: name,
   })
     .map((res) => res.api_key)
     .mapErr(wrapZulip)
