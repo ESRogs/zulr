@@ -1,8 +1,9 @@
 import type { Kysely } from 'kysely'
 import type { DmMessage, Message, StreamMessage } from 'zulip-ts'
-import type { ZulerDatabase } from './db.ts'
+import type { ZulerDatabase } from '../state/db.ts'
+import { addTopicSubscription, shouldReceive } from '../state/subscriptions.ts'
+import { listTeammates } from '../state/teammates.ts'
 import { writeToInbox } from './inbox.ts'
-import { addTopicSubscription, listTeammates, shouldReceive } from './state.ts'
 
 type RouteResult = {
   readonly messageId: number

@@ -4,10 +4,11 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
 import type { DmMessage, StreamMessage } from 'zulip-ts'
-import { createDatabase, type ZulerDatabase } from './db.ts'
+import { createDatabase, type ZulerDatabase } from '../state/db.ts'
+import { addStreamSubscription, addTopicSubscription } from '../state/subscriptions.ts'
+import { registerTeammate } from '../state/teammates.ts'
 import { readInbox } from './inbox.ts'
 import { routeMessage } from './routing.ts'
-import { addStreamSubscription, addTopicSubscription, registerTeammate } from './state.ts'
 
 let db: Kysely<ZulerDatabase>
 

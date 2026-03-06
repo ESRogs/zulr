@@ -1,8 +1,8 @@
 import type { Kysely } from 'kysely'
 import type { ZulipClient } from 'zulip-ts'
 import { getEvents, markAsRead, registerQueue } from 'zulip-ts'
-import { clientForTeammate } from './bot-manager.ts'
-import type { ZulerDatabase } from './db.ts'
+import { clientForTeammate } from '../bot-manager.ts'
+import type { ZulerDatabase } from '../state/db.ts'
 import { routeMessage } from './routing.ts'
 
 type EventListenerOptions = {

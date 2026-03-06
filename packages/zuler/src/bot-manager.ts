@@ -2,9 +2,8 @@ import type { Kysely } from 'kysely'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import type { ZulipClient, ZulipError } from 'zulip-ts'
 import { createBot, createClient, getBots, getStreams, subscribe } from 'zulip-ts'
-import type { ZulerDatabase } from './db.ts'
-import type { StateError } from './state.ts'
-import { getTeammate, registerTeammate } from './state.ts'
+import type { ZulerDatabase } from './state/db.ts'
+import { getTeammate, registerTeammate, type StateError } from './state/teammates.ts'
 
 export type BotManagerError =
   | { readonly type: 'zulip'; readonly inner: ZulipError }

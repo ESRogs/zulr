@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "zuler": {
+      "type": "stdio",
+      "command": "bun",
+      "args": [
+        "run",
+        "packages/zuler/src/index.ts"
+      ],
+      "env": {
+        "ZULER_TEAM": "zuler",
+        "ZULER_REPO_ROOT": "/Users/rogs/code/ESRogs/zuler"
+      }
+    }
+  }
+}

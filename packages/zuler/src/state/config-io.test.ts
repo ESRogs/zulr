@@ -2,7 +2,8 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Kysely } from 'kysely'
 import { exportConfig, parseConfig } from './config-io.ts'
 import { createDatabase, type ZulerDatabase } from './db.ts'
-import { addStreamSubscription, addTopicSubscription, registerTeammate } from './state.ts'
+import { addStreamSubscription, addTopicSubscription } from './subscriptions.ts'
+import { registerTeammate } from './teammates.ts'
 
 let db: Kysely<ZulerDatabase>
 
