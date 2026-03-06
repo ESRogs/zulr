@@ -34,13 +34,14 @@ type FormattedMessage = {
   readonly timestamp: number
 }
 
-/** Fetch messages and mark them as read. Shared by `read` and `catch-up` tools. */
-function fetchAndMarkRead(
+/** Fetch messages, optionally marking them as read. Shared by `read` and `catch-up` tools. */
+function fetchMessages(
   client: ZulipClient,
   params: GetMessagesParams,
-  streamFallback?: string,
-  topicFallback?: string,
+  options?: { markRead?: boolean; streamFallback?: string; topicFallback?: string },
 ): ResultAsync<readonly FormattedMessage[], ZulipError> {
+  const { markRead = false, streamFallback, topicFallback } = options ?? {}
+
   return getMessages(client, params).andThen((res) => {
     const messages: FormattedMessage[] = res.messages.map((msg) => ({
       id: msg.id,
@@ -51,7 +52,7 @@ function fetchAndMarkRead(
       timestamp: msg.timestamp,
     }))
 
-    if (messages.length > 0) {
+    if (markRead && messages.length > 0) {
       return markAsRead(
         client,
         messages.map((m) => m.id),
@@ -209,16 +210,20 @@ export function createMcpServer(config: ServerConfig) {
         readClient = botClientResult.value
       }
 
-      return fetchAndMarkRead(readClient, {
-        anchor: 'newest',
-        numBefore: count,
-        numAfter: 0,
-        narrow: [
-          { operator: 'stream', operand: stream },
-          { operator: 'topic', operand: topic },
-        ],
-        applyMarkdown: false,
-      }).match(
+      return fetchMessages(
+        readClient,
+        {
+          anchor: 'newest',
+          numBefore: count,
+          numAfter: 0,
+          narrow: [
+            { operator: 'stream', operand: stream },
+            { operator: 'topic', operand: topic },
+          ],
+          applyMarkdown: false,
+        },
+        { markRead: !!sender },
+      ).match(
         (messages) => {
           if (messages.length === 0) {
             return textResult(`(no messages in ${stream}/${topic})`)
@@ -358,14 +363,14 @@ export function createMcpServer(config: ServerConfig) {
         return textResult('(no subscriptions)')
       }
 
-      // Fetch unread messages from all subscriptions in parallel
+      // Fetch unread messages from all subscriptions in parallel (without marking read yet)
       const fetchResults = await Promise.all(
         subs.map((sub) => {
           const narrow = [
             { operator: 'stream', operand: sub.stream },
             ...(sub.topic ? [{ operator: 'topic', operand: sub.topic }] : []),
           ]
-          return fetchAndMarkRead(
+          return fetchMessages(
             botClient,
             {
               anchor: 'first_unread',
@@ -374,8 +379,7 @@ export function createMcpServer(config: ServerConfig) {
               narrow,
               applyMarkdown: false,
             },
-            sub.stream,
-            sub.topic,
+            { streamFallback: sub.stream, topicFallback: sub.topic },
           )
         }),
       )
@@ -389,6 +393,12 @@ export function createMcpServer(config: ServerConfig) {
       if (trimmed.length === 0) {
         return textResult('(no unread messages across your subscriptions)')
       }
+
+      // Mark only the messages we're returning as read
+      await markAsRead(
+        botClient,
+        trimmed.map((m) => m.id),
+      )
 
       const header =
         allMessages.length > maxMessages
