@@ -29,32 +29,41 @@ type EventListenerOptions = {
 
 const RETRY_DELAY_MS = 5000
 
-/**
- * Mark a message as read for each teammate that received it,
- * using their individual bot API keys.
- */
-async function markReadForTeammates(
+/** Cache of per-bot ZulipClients, keyed by teammate name. */
+type BotClientCache = Map<string, ZulipClient>
+
+/** Build or refresh the bot client cache from the DB. */
+async function refreshBotClientCache(
   db: Kysely<ZulerDatabase>,
   site: string,
+  cache: BotClientCache,
+): Promise<void> {
+  const result = await listTeammates(db)
+  if (result.isErr()) return
+  for (const t of result.value) {
+    if (!cache.has(t.name)) {
+      cache.set(t.name, createClient({ site, email: t.botEmail, apiKey: t.apiKey }))
+    }
+  }
+}
+
+/**
+ * Mark a message as read for each teammate that received it,
+ * using their cached bot clients.
+ */
+async function markReadForTeammates(
+  cache: BotClientCache,
   messageId: number,
   teammateNames: readonly string[],
+  onError?: (error: unknown) => void,
 ): Promise<void> {
-  const teammatesResult = await listTeammates(db)
-  if (teammatesResult.isErr()) return
-
-  const teammates = teammatesResult.value
-  const byName = new Map(teammates.map((t) => [t.name, t]))
-
   for (const name of teammateNames) {
-    const teammate = byName.get(name)
-    if (!teammate) continue
-    const botClient = createClient({
-      site,
-      email: teammate.botEmail,
-      apiKey: teammate.apiKey,
-    })
-    // Fire and forget — don't block delivery on read-tracking
-    markAsRead(botClient, [messageId])
+    const botClient = cache.get(name)
+    if (!botClient) continue
+    const result = await markAsRead(botClient, [messageId])
+    if (result.isErr()) {
+      onError?.(result.error)
+    }
   }
 }
 
@@ -72,8 +81,12 @@ async function markReadForTeammates(
  */
 export async function startEventListener(options: EventListenerOptions): Promise<void> {
   const { client, db, teamName, onRoute, onError, signal } = options
+  const botClientCache: BotClientCache = new Map()
 
   while (!signal?.aborted) {
+    // Refresh the cache on each queue registration (picks up new teammates)
+    await refreshBotClientCache(db, client.config.site, botClientCache)
+
     // Register a new event queue
     const regResult = await registerQueue(client, { eventTypes: ['message'] })
 
@@ -109,22 +122,21 @@ export async function startEventListener(options: EventListenerOptions): Promise
         const result = await routeMessage(db, teamName, event.message)
 
         if (result.delivered.length > 0) {
+          const deliveredNames = result.delivered.map((d) => d.teammate)
           const msg = event.message
           onRoute?.({
             stream: msg.type === 'stream' ? msg.display_recipient : undefined,
             topic: msg.type === 'stream' ? msg.subject : undefined,
             sender: msg.sender_full_name,
-            deliveredTo: result.delivered.map((d) => d.teammate),
+            deliveredTo: deliveredNames,
             autoSubscribed: result.autoSubscribed,
           })
 
-          // Mark as read for each teammate using their bot's API key
-          markReadForTeammates(
-            db,
-            client.config.site,
-            result.messageId,
-            result.delivered.map((d) => d.teammate),
-          )
+          // Refresh cache in case new teammates were registered since last refresh
+          await refreshBotClientCache(db, client.config.site, botClientCache)
+
+          // Mark as read for each teammate using their cached bot client
+          await markReadForTeammates(botClientCache, result.messageId, deliveredNames, onError)
         }
       }
     }
