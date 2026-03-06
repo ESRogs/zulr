@@ -10,7 +10,13 @@ export type {
   SendDirectMessageParams,
   SendStreamMessageParams,
 } from './messages.ts'
-export { getMessages, sendDirectMessage, sendStreamMessage } from './messages.ts'
+export {
+  getMessages,
+  markAsRead,
+  sendDirectMessage,
+  sendStreamMessage,
+  updateMessageFlags,
+} from './messages.ts'
 export type {
   Bot,
   CreateBotResponse,
@@ -29,6 +35,7 @@ export type {
   Stream,
   StreamMessage,
   SubscribeResponse,
+  UpdateMessageFlagsResponse,
 } from './schemas.ts'
 export { getStreams, subscribe } from './streams.ts'
 export { getMembers } from './users.ts'

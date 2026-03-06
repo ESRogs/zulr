@@ -74,6 +74,7 @@ test('stream message delivered to subscribed teammate', async () => {
 
   const result = await routeMessage(db, teamName, makeStreamMessage())
 
+  expect(result.messageId).toBe(1)
   expect(result.delivered).toHaveLength(1)
   expect(result.delivered[0]!.teammate).toBe('alice')
 
