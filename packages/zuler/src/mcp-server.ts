@@ -1,8 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { Kysely } from 'kysely'
+import { okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
-import type { GetMessagesParams, ZulipClient } from 'zulip-ts'
+import type { GetMessagesParams, ZulipClient, ZulipError } from 'zulip-ts'
 import {
   createClient,
   getMessages,
@@ -34,35 +35,31 @@ type FormattedMessage = {
 }
 
 /** Fetch messages and mark them as read. Shared by `read` and `catch-up` tools. */
-async function fetchAndMarkRead(
+function fetchAndMarkRead(
   client: ZulipClient,
   params: GetMessagesParams,
   streamFallback?: string,
   topicFallback?: string,
-): Promise<{ messages: FormattedMessage[]; error?: string }> {
-  const result = await getMessages(client, params)
+): ResultAsync<readonly FormattedMessage[], ZulipError> {
+  return getMessages(client, params).andThen((res) => {
+    const messages: FormattedMessage[] = res.messages.map((msg) => ({
+      id: msg.id,
+      stream: msg.type === 'stream' ? msg.display_recipient : (streamFallback ?? ''),
+      topic: msg.type === 'stream' ? msg.subject : (topicFallback ?? ''),
+      sender: msg.sender_full_name,
+      content: msg.content,
+      timestamp: msg.timestamp,
+    }))
 
-  if (result.isErr()) {
-    return { messages: [], error: JSON.stringify(result.error) }
-  }
+    if (messages.length > 0) {
+      return markAsRead(
+        client,
+        messages.map((m) => m.id),
+      ).map(() => messages)
+    }
 
-  const messages: FormattedMessage[] = result.value.messages.map((msg) => ({
-    id: msg.id,
-    stream: msg.type === 'stream' ? msg.display_recipient : (streamFallback ?? ''),
-    topic: msg.type === 'stream' ? msg.subject : (topicFallback ?? ''),
-    sender: msg.sender_full_name,
-    content: msg.content,
-    timestamp: msg.timestamp,
-  }))
-
-  if (messages.length > 0) {
-    await markAsRead(
-      client,
-      messages.map((m) => m.id),
-    )
-  }
-
-  return { messages }
+    return okAsync(messages)
+  })
 }
 
 function formatMessages(messages: readonly FormattedMessage[], includeLocation: boolean): string {
@@ -244,7 +241,7 @@ export function createMcpServer(config: ServerConfig) {
           )
         : adminClient
 
-      const { messages, error } = await fetchAndMarkRead(readClient, {
+      const result = await fetchAndMarkRead(readClient, {
         anchor: 'newest',
         numBefore: count,
         numAfter: 0,
@@ -255,13 +252,20 @@ export function createMcpServer(config: ServerConfig) {
         applyMarkdown: false,
       })
 
-      if (error) {
-        return { content: [{ type: 'text' as const, text: `error: ${error}` }], isError: true }
-      }
-      if (messages.length === 0) {
-        return { content: [{ type: 'text' as const, text: `(no messages in ${stream}/${topic})` }] }
-      }
-      return { content: [{ type: 'text' as const, text: formatMessages(messages, false) }] }
+      return result.match(
+        (messages) => {
+          if (messages.length === 0) {
+            return {
+              content: [{ type: 'text' as const, text: `(no messages in ${stream}/${topic})` }],
+            }
+          }
+          return { content: [{ type: 'text' as const, text: formatMessages(messages, false) }] }
+        },
+        (err) => ({
+          content: [{ type: 'text' as const, text: `error: ${JSON.stringify(err)}` }],
+          isError: true,
+        }),
+      )
     },
   )
 
@@ -432,7 +436,7 @@ export function createMcpServer(config: ServerConfig) {
           ...(sub.topic ? [{ operator: 'topic', operand: sub.topic }] : []),
         ]
 
-        const { messages } = await fetchAndMarkRead(
+        const result = await fetchAndMarkRead(
           botClient,
           {
             anchor: 'first_unread',
@@ -444,7 +448,9 @@ export function createMcpServer(config: ServerConfig) {
           sub.stream,
           sub.topic,
         )
-        allMessages.push(...messages)
+        if (result.isOk()) {
+          allMessages.push(...result.value)
+        }
       }
 
       // Sort by timestamp, take most recent maxMessages
