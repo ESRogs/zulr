@@ -4,14 +4,12 @@ import { createDatabase, type ZulerDatabase } from './db.ts'
 import {
   addStreamSubscription,
   addTopicSubscription,
-  getTeammate,
-  listTeammates,
-  registerTeammate,
   removeAllStreamSubscriptions,
   removeStreamSubscription,
   removeTopicSubscription,
   shouldReceive,
-} from './state.ts'
+} from './subscriptions.ts'
+import { getTeammate, listTeammates, registerTeammate } from './teammates.ts'
 
 let db: Kysely<ZulerDatabase>
 

@@ -1,77 +1,19 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { Kysely } from 'kysely'
-import { okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
-import type { GetMessagesParams, ZulipClient, ZulipError } from 'zulip-ts'
-import {
-  createClient,
-  getMessages,
-  markAsRead,
-  sendDirectMessage,
-  sendStreamMessage,
-} from 'zulip-ts'
-import { clientForTeammate, registerBot } from './bot-manager.ts'
-import type { ZulerDatabase } from './db.ts'
-import { startEventListener } from './event-listener.ts'
+import { createClient, markAsRead, sendDirectMessage, sendStreamMessage } from 'zulip-ts'
+import { clientForTeammate, registerBot } from '../bot-manager.ts'
+import type { ZulerDatabase } from '../state/db.ts'
 import {
   addStreamSubscription,
   addTopicSubscription,
-  getTeammate,
-  listTeammates,
   removeAllStreamSubscriptions,
   removeStreamSubscription,
   removeTopicSubscription,
-} from './state.ts'
-import { checkUnreadBeforePost } from './unread-check.ts'
-
-type FormattedMessage = {
-  readonly id: number
-  readonly stream: string
-  readonly topic: string
-  readonly sender: string
-  readonly content: string
-  readonly timestamp: number
-}
-
-/** Fetch messages, optionally marking them as read. Shared by `read` and `catch-up` tools. */
-function fetchMessages(
-  client: ZulipClient,
-  params: GetMessagesParams,
-  options?: { markRead?: boolean; streamFallback?: string; topicFallback?: string },
-): ResultAsync<readonly FormattedMessage[], ZulipError> {
-  const { markRead = true, streamFallback, topicFallback } = options ?? {}
-
-  return getMessages(client, params).andThen((res) => {
-    const messages: FormattedMessage[] = res.messages.map((msg) => ({
-      id: msg.id,
-      stream: msg.type === 'stream' ? msg.display_recipient : (streamFallback ?? ''),
-      topic: msg.type === 'stream' ? msg.subject : (topicFallback ?? ''),
-      sender: msg.sender_full_name,
-      content: msg.content,
-      timestamp: msg.timestamp,
-    }))
-
-    if (markRead && messages.length > 0) {
-      return markAsRead(
-        client,
-        messages.map((m) => m.id),
-      ).map(() => messages)
-    }
-
-    return okAsync(messages)
-  })
-}
-
-function formatMessages(messages: readonly FormattedMessage[], includeLocation: boolean): string {
-  return messages
-    .map((msg) => {
-      const dt = new Date(msg.timestamp * 1000).toISOString()
-      const prefix = includeLocation ? `${msg.stream}/${msg.topic} — ` : ''
-      return `[${dt}] ${prefix}${msg.sender}: ${msg.content}`
-    })
-    .join('\n')
-}
+} from '../state/subscriptions.ts'
+import { getTeammate, listTeammates } from '../state/teammates.ts'
+import { fetchMessages, formatMessages } from '../zulip/message-reader.ts'
+import { checkUnreadBeforePost } from '../zulip/unread-check.ts'
 
 /** MCP tool response helpers */
 function textResult(text: string) {
@@ -82,7 +24,7 @@ function errorResult(text: string) {
   return { content: [{ type: 'text' as const, text }], isError: true as const }
 }
 
-type ServerConfig = {
+export type ServerConfig = {
   readonly db: Kysely<ZulerDatabase>
   readonly zulipSite: string
   readonly zulipEmail: string
@@ -200,7 +142,6 @@ export function createMcpServer(config: ServerConfig) {
       }),
     },
     async ({ stream, topic, count, sender }) => {
-      // Resolve client: bot client if sender provided, otherwise admin
       let readClient = adminClient
       if (sender) {
         const botClientResult = await clientForTeammate(db, zulipSite, sender)
@@ -346,14 +287,10 @@ export function createMcpServer(config: ServerConfig) {
       }
       const botClient = botClientResult.value
 
-      // Collect subscriptions
-      const subs: { stream: string; topic?: string }[] = []
-      for (const stream of teammate.streamSubs) {
-        subs.push({ stream })
-      }
-      for (const sub of teammate.topicSubs) {
-        subs.push({ stream: sub.stream, topic: sub.topic })
-      }
+      const subs: { stream: string; topic?: string }[] = [
+        ...teammate.streamSubs.map((stream) => ({ stream })),
+        ...teammate.topicSubs.map(({ stream, topic }) => ({ stream, topic })),
+      ]
 
       if (subs.length === 0) {
         return textResult('(no subscriptions)')
@@ -363,8 +300,8 @@ export function createMcpServer(config: ServerConfig) {
       const fetchResults = await Promise.all(
         subs.map((sub) => {
           const narrow = [
-            { operator: 'stream', operand: sub.stream },
-            ...(sub.topic ? [{ operator: 'topic', operand: sub.topic }] : []),
+            { operator: 'stream' as const, operand: sub.stream },
+            ...(sub.topic ? [{ operator: 'topic' as const, operand: sub.topic }] : []),
           ]
           return fetchMessages(
             botClient,
@@ -406,34 +343,4 @@ export function createMcpServer(config: ServerConfig) {
   )
 
   return server
-}
-
-/** Start the MCP server with stdio transport and background event listener. */
-export async function startServer(config: ServerConfig): Promise<void> {
-  const server = createMcpServer(config)
-  const adminClient = createClient({
-    site: config.zulipSite,
-    email: config.zulipEmail,
-    apiKey: config.zulipApiKey,
-  })
-
-  const abortController = new AbortController()
-
-  // Start event listener in background
-  startEventListener({
-    client: adminClient,
-    db: config.db,
-    teamName: config.teamName,
-    signal: abortController.signal,
-    onRoute: (info) => {
-      const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
-      console.error(`[zuler] ${location} from ${info.sender} → ${info.deliveredTo.join(', ')}`)
-    },
-    onError: (err) => {
-      console.error('[zuler] event listener error:', err)
-    },
-  })
-
-  const transport = new StdioServerTransport()
-  await server.connect(transport)
 }

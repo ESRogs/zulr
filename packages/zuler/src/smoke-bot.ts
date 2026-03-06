@@ -1,7 +1,7 @@
 import { createClient } from 'zulip-ts'
 import { clientForTeammate, registerBot } from './bot-manager.ts'
-import { createDatabase } from './db.ts'
-import { listTeammates } from './state.ts'
+import { createDatabase } from './state/db.ts'
+import { listTeammates } from './state/teammates.ts'
 
 const site = process.env.ZULIP_SITE
 const email = process.env.ZULIP_EMAIL

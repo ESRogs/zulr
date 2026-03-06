@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely'
 import { err, ok, type Result } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
-import type { StateError } from './state.ts'
+import type { StateError } from './teammates.ts'
 
 /**
  * A single line in the exported JSONL config file.
