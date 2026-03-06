@@ -320,22 +320,19 @@ export function createMcpServer(config: ServerConfig) {
     'catch-up',
     {
       description:
-        'Fetch recent messages from all subscribed streams/topics. Useful for getting up to speed after a restart or context compaction.',
+        "Fetch unread messages from all subscribed streams/topics. Uses Zulip's per-bot read tracking, so it returns messages the teammate hasn't seen yet. Useful after restart or context compaction.",
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
-        maxHours: z
-          .number()
-          .optional()
-          .default(24)
-          .describe('Maximum lookback time in hours (default: 24)'),
         maxMessages: z
           .number()
           .optional()
           .default(25)
-          .describe('Maximum total messages to return (default: 25)'),
+          .describe(
+            'Maximum total messages to return (default: 25). Returns the most recent if more are available.',
+          ),
       }),
     },
-    async ({ sender, maxHours, maxMessages }) => {
+    async ({ sender, maxMessages }) => {
       const teammateResult = await getTeammate(db, sender)
       if (teammateResult.isErr()) {
         return {
@@ -345,22 +342,33 @@ export function createMcpServer(config: ServerConfig) {
       }
 
       const teammate = teammateResult.value
-      const cutoff = Date.now() / 1000 - maxHours * 3600
+
+      // Use the bot's own API key so Zulip's read tracking applies
+      const botClientResult = await clientForTeammate(db, zulipSite, sender)
+      if (botClientResult.isErr()) {
+        return {
+          content: [
+            { type: 'text' as const, text: `error: ${JSON.stringify(botClientResult.error)}` },
+          ],
+          isError: true,
+        }
+      }
+      const botClient = botClientResult.value
 
       // Collect unique stream/topic pairs from subscriptions
-      const topics: { stream: string; topic?: string }[] = []
+      const subs: { stream: string; topic?: string }[] = []
       for (const stream of teammate.streamSubs) {
-        topics.push({ stream })
+        subs.push({ stream })
       }
       for (const sub of teammate.topicSubs) {
-        topics.push({ stream: sub.stream, topic: sub.topic })
+        subs.push({ stream: sub.stream, topic: sub.topic })
       }
 
-      if (topics.length === 0) {
+      if (subs.length === 0) {
         return { content: [{ type: 'text' as const, text: '(no subscriptions)' }] }
       }
 
-      // Fetch messages from each subscription, filter by time
+      // Fetch unread messages from each subscription using the bot's API key
       type FetchedMessage = {
         stream: string
         topic: string
@@ -370,31 +378,29 @@ export function createMcpServer(config: ServerConfig) {
       }
       const allMessages: FetchedMessage[] = []
 
-      for (const sub of topics) {
+      for (const sub of subs) {
         const narrow = [
           { operator: 'stream', operand: sub.stream },
           ...(sub.topic ? [{ operator: 'topic', operand: sub.topic }] : []),
         ]
 
-        const result = await getMessages(adminClient, {
-          anchor: 'newest',
-          numBefore: maxMessages,
-          numAfter: 0,
+        const result = await getMessages(botClient, {
+          anchor: 'first_unread',
+          numBefore: 0,
+          numAfter: maxMessages,
           narrow,
           applyMarkdown: false,
         })
 
         if (result.isOk()) {
           for (const msg of result.value.messages) {
-            if (msg.timestamp >= cutoff) {
-              allMessages.push({
-                stream: msg.type === 'stream' ? msg.display_recipient : sub.stream,
-                topic: msg.type === 'stream' ? msg.subject : (sub.topic ?? ''),
-                sender: msg.sender_full_name,
-                content: msg.content,
-                timestamp: msg.timestamp,
-              })
-            }
+            allMessages.push({
+              stream: msg.type === 'stream' ? msg.display_recipient : sub.stream,
+              topic: msg.type === 'stream' ? msg.subject : (sub.topic ?? ''),
+              sender: msg.sender_full_name,
+              content: msg.content,
+              timestamp: msg.timestamp,
+            })
           }
         }
       }
@@ -406,10 +412,7 @@ export function createMcpServer(config: ServerConfig) {
       if (trimmed.length === 0) {
         return {
           content: [
-            {
-              type: 'text' as const,
-              text: `(no messages in the last ${maxHours} hour(s) across your subscriptions)`,
-            },
+            { type: 'text' as const, text: '(no unread messages across your subscriptions)' },
           ],
         }
       }
@@ -421,7 +424,7 @@ export function createMcpServer(config: ServerConfig) {
 
       const header =
         allMessages.length > maxMessages
-          ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent):\n\n`
+          ? `Showing ${trimmed.length} of ${allMessages.length} unread messages (most recent):\n\n`
           : ''
 
       return { content: [{ type: 'text' as const, text: `${header}${lines.join('\n')}` }] }
