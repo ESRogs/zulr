@@ -13,12 +13,21 @@
   },
   "linter": {
     "rules": {
-      "recommended": true,
-      "style": {
-        "noNonNullAssertion": "off"
-      }
+      "recommended": true
     }
   },
+  "overrides": [
+    {
+      "includes": ["**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    }
+  ],
   "files": {
     "includes": ["packages/*/src/**/*.ts"]
   }
