@@ -51,6 +51,13 @@ export const GetMessagesResponseSchema = z.object({
 })
 export type GetMessagesResponse = z.infer<typeof GetMessagesResponseSchema>
 
+export const UpdateMessageFlagsResponseSchema = z.object({
+  result: z.literal('success'),
+  msg: z.string(),
+  messages: z.array(z.number()),
+})
+export type UpdateMessageFlagsResponse = z.infer<typeof UpdateMessageFlagsResponseSchema>
+
 // --- Streams ---
 
 export const StreamSchema = z.object({

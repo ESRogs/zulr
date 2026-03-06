@@ -5,6 +5,8 @@ import {
   GetMessagesResponseSchema,
   type SendMessageResponse,
   SendMessageResponseSchema,
+  type UpdateMessageFlagsResponse,
+  UpdateMessageFlagsResponseSchema,
 } from './schemas.ts'
 
 export type SendDirectMessageParams = {
@@ -61,11 +63,40 @@ export type NarrowFilter = {
 }
 
 export type GetMessagesParams = {
-  readonly anchor: 'newest' | 'oldest' | number
+  readonly anchor: 'newest' | 'oldest' | 'first_unread' | number
   readonly numBefore: number
   readonly numAfter: number
   readonly narrow: readonly NarrowFilter[]
   readonly applyMarkdown?: boolean
+}
+
+/** Mark messages as read (or other flag) for the authenticated user. */
+export function updateMessageFlags(
+  client: ZulipClient,
+  messageIds: readonly number[],
+  op: 'add' | 'remove',
+  flag: string,
+): ResultAsync<UpdateMessageFlagsResponse, ZulipError> {
+  return client.request(
+    {
+      method: 'POST',
+      path: '/messages/flags',
+      body: {
+        messages: messageIds,
+        op,
+        flag,
+      },
+    },
+    UpdateMessageFlagsResponseSchema,
+  )
+}
+
+/** Mark specific messages as read for the authenticated user. */
+export function markAsRead(
+  client: ZulipClient,
+  messageIds: readonly number[],
+): ResultAsync<UpdateMessageFlagsResponse, ZulipError> {
+  return updateMessageFlags(client, messageIds, 'add', 'read')
 }
 
 export function getMessages(
