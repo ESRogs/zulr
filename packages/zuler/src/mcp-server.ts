@@ -315,6 +315,119 @@ export function createMcpServer(config: ServerConfig) {
     },
   )
 
+  // --- catch-up ---
+  server.registerTool(
+    'catch-up',
+    {
+      description:
+        'Fetch recent messages from all subscribed streams/topics. Useful for getting up to speed after a restart or context compaction.',
+      inputSchema: z.object({
+        sender: z.string().describe('Teammate name'),
+        maxHours: z
+          .number()
+          .optional()
+          .default(24)
+          .describe('Maximum lookback time in hours (default: 24)'),
+        maxMessages: z
+          .number()
+          .optional()
+          .default(25)
+          .describe('Maximum total messages to return (default: 25)'),
+      }),
+    },
+    async ({ sender, maxHours, maxMessages }) => {
+      const teammateResult = await getTeammate(db, sender)
+      if (teammateResult.isErr()) {
+        return {
+          content: [{ type: 'text' as const, text: `error: ${teammateResult.error.message}` }],
+          isError: true,
+        }
+      }
+
+      const teammate = teammateResult.value
+      const cutoff = Date.now() / 1000 - maxHours * 3600
+
+      // Collect unique stream/topic pairs from subscriptions
+      const topics: { stream: string; topic?: string }[] = []
+      for (const stream of teammate.streamSubs) {
+        topics.push({ stream })
+      }
+      for (const sub of teammate.topicSubs) {
+        topics.push({ stream: sub.stream, topic: sub.topic })
+      }
+
+      if (topics.length === 0) {
+        return { content: [{ type: 'text' as const, text: '(no subscriptions)' }] }
+      }
+
+      // Fetch messages from each subscription, filter by time
+      type FetchedMessage = {
+        stream: string
+        topic: string
+        sender: string
+        content: string
+        timestamp: number
+      }
+      const allMessages: FetchedMessage[] = []
+
+      for (const sub of topics) {
+        const narrow = [
+          { operator: 'stream', operand: sub.stream },
+          ...(sub.topic ? [{ operator: 'topic', operand: sub.topic }] : []),
+        ]
+
+        const result = await getMessages(adminClient, {
+          anchor: 'newest',
+          numBefore: maxMessages,
+          numAfter: 0,
+          narrow,
+          applyMarkdown: false,
+        })
+
+        if (result.isOk()) {
+          for (const msg of result.value.messages) {
+            if (msg.timestamp >= cutoff) {
+              allMessages.push({
+                stream: msg.type === 'stream' ? msg.display_recipient : sub.stream,
+                topic: msg.type === 'stream' ? msg.subject : (sub.topic ?? ''),
+                sender: msg.sender_full_name,
+                content: msg.content,
+                timestamp: msg.timestamp,
+              })
+            }
+          }
+        }
+      }
+
+      // Sort by timestamp, take most recent maxMessages
+      allMessages.sort((a, b) => a.timestamp - b.timestamp)
+      const trimmed = allMessages.slice(-maxMessages)
+
+      if (trimmed.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `(no messages in the last ${maxHours} hour(s) across your subscriptions)`,
+            },
+          ],
+        }
+      }
+
+      const lines = trimmed.map((msg) => {
+        const dt = new Date(msg.timestamp * 1000).toISOString()
+        return `[${dt}] ${msg.stream}/${msg.topic} — ${msg.sender}: ${msg.content}`
+      })
+
+      const header =
+        allMessages.length > maxMessages
+          ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent):\n\n`
+          : ''
+
+      return { content: [{ type: 'text' as const, text: `${header}${lines.join('\n')}` }] }
+    },
+  )
+
   return server
 }
 
