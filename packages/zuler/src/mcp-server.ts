@@ -72,6 +72,15 @@ function formatMessages(messages: readonly FormattedMessage[], includeLocation: 
     .join('\n')
 }
 
+/** MCP tool response helpers */
+function textResult(text: string) {
+  return { content: [{ type: 'text' as const, text }] }
+}
+
+function errorResult(text: string) {
+  return { content: [{ type: 'text' as const, text }], isError: true as const }
+}
+
 type ServerConfig = {
   readonly db: Kysely<ZulerDatabase>
   readonly zulipSite: string
@@ -101,13 +110,8 @@ export function createMcpServer(config: ServerConfig) {
     async ({ name }) => {
       const result = await registerBot(adminClient, db, name)
       return result.match(
-        (info) => ({
-          content: [{ type: 'text' as const, text: `registered '${name}' (${info.botEmail})` }],
-        }),
-        (err) => ({
-          content: [{ type: 'text' as const, text: `error: ${JSON.stringify(err)}` }],
-          isError: true,
-        }),
+        (info) => textResult(`registered '${name}' (${info.botEmail})`),
+        (err) => errorResult(`error: ${JSON.stringify(err)}`),
       )
     },
   )
@@ -122,21 +126,13 @@ export function createMcpServer(config: ServerConfig) {
     async () => {
       const result = await listTeammates(db)
       return result.match(
-        (list) => ({
-          content: [
-            {
-              type: 'text' as const,
-              text:
-                list.length === 0
-                  ? '(no registered teammates)'
-                  : list.map((t) => `${t.name} <${t.botEmail}>`).join('\n'),
-            },
-          ],
-        }),
-        (err) => ({
-          content: [{ type: 'text' as const, text: `error: ${err.message}` }],
-          isError: true,
-        }),
+        (list) =>
+          textResult(
+            list.length === 0
+              ? '(no registered teammates)'
+              : list.map((t) => `${t.name} <${t.botEmail}>`).join('\n'),
+          ),
+        (err) => errorResult(`error: ${err.message}`),
       )
     },
   )
@@ -159,63 +155,33 @@ export function createMcpServer(config: ServerConfig) {
       if (stream && topic) {
         const blocked = checkUnreadBeforePost(teamName, sender, stream, topic)
         if (blocked) {
-          return {
-            content: [{ type: 'text' as const, text: blocked }],
-            isError: true,
-          }
+          return errorResult(blocked)
         }
       }
 
       const clientResult = await clientForTeammate(db, zulipSite, sender)
       if (clientResult.isErr()) {
-        return {
-          content: [
-            { type: 'text' as const, text: `error: ${JSON.stringify(clientResult.error)}` },
-          ],
-          isError: true,
-        }
+        return errorResult(`error: ${JSON.stringify(clientResult.error)}`)
       }
       const senderClient = clientResult.value
 
       if (to !== undefined) {
         const result = await sendDirectMessage(senderClient, { to: [to], content })
         return result.match(
-          () => ({
-            content: [
-              { type: 'text' as const, text: `sent DM (id: ${result._unsafeUnwrap().id})` },
-            ],
-          }),
-          (err) => ({
-            content: [{ type: 'text' as const, text: `error: ${JSON.stringify(err)}` }],
-            isError: true,
-          }),
+          (res) => textResult(`sent DM (id: ${res.id})`),
+          (err) => errorResult(`error: ${JSON.stringify(err)}`),
         )
       }
 
       if (stream && topic) {
         const result = await sendStreamMessage(senderClient, { to: stream, topic, content })
         return result.match(
-          (res) => ({
-            content: [
-              { type: 'text' as const, text: `posted to ${stream}/${topic} (id: ${res.id})` },
-            ],
-          }),
-          (err) => ({
-            content: [{ type: 'text' as const, text: `error: ${JSON.stringify(err)}` }],
-            isError: true,
-          }),
+          (res) => textResult(`posted to ${stream}/${topic} (id: ${res.id})`),
+          (err) => errorResult(`error: ${JSON.stringify(err)}`),
         )
       }
 
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: 'error: provide either "to" (for DMs) or "stream" and "topic"',
-          },
-        ],
-        isError: true,
-      }
+      return errorResult('error: provide either "to" (for DMs) or "stream" and "topic"')
     },
   )
 
@@ -238,12 +204,7 @@ export function createMcpServer(config: ServerConfig) {
       if (sender) {
         const botClientResult = await clientForTeammate(db, zulipSite, sender)
         if (botClientResult.isErr()) {
-          return {
-            content: [
-              { type: 'text' as const, text: `error: ${JSON.stringify(botClientResult.error)}` },
-            ],
-            isError: true,
-          }
+          return errorResult(`error: ${JSON.stringify(botClientResult.error)}`)
         }
         readClient = botClientResult.value
       }
@@ -260,16 +221,11 @@ export function createMcpServer(config: ServerConfig) {
       }).match(
         (messages) => {
           if (messages.length === 0) {
-            return {
-              content: [{ type: 'text' as const, text: `(no messages in ${stream}/${topic})` }],
-            }
+            return textResult(`(no messages in ${stream}/${topic})`)
           }
-          return { content: [{ type: 'text' as const, text: formatMessages(messages, false) }] }
+          return textResult(formatMessages(messages, false))
         },
-        (err) => ({
-          content: [{ type: 'text' as const, text: `error: ${JSON.stringify(err)}` }],
-          isError: true,
-        }),
+        (err) => errorResult(`error: ${JSON.stringify(err)}`),
       )
     },
   )
@@ -291,18 +247,8 @@ export function createMcpServer(config: ServerConfig) {
         : await addStreamSubscription(db, sender, stream)
 
       return result.match(
-        () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: `subscribed to ${topic ? `${stream}/${topic}` : stream}`,
-            },
-          ],
-        }),
-        (err) => ({
-          content: [{ type: 'text' as const, text: `error: ${err.message}` }],
-          isError: true,
-        }),
+        () => textResult(`subscribed to ${topic ? `${stream}/${topic}` : stream}`),
+        (err) => errorResult(`error: ${err.message}`),
       )
     },
   )
@@ -333,11 +279,8 @@ export function createMcpServer(config: ServerConfig) {
 
       const target = all ? `${stream} (all)` : topic ? `${stream}/${topic}` : stream
       return result.match(
-        () => ({ content: [{ type: 'text' as const, text: `unsubscribed from ${target}` }] }),
-        (err) => ({
-          content: [{ type: 'text' as const, text: `error: ${err.message}` }],
-          isError: true,
-        }),
+        () => textResult(`unsubscribed from ${target}`),
+        (err) => errorResult(`error: ${err.message}`),
       )
     },
   )
@@ -364,19 +307,9 @@ export function createMcpServer(config: ServerConfig) {
             lines.push('topics:')
             for (const sub of t.topicSubs) lines.push(`  ${sub.stream}/${sub.topic}`)
           }
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: lines.length === 0 ? '(no subscriptions)' : lines.join('\n'),
-              },
-            ],
-          }
+          return textResult(lines.length === 0 ? '(no subscriptions)' : lines.join('\n'))
         },
-        (err) => ({
-          content: [{ type: 'text' as const, text: `error: ${err.message}` }],
-          isError: true,
-        }),
+        (err) => errorResult(`error: ${err.message}`),
       )
     },
   )
@@ -401,22 +334,14 @@ export function createMcpServer(config: ServerConfig) {
     async ({ sender, maxMessages }) => {
       const teammateResult = await getTeammate(db, sender)
       if (teammateResult.isErr()) {
-        return {
-          content: [{ type: 'text' as const, text: `error: ${teammateResult.error.message}` }],
-          isError: true,
-        }
+        return errorResult(`error: ${teammateResult.error.message}`)
       }
 
       const teammate = teammateResult.value
 
       const botClientResult = await clientForTeammate(db, zulipSite, sender)
       if (botClientResult.isErr()) {
-        return {
-          content: [
-            { type: 'text' as const, text: `error: ${JSON.stringify(botClientResult.error)}` },
-          ],
-          isError: true,
-        }
+        return errorResult(`error: ${JSON.stringify(botClientResult.error)}`)
       }
       const botClient = botClientResult.value
 
@@ -430,7 +355,7 @@ export function createMcpServer(config: ServerConfig) {
       }
 
       if (subs.length === 0) {
-        return { content: [{ type: 'text' as const, text: '(no subscriptions)' }] }
+        return textResult('(no subscriptions)')
       }
 
       // Fetch unread messages from all subscriptions in parallel
@@ -462,11 +387,7 @@ export function createMcpServer(config: ServerConfig) {
       const trimmed = allMessages.slice(-maxMessages)
 
       if (trimmed.length === 0) {
-        return {
-          content: [
-            { type: 'text' as const, text: '(no unread messages across your subscriptions)' },
-          ],
-        }
+        return textResult('(no unread messages across your subscriptions)')
       }
 
       const header =
@@ -474,9 +395,7 @@ export function createMcpServer(config: ServerConfig) {
           ? `Showing ${trimmed.length} of ${allMessages.length} unread messages (most recent):\n\n`
           : ''
 
-      return {
-        content: [{ type: 'text' as const, text: `${header}${formatMessages(trimmed, true)}` }],
-      }
+      return textResult(`${header}${formatMessages(trimmed, true)}`)
     },
   )
 
