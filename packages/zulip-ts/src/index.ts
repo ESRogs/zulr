@@ -14,6 +14,8 @@ export { getMessages, sendDirectMessage, sendStreamMessage } from './messages.ts
 export type {
   Bot,
   CreateBotResponse,
+  DmMessage,
+  DmRecipient,
   Event,
   GetBotsResponse,
   GetEventsResponse,
@@ -25,6 +27,7 @@ export type {
   RegisterQueueResponse,
   SendMessageResponse,
   Stream,
+  StreamMessage,
   SubscribeResponse,
 } from './schemas.ts'
 export { getStreams, subscribe } from './streams.ts'

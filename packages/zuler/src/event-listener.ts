@@ -76,10 +76,9 @@ export async function startEventListener(options: EventListenerOptions): Promise
 
         if (result.delivered.length > 0) {
           const msg = event.message
-          const recipient = msg.display_recipient
           onRoute?.({
-            stream: typeof recipient === 'string' ? recipient : undefined,
-            topic: typeof recipient === 'string' ? msg.subject : undefined,
+            stream: msg.type === 'stream' ? msg.display_recipient : undefined,
+            topic: msg.type === 'stream' ? msg.subject : undefined,
             sender: msg.sender_full_name,
             deliveredTo: result.delivered.map((d) => d.teammate),
             autoSubscribed: result.autoSubscribed,

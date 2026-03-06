@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely'
-import type { Message } from 'zulip-ts'
+import type { DmMessage, Message, StreamMessage } from 'zulip-ts'
 import type { ZulerDatabase } from './db.ts'
 import { writeToInbox } from './inbox.ts'
 import { addTopicSubscription, listTeammates, shouldReceive } from './state.ts'
@@ -43,19 +43,13 @@ function identifySender(
 export async function routeDm(
   db: Kysely<ZulerDatabase>,
   teamName: string,
-  message: Message,
+  message: DmMessage,
 ): Promise<RouteResult> {
   const emailMap = await buildEmailMap(db)
-  const recipients = message.display_recipient
-
-  if (typeof recipients === 'string') {
-    return { delivered: [], autoSubscribed: [] }
-  }
-
   const senderName = message.sender_full_name
   const content = message.content
   const summary = truncate(content, 60)
-  const recipientEmails = new Set(recipients.map((r) => r.email))
+  const recipientEmails = new Set(message.display_recipient.map((r) => r.email))
   const delivered: { teammate: string; from: string }[] = []
 
   for (const [email, name] of emailMap) {
@@ -74,14 +68,10 @@ export async function routeDm(
 export async function routeStreamMessage(
   db: Kysely<ZulerDatabase>,
   teamName: string,
-  message: Message,
+  message: StreamMessage,
 ): Promise<RouteResult> {
-  if (typeof message.display_recipient !== 'string') {
-    return { delivered: [], autoSubscribed: [] }
-  }
-
   const stream = message.display_recipient
-  const topic = message.subject ?? ''
+  const topic = message.subject
   const content = message.content
   const senderName = message.sender_full_name
   const location = `${stream}/${topic}`
@@ -136,8 +126,10 @@ export async function routeMessage(
   teamName: string,
   message: Message,
 ): Promise<RouteResult> {
-  const isDm = Array.isArray(message.display_recipient)
-  return isDm ? routeDm(db, teamName, message) : routeStreamMessage(db, teamName, message)
+  if (message.type === 'private') {
+    return routeDm(db, teamName, message)
+  }
+  return routeStreamMessage(db, teamName, message)
 }
 
 export type { RouteResult }

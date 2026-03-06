@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
-import type { Message } from 'zulip-ts'
+import type { DmMessage, StreamMessage } from 'zulip-ts'
 import { createDatabase, type ZulerDatabase } from './db.ts'
 import { readInbox } from './inbox.ts'
 import { routeMessage } from './routing.ts'
@@ -28,7 +28,7 @@ afterEach(async () => {
   rmSync(join(homedir(), '.claude', 'teams', teamName), { recursive: true, force: true })
 })
 
-const makeStreamMessage = (overrides: Partial<Message> = {}): Message => ({
+const makeStreamMessage = (overrides: Partial<StreamMessage> = {}): StreamMessage => ({
   id: 1,
   sender_id: 100,
   sender_email: 'human@example.com',
@@ -41,7 +41,7 @@ const makeStreamMessage = (overrides: Partial<Message> = {}): Message => ({
   ...overrides,
 })
 
-const makeDmMessage = (overrides: Partial<Message> = {}): Message => ({
+const makeDmMessage = (overrides: Partial<DmMessage> = {}): DmMessage => ({
   id: 2,
   sender_id: 100,
   sender_email: 'human@example.com',
