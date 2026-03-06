@@ -1,28 +1,28 @@
-import type { ResultAsync } from 'neverthrow';
-import type { ZulipClient, ZulipError } from './client.ts';
+import type { ResultAsync } from 'neverthrow'
+import type { ZulipClient, ZulipError } from './client.ts'
 import {
-  GetMessagesResponseSchema,
-  SendMessageResponseSchema,
   type GetMessagesResponse,
+  GetMessagesResponseSchema,
   type SendMessageResponse,
-} from './schemas.ts';
+  SendMessageResponseSchema,
+} from './schemas.ts'
 
 export type SendDirectMessageParams = {
-  readonly to: readonly number[];
-  readonly content: string;
-};
+  readonly to: readonly number[]
+  readonly content: string
+}
 
 export type SendStreamMessageParams = {
-  readonly to: string;
-  readonly topic: string;
-  readonly content: string;
-};
+  readonly to: string
+  readonly topic: string
+  readonly content: string
+}
 
-export const sendDirectMessage = (
+export function sendDirectMessage(
   client: ZulipClient,
   params: SendDirectMessageParams,
-): ResultAsync<SendMessageResponse, ZulipError> =>
-  client.request(
+): ResultAsync<SendMessageResponse, ZulipError> {
+  return client.request(
     {
       method: 'POST',
       path: '/messages',
@@ -33,13 +33,14 @@ export const sendDirectMessage = (
       },
     },
     SendMessageResponseSchema,
-  );
+  )
+}
 
-export const sendStreamMessage = (
+export function sendStreamMessage(
   client: ZulipClient,
   params: SendStreamMessageParams,
-): ResultAsync<SendMessageResponse, ZulipError> =>
-  client.request(
+): ResultAsync<SendMessageResponse, ZulipError> {
+  return client.request(
     {
       method: 'POST',
       path: '/messages',
@@ -51,26 +52,27 @@ export const sendStreamMessage = (
       },
     },
     SendMessageResponseSchema,
-  );
+  )
+}
 
 export type NarrowFilter = {
-  readonly operator: string;
-  readonly operand: string | number;
-};
+  readonly operator: string
+  readonly operand: string | number
+}
 
 export type GetMessagesParams = {
-  readonly anchor: 'newest' | 'oldest' | number;
-  readonly numBefore: number;
-  readonly numAfter: number;
-  readonly narrow: readonly NarrowFilter[];
-  readonly applyMarkdown?: boolean;
-};
+  readonly anchor: 'newest' | 'oldest' | number
+  readonly numBefore: number
+  readonly numAfter: number
+  readonly narrow: readonly NarrowFilter[]
+  readonly applyMarkdown?: boolean
+}
 
-export const getMessages = (
+export function getMessages(
   client: ZulipClient,
   params: GetMessagesParams,
-): ResultAsync<GetMessagesResponse, ZulipError> =>
-  client.request(
+): ResultAsync<GetMessagesResponse, ZulipError> {
+  return client.request(
     {
       method: 'GET',
       path: '/messages',
@@ -83,4 +85,5 @@ export const getMessages = (
       },
     },
     GetMessagesResponseSchema,
-  );
+  )
+}

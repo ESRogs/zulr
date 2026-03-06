@@ -1,10 +1,10 @@
-import { ResultAsync, okAsync, errAsync } from 'neverthrow'
 import type { Kysely } from 'kysely'
+import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import type { ZulipClient, ZulipError } from 'zulip-ts'
-import { getBots, createBot, getStreams, subscribe, createClient } from 'zulip-ts'
+import { createBot, createClient, getBots, getStreams, subscribe } from 'zulip-ts'
 import type { ZulerDatabase } from './db.ts'
-import { registerTeammate, getTeammate } from './state.ts'
 import type { StateError } from './state.ts'
+import { getTeammate, registerTeammate } from './state.ts'
 
 export type BotManagerError =
   | { readonly type: 'zulip'; readonly inner: ZulipError }
@@ -14,41 +14,43 @@ const wrapZulip = (e: ZulipError): BotManagerError => ({ type: 'zulip', inner: e
 const wrapState = (e: StateError): BotManagerError => ({ type: 'state', inner: e })
 
 /** Derive bot email from teammate name and Zulip site URL. */
-export const botEmail = (name: string, site: string): string => {
+export function botEmail(name: string, site: string): string {
   const host = new URL(site).hostname
   return `${name}-bot@${host}`
 }
 
 /** Find an existing bot by email, returning its API key if found. */
-const findExistingBot = (
+function findExistingBot(
   adminClient: ZulipClient,
   email: string,
-): ResultAsync<string | undefined, BotManagerError> =>
-  getBots(adminClient)
+): ResultAsync<string | undefined, BotManagerError> {
+  return getBots(adminClient)
     .map((res) => {
       const bot = res.bots.find((b) => b.username === email)
       return bot?.api_key
     })
     .mapErr(wrapZulip)
+}
 
 /** Create a new bot and return its API key. */
-const createNewBot = (
+function createNewBot(
   adminClient: ZulipClient,
   name: string,
-): ResultAsync<string, BotManagerError> =>
-  createBot(adminClient, {
+): ResultAsync<string, BotManagerError> {
+  return createBot(adminClient, {
     fullName: name,
     shortName: name,
   })
     .map((res) => res.api_key)
     .mapErr(wrapZulip)
+}
 
 /** Subscribe a bot to all streams so it can receive events. */
-const subscribeToAllStreams = (
+function subscribeToAllStreams(
   botClient: ZulipClient,
   adminClient: ZulipClient,
-): ResultAsync<void, BotManagerError> =>
-  getStreams(adminClient)
+): ResultAsync<void, BotManagerError> {
+  return getStreams(adminClient)
     .mapErr(wrapZulip)
     .andThen((res) => {
       const streams = res.streams.map((s) => ({ name: s.name }))
@@ -57,16 +59,17 @@ const subscribeToAllStreams = (
         .map(() => undefined)
         .mapErr(wrapZulip)
     })
+}
 
 /**
  * Register a teammate: find or create their Zulip bot, store credentials
  * in the database, and subscribe the bot to all streams.
  */
-export const registerBot = (
+export function registerBot(
   adminClient: ZulipClient,
   db: Kysely<ZulerDatabase>,
   name: string,
-): ResultAsync<{ readonly botEmail: string; readonly apiKey: string }, BotManagerError> => {
+): ResultAsync<{ readonly botEmail: string; readonly apiKey: string }, BotManagerError> {
   const email = botEmail(name, adminClient.config.site)
 
   // Check if already registered in our DB
@@ -104,8 +107,10 @@ export const registerBot = (
             apiKey,
           })
 
-          return subscribeToAllStreams(botClient, adminClient)
-            .map(() => ({ botEmail: email, apiKey }))
+          return subscribeToAllStreams(botClient, adminClient).map(() => ({
+            botEmail: email,
+            apiKey,
+          }))
         })
       })
     })
@@ -113,12 +118,12 @@ export const registerBot = (
 }
 
 /** Create a ZulipClient for a registered teammate's bot. */
-export const clientForTeammate = (
+export function clientForTeammate(
   db: Kysely<ZulerDatabase>,
   site: string,
   name: string,
-): ResultAsync<ZulipClient, BotManagerError> =>
-  ResultAsync.fromPromise(
+): ResultAsync<ZulipClient, BotManagerError> {
+  return ResultAsync.fromPromise(
     getTeammate(db, name),
     (e): BotManagerError => wrapState({ type: 'db_error', message: String(e) }),
   ).andThen((result) => {
@@ -126,9 +131,12 @@ export const clientForTeammate = (
       return errAsync<ZulipClient, BotManagerError>(wrapState(result.error))
     }
     const teammate = result.value
-    return okAsync(createClient({
-      site,
-      email: teammate.botEmail,
-      apiKey: teammate.apiKey,
-    }))
+    return okAsync(
+      createClient({
+        site,
+        email: teammate.botEmail,
+        apiKey: teammate.apiKey,
+      }),
+    )
   })
+}

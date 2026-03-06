@@ -1,5 +1,5 @@
-import { type Result, ok, err } from 'neverthrow'
 import type { Kysely } from 'kysely'
+import { err, ok, type Result } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
 
 export type Teammate = {
@@ -23,10 +23,10 @@ const wrapDbError = (e: unknown): StateError => ({
   message: e instanceof Error ? e.message : String(e),
 })
 
-export const registerTeammate = async (
+export async function registerTeammate(
   db: Kysely<ZulerDatabase>,
   teammate: Teammate,
-): Promise<Result<Teammate, StateError>> => {
+): Promise<Result<Teammate, StateError>> {
   try {
     const existing = await db
       .selectFrom('teammates')
@@ -56,10 +56,10 @@ export const registerTeammate = async (
   }
 }
 
-export const getTeammate = async (
+export async function getTeammate(
   db: Kysely<ZulerDatabase>,
   name: string,
-): Promise<Result<TeammateWithSubs, StateError>> => {
+): Promise<Result<TeammateWithSubs, StateError>> {
   try {
     const row = await db
       .selectFrom('teammates')
@@ -95,14 +95,11 @@ export const getTeammate = async (
   }
 }
 
-export const listTeammates = async (
+export async function listTeammates(
   db: Kysely<ZulerDatabase>,
-): Promise<Result<readonly Teammate[], StateError>> => {
+): Promise<Result<readonly Teammate[], StateError>> {
   try {
-    const rows = await db
-      .selectFrom('teammates')
-      .selectAll()
-      .execute()
+    const rows = await db.selectFrom('teammates').selectAll().execute()
 
     return ok(
       rows.map((r) => ({
@@ -116,11 +113,11 @@ export const listTeammates = async (
   }
 }
 
-export const addStreamSubscription = async (
+export async function addStreamSubscription(
   db: Kysely<ZulerDatabase>,
   teammateName: string,
   stream: string,
-): Promise<Result<void, StateError>> => {
+): Promise<Result<void, StateError>> {
   try {
     await db
       .insertInto('stream_subscriptions')
@@ -134,11 +131,11 @@ export const addStreamSubscription = async (
   }
 }
 
-export const removeStreamSubscription = async (
+export async function removeStreamSubscription(
   db: Kysely<ZulerDatabase>,
   teammateName: string,
   stream: string,
-): Promise<Result<void, StateError>> => {
+): Promise<Result<void, StateError>> {
   try {
     await db
       .deleteFrom('stream_subscriptions')
@@ -152,12 +149,12 @@ export const removeStreamSubscription = async (
   }
 }
 
-export const addTopicSubscription = async (
+export async function addTopicSubscription(
   db: Kysely<ZulerDatabase>,
   teammateName: string,
   stream: string,
   topic: string,
-): Promise<Result<void, StateError>> => {
+): Promise<Result<void, StateError>> {
   try {
     await db
       .insertInto('topic_subscriptions')
@@ -171,12 +168,12 @@ export const addTopicSubscription = async (
   }
 }
 
-export const removeTopicSubscription = async (
+export async function removeTopicSubscription(
   db: Kysely<ZulerDatabase>,
   teammateName: string,
   stream: string,
   topic: string,
-): Promise<Result<void, StateError>> => {
+): Promise<Result<void, StateError>> {
   try {
     await db
       .deleteFrom('topic_subscriptions')
@@ -191,11 +188,11 @@ export const removeTopicSubscription = async (
   }
 }
 
-export const removeAllStreamSubscriptions = async (
+export async function removeAllStreamSubscriptions(
   db: Kysely<ZulerDatabase>,
   teammateName: string,
   stream: string,
-): Promise<Result<void, StateError>> => {
+): Promise<Result<void, StateError>> {
   try {
     await db
       .deleteFrom('stream_subscriptions')
@@ -215,12 +212,12 @@ export const removeAllStreamSubscriptions = async (
   }
 }
 
-export const shouldReceive = async (
+export async function shouldReceive(
   db: Kysely<ZulerDatabase>,
   teammateName: string,
   stream: string,
   topic: string,
-): Promise<Result<boolean, StateError>> => {
+): Promise<Result<boolean, StateError>> {
   try {
     const streamSub = await db
       .selectFrom('stream_subscriptions')

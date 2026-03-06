@@ -1,32 +1,31 @@
-export { createClient } from './client.ts';
-export type { ZulipClient, ZulipConfig, ZulipError } from './client.ts';
-
-export { sendDirectMessage, sendStreamMessage, getMessages } from './messages.ts';
-export type { SendDirectMessageParams, SendStreamMessageParams, GetMessagesParams, NarrowFilter } from './messages.ts';
-
-export { getStreams, subscribe } from './streams.ts';
-
-export { getMembers } from './users.ts';
-
-export { getBots, createBot } from './bots.ts';
-export type { CreateBotParams } from './bots.ts';
-
-export { registerQueue, getEvents } from './events.ts';
-export type { RegisterQueueParams, GetEventsParams } from './events.ts';
-
+export type { CreateBotParams } from './bots.ts'
+export { createBot, getBots } from './bots.ts'
+export type { ZulipClient, ZulipConfig, ZulipError } from './client.ts'
+export { createClient } from './client.ts'
+export type { GetEventsParams, RegisterQueueParams } from './events.ts'
+export { getEvents, registerQueue } from './events.ts'
 export type {
-  Message,
-  Stream,
-  Member,
+  GetMessagesParams,
+  NarrowFilter,
+  SendDirectMessageParams,
+  SendStreamMessageParams,
+} from './messages.ts'
+export { getMessages, sendDirectMessage, sendStreamMessage } from './messages.ts'
+export type {
   Bot,
+  CreateBotResponse,
   Event,
-  SendMessageResponse,
+  GetBotsResponse,
+  GetEventsResponse,
+  GetMembersResponse,
   GetMessagesResponse,
   GetStreamsResponse,
-  SubscribeResponse,
-  GetMembersResponse,
-  GetBotsResponse,
-  CreateBotResponse,
+  Member,
+  Message,
   RegisterQueueResponse,
-  GetEventsResponse,
-} from './schemas.ts';
+  SendMessageResponse,
+  Stream,
+  SubscribeResponse,
+} from './schemas.ts'
+export { getStreams, subscribe } from './streams.ts'
+export { getMembers } from './users.ts'

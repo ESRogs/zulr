@@ -1,15 +1,15 @@
-import { test, expect, beforeEach, afterEach } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Kysely } from 'kysely'
 import { createDatabase, type ZulerDatabase } from './db.ts'
 import {
-  registerTeammate,
+  addStreamSubscription,
+  addTopicSubscription,
   getTeammate,
   listTeammates,
-  addStreamSubscription,
-  removeStreamSubscription,
-  addTopicSubscription,
-  removeTopicSubscription,
+  registerTeammate,
   removeAllStreamSubscriptions,
+  removeStreamSubscription,
+  removeTopicSubscription,
   shouldReceive,
 } from './state.ts'
 
@@ -91,9 +91,7 @@ test('topic subscriptions', async () => {
 
   await addTopicSubscription(db, 'alice', 'general', 'greetings')
   const fetched = await getTeammate(db, 'alice')
-  expect(fetched._unsafeUnwrap().topicSubs).toEqual([
-    { stream: 'general', topic: 'greetings' },
-  ])
+  expect(fetched._unsafeUnwrap().topicSubs).toEqual([{ stream: 'general', topic: 'greetings' }])
 
   await removeTopicSubscription(db, 'alice', 'general', 'greetings')
   const fetched2 = await getTeammate(db, 'alice')

@@ -1,8 +1,8 @@
-import type { Message } from 'zulip-ts'
 import type { Kysely } from 'kysely'
+import type { Message } from 'zulip-ts'
 import type { ZulerDatabase } from './db.ts'
-import { shouldReceive, addTopicSubscription, listTeammates } from './state.ts'
 import { writeToInbox } from './inbox.ts'
+import { addTopicSubscription, listTeammates, shouldReceive } from './state.ts'
 
 type RouteResult = {
   readonly delivered: readonly {
@@ -16,25 +16,22 @@ type RouteResult = {
   }[]
 }
 
-const truncate = (s: string, n: number): string =>
-  s.length > n ? s.slice(0, n) + '...' : s
+const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
 
 /** Build a reverse map of bot_email → teammate_name. */
-const buildEmailMap = async (
-  db: Kysely<ZulerDatabase>,
-): Promise<Map<string, string>> => {
+async function buildEmailMap(db: Kysely<ZulerDatabase>): Promise<Map<string, string>> {
   const result = await listTeammates(db)
   if (result.isErr()) return new Map()
   return new Map(result.value.map((t) => [t.botEmail, t.name]))
 }
 
 /** Identify which teammate (if any) sent this message, so we don't echo it back. */
-const identifySender = (
+function identifySender(
   senderEmail: string,
   senderName: string,
   emailMap: Map<string, string>,
   allNames: Set<string>,
-): string | undefined => {
+): string | undefined {
   const byEmail = emailMap.get(senderEmail)
   if (byEmail) return byEmail
   const lower = senderName.toLowerCase()
@@ -43,11 +40,11 @@ const identifySender = (
 }
 
 /** Route a DM to the appropriate teammate(s). */
-export const routeDm = async (
+export async function routeDm(
   db: Kysely<ZulerDatabase>,
   teamName: string,
   message: Message,
-): Promise<RouteResult> => {
+): Promise<RouteResult> {
   const emailMap = await buildEmailMap(db)
   const recipients = message.display_recipient
 
@@ -74,11 +71,11 @@ export const routeDm = async (
 }
 
 /** Route a stream message to subscribed teammates, handling @-mentions and auto-subscribe. */
-export const routeStreamMessage = async (
+export async function routeStreamMessage(
   db: Kysely<ZulerDatabase>,
   teamName: string,
   message: Message,
-): Promise<RouteResult> => {
+): Promise<RouteResult> {
   if (typeof message.display_recipient !== 'string') {
     return { delivered: [], autoSubscribed: [] }
   }
@@ -98,14 +95,9 @@ export const routeStreamMessage = async (
   const emailMap = new Map(teammates.map((t) => [t.botEmail, t.name]))
   const allNames = new Set(teammates.map((t) => t.name))
 
-  const senderTeammate = identifySender(
-    message.sender_email,
-    senderName,
-    emailMap,
-    allNames,
-  )
+  const senderTeammate = identifySender(message.sender_email, senderName, emailMap, allNames)
 
-  const recipients = new Set<string>()
+  const recipientNames = new Set<string>()
   const autoSubscribed: { teammate: string; stream: string; topic: string }[] = []
 
   for (const name of allNames) {
@@ -122,14 +114,14 @@ export const routeStreamMessage = async (
         await addTopicSubscription(db, name, stream, topic)
         autoSubscribed.push({ teammate: name, stream, topic })
       }
-      recipients.add(name)
+      recipientNames.add(name)
     } else if (isSubscribed) {
-      recipients.add(name)
+      recipientNames.add(name)
     }
   }
 
   const delivered: { teammate: string; from: string }[] = []
-  for (const name of recipients) {
+  for (const name of recipientNames) {
     const from = `zulip:${senderName} in ${location}`
     writeToInbox(teamName, name, from, content, summary)
     delivered.push({ teammate: name, from })
@@ -139,15 +131,13 @@ export const routeStreamMessage = async (
 }
 
 /** Route any inbound Zulip message (DM or stream) to the appropriate teammates. */
-export const routeMessage = async (
+export async function routeMessage(
   db: Kysely<ZulerDatabase>,
   teamName: string,
   message: Message,
-): Promise<RouteResult> => {
+): Promise<RouteResult> {
   const isDm = Array.isArray(message.display_recipient)
-  return isDm
-    ? routeDm(db, teamName, message)
-    : routeStreamMessage(db, teamName, message)
+  return isDm ? routeDm(db, teamName, message) : routeStreamMessage(db, teamName, message)
 }
 
 export type { RouteResult }
