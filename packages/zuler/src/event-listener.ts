@@ -1,8 +1,9 @@
 import type { Kysely } from 'kysely'
 import type { ZulipClient } from 'zulip-ts'
-import { getEvents, registerQueue } from 'zulip-ts'
+import { createClient, getEvents, markAsRead, registerQueue } from 'zulip-ts'
 import type { ZulerDatabase } from './db.ts'
 import { routeMessage } from './routing.ts'
+import { listTeammates } from './state.ts'
 
 type EventListenerOptions = {
   readonly client: ZulipClient
@@ -29,12 +30,45 @@ type EventListenerOptions = {
 const RETRY_DELAY_MS = 5000
 
 /**
+ * Mark a message as read for each teammate that received it,
+ * using their individual bot API keys.
+ */
+async function markReadForTeammates(
+  db: Kysely<ZulerDatabase>,
+  site: string,
+  messageId: number,
+  teammateNames: readonly string[],
+): Promise<void> {
+  const teammatesResult = await listTeammates(db)
+  if (teammatesResult.isErr()) return
+
+  const teammates = teammatesResult.value
+  const byName = new Map(teammates.map((t) => [t.name, t]))
+
+  for (const name of teammateNames) {
+    const teammate = byName.get(name)
+    if (!teammate) continue
+    const botClient = createClient({
+      site,
+      email: teammate.botEmail,
+      apiKey: teammate.apiKey,
+    })
+    // Fire and forget — don't block delivery on read-tracking
+    markAsRead(botClient, [messageId])
+  }
+}
+
+/**
  * Start listening for Zulip events and route inbound messages to
  * Claude Code teammate inbox files.
  *
  * Registers an event queue, then long-polls for events in a loop.
  * On queue expiration or errors, re-registers and continues.
  * Stops when the AbortSignal is aborted.
+ *
+ * After delivering a message to a teammate's inbox, marks it as read
+ * on Zulip using the teammate's bot API key, so that catch-up via
+ * "first_unread" anchor works correctly after restart.
  */
 export async function startEventListener(options: EventListenerOptions): Promise<void> {
   const { client, db, teamName, onRoute, onError, signal } = options
@@ -83,6 +117,14 @@ export async function startEventListener(options: EventListenerOptions): Promise
             deliveredTo: result.delivered.map((d) => d.teammate),
             autoSubscribed: result.autoSubscribed,
           })
+
+          // Mark as read for each teammate using their bot's API key
+          markReadForTeammates(
+            db,
+            client.config.site,
+            result.messageId,
+            result.delivered.map((d) => d.teammate),
+          )
         }
       }
     }

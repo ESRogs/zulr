@@ -5,6 +5,7 @@ import { writeToInbox } from './inbox.ts'
 import { addTopicSubscription, listTeammates, shouldReceive } from './state.ts'
 
 type RouteResult = {
+  readonly messageId: number
   readonly delivered: readonly {
     readonly teammate: string
     readonly from: string
@@ -61,7 +62,7 @@ export async function routeDm(
     }
   }
 
-  return { delivered, autoSubscribed: [] }
+  return { messageId: message.id, delivered, autoSubscribed: [] }
 }
 
 /** Route a stream message to subscribed teammates, handling @-mentions and auto-subscribe. */
@@ -79,7 +80,7 @@ export async function routeStreamMessage(
 
   const teammatesResult = await listTeammates(db)
   if (teammatesResult.isErr()) {
-    return { delivered: [], autoSubscribed: [] }
+    return { messageId: message.id, delivered: [], autoSubscribed: [] }
   }
   const teammates = teammatesResult.value
   const emailMap = new Map(teammates.map((t) => [t.botEmail, t.name]))
@@ -117,7 +118,7 @@ export async function routeStreamMessage(
     delivered.push({ teammate: name, from })
   }
 
-  return { delivered, autoSubscribed }
+  return { messageId: message.id, delivered, autoSubscribed }
 }
 
 /** Route any inbound Zulip message (DM or stream) to the appropriate teammates. */
