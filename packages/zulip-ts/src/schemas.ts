@@ -95,11 +95,11 @@ export type GetMembersResponse = z.infer<typeof GetMembersResponseSchema>
 // --- Bots ---
 
 export const BotSchema = z.object({
-  user_id: z.number(),
+  user_id: z.number().optional(),
   username: z.string(),
   full_name: z.string(),
   api_key: z.string(),
-  bot_type: z.number(),
+  bot_type: z.number().optional(),
 })
 export type Bot = z.infer<typeof BotSchema>
 
