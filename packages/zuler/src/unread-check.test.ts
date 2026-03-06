@@ -36,9 +36,10 @@ test('ignores messages from different topics in same stream', () => {
   expect(countUnreadFromTopic(teamName, 'alice', 'general', 'greetings')).toBe(1)
 })
 
-test('normalizes stream and topic names for comparison', () => {
-  writeToInbox(teamName, 'alice', 'zulip:Bob in General/My Greetings', 'msg', 'msg')
-  expect(countUnreadFromTopic(teamName, 'alice', 'general', 'my-greetings')).toBe(1)
+test('uses exact matching for stream and topic names', () => {
+  writeToInbox(teamName, 'alice', 'zulip:Bob in General/Greetings', 'msg', 'msg')
+  expect(countUnreadFromTopic(teamName, 'alice', 'General', 'Greetings')).toBe(1)
+  expect(countUnreadFromTopic(teamName, 'alice', 'general', 'greetings')).toBe(0)
 })
 
 test('ignores non-zulip messages', () => {
