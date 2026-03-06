@@ -120,6 +120,8 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 ### Style
 
 - Functional + statically typed. Standalone functions over classes. No inheritance.
+- Use `function` declarations for named/exported functions, not arrow `const`. Arrow functions are fine for inline callbacks and small helpers.
 - Type annotations at all function boundaries. No `any`.
 - Single quotes in TypeScript files.
+- **Biome** for linting and formatting. Run `bunx biome check --fix` to auto-fix.
 - File names lowercase kebab-case (e.g., `zulip-client.ts`, not `ZulipClient.ts`).

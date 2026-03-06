@@ -1,9 +1,9 @@
-import { test, expect, beforeEach, afterEach } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
-import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { writeToInbox } from './inbox.ts'
-import { countUnreadFromTopic, checkUnreadBeforePost } from './unread-check.ts'
+import { checkUnreadBeforePost, countUnreadFromTopic } from './unread-check.ts'
 
 let teamName: string
 

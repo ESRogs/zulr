@@ -1,11 +1,11 @@
+import { getBots } from './bots.ts'
 import { createClient } from './client.ts'
 import { getStreams } from './streams.ts'
 import { getMembers } from './users.ts'
-import { getBots } from './bots.ts'
 
-const site = process.env['ZULIP_SITE']
-const email = process.env['ZULIP_EMAIL']
-const apiKey = process.env['ZULIP_API_KEY']
+const site = process.env.ZULIP_SITE
+const email = process.env.ZULIP_EMAIL
+const apiKey = process.env.ZULIP_API_KEY
 
 if (!site || !email || !apiKey) {
   console.error('Missing ZULIP_SITE, ZULIP_EMAIL, or ZULIP_API_KEY in environment')

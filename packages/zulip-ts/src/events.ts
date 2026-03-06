@@ -1,22 +1,22 @@
-import type { ResultAsync } from 'neverthrow';
-import type { ZulipClient, ZulipError } from './client.ts';
+import type { ResultAsync } from 'neverthrow'
+import type { ZulipClient, ZulipError } from './client.ts'
 import {
-  GetEventsResponseSchema,
-  RegisterQueueResponseSchema,
   type GetEventsResponse,
+  GetEventsResponseSchema,
   type RegisterQueueResponse,
-} from './schemas.ts';
+  RegisterQueueResponseSchema,
+} from './schemas.ts'
 
 export type RegisterQueueParams = {
-  readonly eventTypes: readonly string[];
-  readonly narrow?: readonly [string, string][];
-};
+  readonly eventTypes: readonly string[]
+  readonly narrow?: readonly [string, string][]
+}
 
-export const registerQueue = (
+export function registerQueue(
   client: ZulipClient,
   params: RegisterQueueParams,
-): ResultAsync<RegisterQueueResponse, ZulipError> =>
-  client.request(
+): ResultAsync<RegisterQueueResponse, ZulipError> {
+  return client.request(
     {
       method: 'POST',
       path: '/register',
@@ -26,18 +26,19 @@ export const registerQueue = (
       },
     },
     RegisterQueueResponseSchema,
-  );
+  )
+}
 
 export type GetEventsParams = {
-  readonly queueId: string;
-  readonly lastEventId: number;
-};
+  readonly queueId: string
+  readonly lastEventId: number
+}
 
-export const getEvents = (
+export function getEvents(
   client: ZulipClient,
   params: GetEventsParams,
-): ResultAsync<GetEventsResponse, ZulipError> =>
-  client.request(
+): ResultAsync<GetEventsResponse, ZulipError> {
+  return client.request(
     {
       method: 'GET',
       path: '/events',
@@ -47,4 +48,5 @@ export const getEvents = (
       },
     },
     GetEventsResponseSchema,
-  );
+  )
+}

@@ -1,5 +1,5 @@
-import { ok, err, type Result } from 'neverthrow'
 import type { Kysely } from 'kysely'
+import { err, ok, type Result } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
 import type { StateError } from './state.ts'
 
@@ -18,14 +18,9 @@ type ExportedTeammate = {
 type ExportedRecord = ExportedTeammate
 
 /** Export all teammates and subscriptions as JSONL (one JSON object per line). No API keys. */
-export const exportConfig = async (
-  db: Kysely<ZulerDatabase>,
-): Promise<Result<string, StateError>> => {
+export async function exportConfig(db: Kysely<ZulerDatabase>): Promise<Result<string, StateError>> {
   try {
-    const teammates = await db
-      .selectFrom('teammates')
-      .select('name')
-      .execute()
+    const teammates = await db.selectFrom('teammates').select('name').execute()
 
     const lines: string[] = []
 
@@ -62,7 +57,7 @@ export const exportConfig = async (
 }
 
 /** Parse a JSONL config string into records. */
-export const parseConfig = (jsonl: string): Result<readonly ExportedRecord[], { message: string }> => {
+export function parseConfig(jsonl: string): Result<readonly ExportedRecord[], { message: string }> {
   const lines = jsonl.split('\n').filter((l) => l.trim().length > 0)
   const records: ExportedRecord[] = []
 
