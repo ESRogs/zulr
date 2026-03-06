@@ -15,6 +15,8 @@
       "name": "zuler",
       "version": "0.1.0",
       "dependencies": {
+        "kysely": "^0.28.11",
+        "kysely-bun-sqlite": "^0.4.0",
         "neverthrow": "^8.2.0",
         "type-fest": "^5.4.4",
         "zod": "^4.3.6",
@@ -38,6 +40,10 @@
     "@types/node": ["@types/node@25.3.3", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-DpzbrH7wIcBaJibpKo9nnSQL0MTRdnWttGyE5haGwK86xgMOkFLp7vEyfQPGLOJh5wNYiJ3V9PmUMDhV9u8kkQ=="],
 
     "bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "kysely": ["kysely@0.28.11", "", {}, "sha512-zpGIFg0HuoC893rIjYX1BETkVWdDnzTzF5e0kWXJFg5lE0k1/LfNWBejrcnOFu8Q2Rfq/hTDTU7XLUM8QOrpzg=="],
+
+    "kysely-bun-sqlite": ["kysely-bun-sqlite@0.4.0", "", { "dependencies": { "bun-types": "^1.1.31" }, "peerDependencies": { "kysely": "^0.28.2" } }, "sha512-2EkQE5sT4ewiw7IWfJsAkpxJ/QPVKXKO5sRYI/xjjJIJlECuOdtG+ssYM0twZJySrdrmuildNPFYVreyu1EdZg=="],
 
     "neverthrow": ["neverthrow@8.2.0", "", { "optionalDependencies": { "@rollup/rollup-linux-x64-gnu": "^4.24.0" } }, "sha512-kOCT/1MCPAxY5iUV3wytNFUMUolzuwd/VF/1KCx7kf6CutrOsTie+84zTGTpgQycjvfLdBBdvBvFLqFD2c0wkQ=="],
 
