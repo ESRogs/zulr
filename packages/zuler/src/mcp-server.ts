@@ -241,7 +241,7 @@ export function createMcpServer(config: ServerConfig) {
           )
         : adminClient
 
-      const result = await fetchAndMarkRead(readClient, {
+      return fetchAndMarkRead(readClient, {
         anchor: 'newest',
         numBefore: count,
         numAfter: 0,
@@ -250,9 +250,7 @@ export function createMcpServer(config: ServerConfig) {
           { operator: 'topic', operand: topic },
         ],
         applyMarkdown: false,
-      })
-
-      return result.match(
+      }).match(
         (messages) => {
           if (messages.length === 0) {
             return {
