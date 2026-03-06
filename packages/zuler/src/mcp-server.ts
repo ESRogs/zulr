@@ -233,13 +233,20 @@ export function createMcpServer(config: ServerConfig) {
       }),
     },
     async ({ stream, topic, count, sender }) => {
-      // Use bot client if sender provided (for read tracking), otherwise admin
-      const readClient = sender
-        ? await clientForTeammate(db, zulipSite, sender).match(
-            (c) => c,
-            () => adminClient,
-          )
-        : adminClient
+      // Resolve client: bot client if sender provided, otherwise admin
+      let readClient = adminClient
+      if (sender) {
+        const botClientResult = await clientForTeammate(db, zulipSite, sender)
+        if (botClientResult.isErr()) {
+          return {
+            content: [
+              { type: 'text' as const, text: `error: ${JSON.stringify(botClientResult.error)}` },
+            ],
+            isError: true,
+          }
+        }
+        readClient = botClientResult.value
+      }
 
       return fetchAndMarkRead(readClient, {
         anchor: 'newest',
