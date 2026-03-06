@@ -122,7 +122,7 @@ export async function routeStreamMessage(
 
   const delivered: { teammate: string; from: string }[] = []
   for (const name of recipientNames) {
-    const from = `zulip:${senderName} in ${location}`
+    const from = `zulip:${location}:${senderName}`
     writeToInbox(teamName, name, from, content, summary)
     delivered.push({ teammate: name, from })
   }

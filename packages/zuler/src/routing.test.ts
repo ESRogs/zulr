@@ -79,7 +79,7 @@ test('stream message delivered to subscribed teammate', async () => {
 
   const inbox = readInbox(teamName, 'alice')
   expect(inbox).toHaveLength(1)
-  expect(inbox[0]!.from).toBe('zulip:Human User in general/greetings')
+  expect(inbox[0]!.from).toBe('zulip:general/greetings:Human User')
   expect(inbox[0]!.text).toBe('hello everyone')
   expect(inbox[0]!.read).toBe(false)
 })

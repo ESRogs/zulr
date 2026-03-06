@@ -5,7 +5,7 @@ import { readInbox } from './inbox.ts'
  * teammate's Claude Code inbox.
  *
  * Inbound stream messages have a `from` field like:
- *   "zulip:<sender> in <stream>/<topic>"
+ *   "zulip:<stream>/<topic>:<sender>"
  *
  * Uses exact matching for stream/topic names since Zulip treats
  * topics as case-sensitive.
@@ -17,13 +17,12 @@ export function countUnreadFromTopic(
   topic: string,
 ): number {
   const messages = readInbox(teamName, teammate)
-  const target = `${stream}/${topic}`
+  const prefix = `zulip:${stream}/${topic}:`
 
   let count = 0
   for (const msg of messages) {
     if (msg.read) continue
-    const match = msg.from.match(/^zulip:.+ in (.+)$/i)
-    if (match?.[1] === target) {
+    if (msg.from.startsWith(prefix)) {
       count++
     }
   }
