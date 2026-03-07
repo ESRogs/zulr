@@ -50,17 +50,17 @@ const request = <T>(
 ): ResultAsync<T, ZulipError> => {
   const { method, path, params, body } = options
   const url = buildUrl(config, path, method === 'GET' ? params : undefined)
-  const headers: Record<string, string> = {
-    Authorization: `Basic ${encodeAuth(config)}`,
-  }
 
-  let fetchBody: URLSearchParams | undefined
-  if (body && method !== 'GET') {
-    headers['Content-Type'] = 'application/x-www-form-urlencoded'
-    fetchBody = buildFormBody(body)
-  } else if (params && method !== 'GET') {
-    headers['Content-Type'] = 'application/x-www-form-urlencoded'
-    fetchBody = buildFormBody(params as Record<string, unknown>)
+  const fetchBody =
+    method !== 'GET' && body
+      ? buildFormBody(body)
+      : method !== 'GET' && params
+        ? buildFormBody(params as Record<string, unknown>)
+        : undefined
+
+  const headers: Readonly<Record<string, string>> = {
+    Authorization: `Basic ${encodeAuth(config)}`,
+    ...(fetchBody ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
   }
 
   return ResultAsync.fromPromise(
