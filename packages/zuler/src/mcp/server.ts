@@ -1,7 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Kysely } from 'kysely'
 import { z } from 'zod'
-import { createClient, markAsRead, sendDirectMessage, sendStreamMessage } from 'zulip-ts'
+import type { Member } from 'zulip-ts'
+import {
+  createClient,
+  getMembers,
+  markAsRead,
+  sendDirectMessage,
+  sendStreamMessage,
+} from 'zulip-ts'
 import { clientForTeammate, registerBot } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import {
@@ -11,7 +18,7 @@ import {
   removeStreamSubscription,
   removeTopicSubscription,
 } from '../state/subscriptions.ts'
-import { getTeammate, isBotUserId, listTeammates } from '../state/teammates.ts'
+import { getTeammate, listTeammates } from '../state/teammates.ts'
 import { fetchMessages, formatMessages } from '../zulip/message-reader.ts'
 import { checkUnreadBeforePost } from '../zulip/unread-check.ts'
 
@@ -36,6 +43,24 @@ export function createMcpServer(config: ServerConfig) {
   const { db, zulipSite, zulipEmail, zulipApiKey, teamName } = config
   const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
 
+  // Cached Zulip members list, keyed by user_id
+  let membersCache: Map<number, Member> | null = null
+
+  async function getMembersCache(): Promise<Map<number, Member>> {
+    if (membersCache) return membersCache
+    const result = await getMembers(adminClient)
+    if (result.isOk()) {
+      membersCache = new Map(result.value.members.map((m) => [m.user_id, m]))
+    }
+    return membersCache ?? new Map()
+  }
+
+  async function isBot(userId: number): Promise<boolean> {
+    const cache = await getMembersCache()
+    const member = cache.get(userId)
+    return member?.is_bot ?? false
+  }
+
   const server = new McpServer({
     name: 'zuler',
     version: '0.1.0',
@@ -52,6 +77,9 @@ export function createMcpServer(config: ServerConfig) {
     },
     async ({ name }) => {
       const result = await registerBot(adminClient, db, name)
+      if (result.isOk()) {
+        membersCache = null // Invalidate so new bot is picked up
+      }
       return result.match(
         (info) => textResult(`registered '${name}' (${info.botEmail})`),
         (err) => errorResult(`error: ${JSON.stringify(err)}`),
@@ -109,7 +137,7 @@ export function createMcpServer(config: ServerConfig) {
       const senderClient = clientResult.value
 
       if (to !== undefined) {
-        if (await isBotUserId(db, to)) {
+        if (await isBot(to)) {
           return errorResult(
             'error: bots cannot DM other bots. Use a stream/topic so the conversation is visible to humans.',
           )

@@ -116,13 +116,3 @@ export async function listTeammates(
     return err(wrapDbError(e))
   }
 }
-
-/** Check if a Zulip user ID belongs to a registered bot. */
-export async function isBotUserId(db: Kysely<ZulerDatabase>, userId: number): Promise<boolean> {
-  const row = await db
-    .selectFrom('teammates')
-    .where('bot_user_id', '=', userId)
-    .selectAll()
-    .executeTakeFirst()
-  return !!row
-}
