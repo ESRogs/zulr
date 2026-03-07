@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely'
+import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import type { Member, ZulipClient } from 'zulip-ts'
 import { createClient, getMembers } from 'zulip-ts'
 import type { ZulerDatabase } from '../state/db.ts'
@@ -10,6 +11,14 @@ export function textResult(text: string) {
 
 export function errorResult(text: string) {
   return { content: [{ type: 'text' as const, text }], isError: true as const }
+}
+
+/** Format any error type consistently for MCP tool responses. */
+export function formatError(err: unknown): string {
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    return String((err as { message: unknown }).message)
+  }
+  return JSON.stringify(err)
 }
 
 export type ServerConfig = {
@@ -24,7 +33,7 @@ export type ServerConfig = {
 export type ToolContext = {
   readonly config: ServerConfig
   readonly adminClient: ZulipClient
-  readonly isBot: (userId: number) => Promise<{ isBot: boolean } | { error: string }>
+  readonly isBot: (userId: number) => ResultAsync<boolean, string>
   readonly invalidateMembersCache: () => void
 }
 
@@ -37,31 +46,32 @@ export function createToolContext(config: ServerConfig): ToolContext {
 
   let membersCache: Map<number, Member> | null = null
 
-  async function refreshMembersCache(): Promise<Map<number, Member>> {
-    const result = await getMembers(adminClient)
-    if (result.isErr()) {
-      throw new Error(`failed to fetch Zulip members: ${JSON.stringify(result.error)}`)
-    }
-    membersCache = new Map(result.value.members.map((m) => [m.user_id, m]))
-    return membersCache
+  function refreshMembersCache(): ResultAsync<Map<number, Member>, string> {
+    return getMembers(adminClient)
+      .map((res) => {
+        membersCache = new Map(res.members.map((m) => [m.user_id, m]))
+        return membersCache
+      })
+      .mapErr((err) => `failed to fetch Zulip members: ${JSON.stringify(err)}`)
   }
 
-  async function getMember(userId: number): Promise<Member | undefined> {
-    const cache = membersCache ?? (await refreshMembersCache())
-    const member = cache.get(userId)
-    if (member) return member
-    const fresh = await refreshMembersCache()
-    return fresh.get(userId)
+  function getMember(userId: number): ResultAsync<Member | undefined, string> {
+    const cached = membersCache?.get(userId)
+    if (cached) return okAsync(cached)
+
+    return refreshMembersCache().andThen((cache) => {
+      const member = cache.get(userId)
+      if (member) return okAsync(member)
+      // Still not found after refresh
+      return okAsync(undefined)
+    })
   }
 
-  async function isBot(userId: number): Promise<{ isBot: boolean } | { error: string }> {
-    try {
-      const member = await getMember(userId)
-      if (!member) return { error: `unknown Zulip user ID: ${userId}` }
-      return { isBot: member.is_bot ?? false }
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : String(e) }
-    }
+  function isBot(userId: number): ResultAsync<boolean, string> {
+    return getMember(userId).andThen((member) => {
+      if (!member) return errAsync(`unknown Zulip user ID: ${userId}`)
+      return okAsync(member.is_bot ?? false)
+    })
   }
 
   return {

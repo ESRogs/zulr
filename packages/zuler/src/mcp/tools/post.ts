@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
 import { clientForTeammate } from '../../bot-manager.ts'
 import { checkUnreadBeforePost } from '../../zulip/unread-check.ts'
-import { errorResult, type ToolContext, textResult } from '../helpers.ts'
+import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerPostTool(server: McpServer, ctx: ToolContext): void {
   const { db, zulipSite, teamName } = ctx.config
@@ -31,16 +31,16 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
 
       const clientResult = await clientForTeammate(db, zulipSite, sender)
       if (clientResult.isErr()) {
-        return errorResult(`error: ${JSON.stringify(clientResult.error)}`)
+        return errorResult(`error: ${formatError(clientResult.error)}`)
       }
       const senderClient = clientResult.value
 
       if (to !== undefined) {
-        const botCheck = await ctx.isBot(to)
-        if ('error' in botCheck) {
-          return errorResult(`error: ${botCheck.error}`)
+        const botCheckResult = await ctx.isBot(to)
+        if (botCheckResult.isErr()) {
+          return errorResult(`error: ${botCheckResult.error}`)
         }
-        if (botCheck.isBot) {
+        if (botCheckResult.value) {
           return errorResult(
             'error: bots cannot DM other bots. Use a stream/topic for bot-to-bot communication.',
           )
@@ -48,7 +48,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         const result = await sendDirectMessage(senderClient, { to: [to], content })
         return result.match(
           (res) => textResult(`sent DM (id: ${res.id})`),
-          (err) => errorResult(`error: ${JSON.stringify(err)}`),
+          (err) => errorResult(`error: ${formatError(err)}`),
         )
       }
 
@@ -56,7 +56,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         const result = await sendStreamMessage(senderClient, { to: stream, topic, content })
         return result.match(
           (res) => textResult(`posted to ${stream}/${topic} (id: ${res.id})`),
-          (err) => errorResult(`error: ${JSON.stringify(err)}`),
+          (err) => errorResult(`error: ${formatError(err)}`),
         )
       }
 
