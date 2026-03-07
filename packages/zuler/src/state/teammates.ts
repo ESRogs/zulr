@@ -6,6 +6,7 @@ export type Teammate = {
   readonly name: string
   readonly botEmail: string
   readonly apiKey: string
+  readonly botUserId: number | null
 }
 
 export type TeammateWithSubs = Teammate & {
@@ -47,6 +48,7 @@ export async function registerTeammate(
         name: teammate.name,
         bot_email: teammate.botEmail,
         api_key: teammate.apiKey,
+        bot_user_id: teammate.botUserId,
       })
       .execute()
 
@@ -87,6 +89,7 @@ export async function getTeammate(
       name: row.name,
       botEmail: row.bot_email,
       apiKey: row.api_key,
+      botUserId: row.bot_user_id,
       streamSubs: streamSubs.map((r) => r.stream),
       topicSubs: topicSubs.map((r) => ({ stream: r.stream, topic: r.topic })),
     })
@@ -106,9 +109,20 @@ export async function listTeammates(
         name: r.name,
         botEmail: r.bot_email,
         apiKey: r.api_key,
+        botUserId: r.bot_user_id,
       })),
     )
   } catch (e) {
     return err(wrapDbError(e))
   }
+}
+
+/** Check if a Zulip user ID belongs to a registered bot. */
+export async function isBotUserId(db: Kysely<ZulerDatabase>, userId: number): Promise<boolean> {
+  const row = await db
+    .selectFrom('teammates')
+    .where('bot_user_id', '=', userId)
+    .selectAll()
+    .executeTakeFirst()
+  return !!row
 }

@@ -61,12 +61,14 @@ const alice = {
   name: 'alice',
   botEmail: 'alice-bot@test.zulipchat.com',
   apiKey: 'key-alice',
+  botUserId: null,
 }
 
 const bob = {
   name: 'bob',
   botEmail: 'bob-bot@test.zulipchat.com',
   apiKey: 'key-bob',
+  botUserId: null,
 }
 
 test('stream message delivered to subscribed teammate', async () => {
