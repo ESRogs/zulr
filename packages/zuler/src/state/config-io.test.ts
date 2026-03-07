@@ -20,6 +20,7 @@ test('export and parse round-trip', async () => {
     name: 'alice',
     botEmail: 'alice-bot@test.zulipchat.com',
     apiKey: 'secret-key-alice',
+    botUserId: null,
   })
   await addStreamSubscription(db, 'alice', 'general')
   await addTopicSubscription(db, 'alice', 'dev', 'frontend')
@@ -28,6 +29,7 @@ test('export and parse round-trip', async () => {
     name: 'bob',
     botEmail: 'bob-bot@test.zulipchat.com',
     apiKey: 'secret-key-bob',
+    botUserId: null,
   })
 
   const exportResult = await exportConfig(db)

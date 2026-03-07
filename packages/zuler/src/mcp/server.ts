@@ -1,7 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Kysely } from 'kysely'
 import { z } from 'zod'
-import { createClient, markAsRead, sendDirectMessage, sendStreamMessage } from 'zulip-ts'
+import type { Member } from 'zulip-ts'
+import {
+  createClient,
+  getMembers,
+  markAsRead,
+  sendDirectMessage,
+  sendStreamMessage,
+} from 'zulip-ts'
 import { clientForTeammate, registerBot } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import {
@@ -36,6 +43,37 @@ export function createMcpServer(config: ServerConfig) {
   const { db, zulipSite, zulipEmail, zulipApiKey, teamName } = config
   const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
 
+  // Cached Zulip members list, keyed by user_id
+  let membersCache: Map<number, Member> | null = null
+
+  async function refreshMembersCache(): Promise<Map<number, Member>> {
+    const result = await getMembers(adminClient)
+    if (result.isErr()) {
+      throw new Error(`failed to fetch Zulip members: ${JSON.stringify(result.error)}`)
+    }
+    membersCache = new Map(result.value.members.map((m) => [m.user_id, m]))
+    return membersCache
+  }
+
+  async function getMember(userId: number): Promise<Member | undefined> {
+    const cache = membersCache ?? (await refreshMembersCache())
+    const member = cache.get(userId)
+    if (member) return member
+    // Cache miss — refresh once in case user was created after cache was built
+    const fresh = await refreshMembersCache()
+    return fresh.get(userId)
+  }
+
+  async function isBot(userId: number): Promise<{ isBot: boolean } | { error: string }> {
+    try {
+      const member = await getMember(userId)
+      if (!member) return { error: `unknown Zulip user ID: ${userId}` }
+      return { isBot: member.is_bot ?? false }
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
   const server = new McpServer({
     name: 'zuler',
     version: '0.1.0',
@@ -52,6 +90,9 @@ export function createMcpServer(config: ServerConfig) {
     },
     async ({ name }) => {
       const result = await registerBot(adminClient, db, name)
+      if (result.isOk()) {
+        membersCache = null // Invalidate so new bot is picked up
+      }
       return result.match(
         (info) => textResult(`registered '${name}' (${info.botEmail})`),
         (err) => errorResult(`error: ${JSON.stringify(err)}`),
@@ -109,6 +150,15 @@ export function createMcpServer(config: ServerConfig) {
       const senderClient = clientResult.value
 
       if (to !== undefined) {
+        const botCheck = await isBot(to)
+        if ('error' in botCheck) {
+          return errorResult(`error: ${botCheck.error}`)
+        }
+        if (botCheck.isBot) {
+          return errorResult(
+            'error: bots cannot DM other bots. Use a stream/topic for bot-to-bot communication.',
+          )
+        }
         const result = await sendDirectMessage(senderClient, { to: [to], content })
         return result.match(
           (res) => textResult(`sent DM (id: ${res.id})`),

@@ -18,29 +18,32 @@ export function botEmail(name: string, site: string): string {
   return `${name}-bot@${host}`
 }
 
-/** Find an existing bot by email, returning its API key if found. */
+type BotCredentials = { readonly apiKey: string; readonly userId: number | null }
+
+/** Find an existing bot by email, returning its API key and user ID if found. */
 function findExistingBot(
   adminClient: ZulipClient,
   email: string,
-): ResultAsync<string | undefined, BotManagerError> {
+): ResultAsync<BotCredentials | undefined, BotManagerError> {
   return getBots(adminClient)
     .map((res) => {
       const bot = res.bots.find((b) => b.username === email)
-      return bot?.api_key
+      if (!bot) return undefined
+      return { apiKey: bot.api_key, userId: bot.user_id ?? null }
     })
     .mapErr(wrapZulip)
 }
 
-/** Create a new bot and return its API key. */
+/** Create a new bot and return its API key and user ID. */
 function createNewBot(
   adminClient: ZulipClient,
   name: string,
-): ResultAsync<string, BotManagerError> {
+): ResultAsync<BotCredentials, BotManagerError> {
   return createBot(adminClient, {
     fullName: name,
     shortName: name,
   })
-    .map((res) => res.api_key)
+    .map((res) => ({ apiKey: res.api_key, userId: res.user_id }))
     .mapErr(wrapZulip)
 }
 
@@ -82,15 +85,20 @@ export function registerBot(
     }
 
     // Not in DB — find or create on Zulip
-    return findExistingBot(adminClient, email).andThen((existingKey) => {
-      const apiKeyResult = existingKey
-        ? okAsync<string, BotManagerError>(existingKey)
+    return findExistingBot(adminClient, email).andThen((existing) => {
+      const credsResult = existing
+        ? okAsync<BotCredentials, BotManagerError>(existing)
         : createNewBot(adminClient, name)
 
-      return apiKeyResult.andThen((apiKey) => {
+      return credsResult.andThen((creds) => {
         // Store in DB
         return ResultAsync.fromPromise(
-          registerTeammate(db, { name, botEmail: email, apiKey }),
+          registerTeammate(db, {
+            name,
+            botEmail: email,
+            apiKey: creds.apiKey,
+            botUserId: creds.userId,
+          }),
           (e): BotManagerError => wrapState({ type: 'db_error', message: String(e) }),
         ).andThen((regResult) => {
           if (regResult.isErr()) {
@@ -103,12 +111,12 @@ export function registerBot(
           const botClient = createClient({
             site: adminClient.config.site,
             email,
-            apiKey,
+            apiKey: creds.apiKey,
           })
 
           return subscribeToAllStreams(botClient, adminClient).map(() => ({
             botEmail: email,
-            apiKey,
+            apiKey: creds.apiKey,
           }))
         })
       })
