@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { registerBot } from '../../bot-manager.ts'
-import { errorResult, type ToolContext, textResult } from '../helpers.ts'
+import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -19,7 +19,7 @@ export function registerTool(server: McpServer, ctx: ToolContext): void {
       }
       return result.match(
         (info) => textResult(`registered '${name}' (${info.botEmail})`),
-        (err) => errorResult(`error: ${JSON.stringify(err)}`),
+        (err) => errorResult(`error: ${formatError(err)}`),
       )
     },
   )

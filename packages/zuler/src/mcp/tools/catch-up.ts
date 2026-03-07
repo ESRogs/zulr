@@ -4,7 +4,7 @@ import { markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../../bot-manager.ts'
 import { getTeammate } from '../../state/teammates.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
-import { errorResult, type ToolContext, textResult } from '../helpers.ts'
+import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
   const { db, zulipSite } = ctx.config
@@ -35,7 +35,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       const botClientResult = await clientForTeammate(db, zulipSite, sender)
       if (botClientResult.isErr()) {
-        return errorResult(`error: ${JSON.stringify(botClientResult.error)}`)
+        return errorResult(`error: ${formatError(botClientResult.error)}`)
       }
       const botClient = botClientResult.value
 

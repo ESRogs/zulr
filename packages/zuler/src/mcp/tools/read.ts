@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { clientForTeammate } from '../../bot-manager.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
-import { errorResult, type ToolContext, textResult } from '../helpers.ts'
+import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerReadTool(server: McpServer, ctx: ToolContext): void {
   const { db, zulipSite } = ctx.config
@@ -24,7 +24,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       if (sender) {
         const botClientResult = await clientForTeammate(db, zulipSite, sender)
         if (botClientResult.isErr()) {
-          return errorResult(`error: ${JSON.stringify(botClientResult.error)}`)
+          return errorResult(`error: ${formatError(botClientResult.error)}`)
         }
         readClient = botClientResult.value
       }
@@ -49,7 +49,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
           }
           return textResult(formatMessages(messages, false))
         },
-        (err) => errorResult(`error: ${JSON.stringify(err)}`),
+        (err) => errorResult(`error: ${formatError(err)}`),
       )
     },
   )
