@@ -290,15 +290,12 @@ export function createMcpServer(config: ServerConfig) {
       const result = await getTeammate(db, sender)
       return result.match(
         (t) => {
-          const lines: string[] = []
-          if (t.streamSubs.length > 0) {
-            lines.push('streams:')
-            for (const s of t.streamSubs) lines.push(`  ${s}`)
-          }
-          if (t.topicSubs.length > 0) {
-            lines.push('topics:')
-            for (const sub of t.topicSubs) lines.push(`  ${sub.stream}/${sub.topic}`)
-          }
+          const lines = [
+            ...(t.streamSubs.length > 0 ? ['streams:', ...t.streamSubs.map((s) => `  ${s}`)] : []),
+            ...(t.topicSubs.length > 0
+              ? ['topics:', ...t.topicSubs.map((sub) => `  ${sub.stream}/${sub.topic}`)]
+              : []),
+          ]
           return textResult(lines.length === 0 ? '(no subscriptions)' : lines.join('\n'))
         },
         (err) => errorResult(`error: ${err.message}`),

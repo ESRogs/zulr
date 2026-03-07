@@ -52,16 +52,14 @@ export async function routeDm(
   const content = message.content
   const summary = truncate(content, 60)
   const recipientEmails = new Set(message.display_recipient.map((r) => r.email))
-  const delivered: { teammate: string; from: string }[] = []
 
-  for (const [email, name] of emailMap) {
-    if (email === message.sender_email) continue
-    if (recipientEmails.has(email)) {
+  const delivered = [...emailMap]
+    .filter(([email]) => email !== message.sender_email && recipientEmails.has(email))
+    .map(([_, name]) => {
       const from = `zulip:${senderName}`
       writeToInbox(teamName, name, from, content, summary)
-      delivered.push({ teammate: name, from })
-    }
-  }
+      return { teammate: name, from }
+    })
 
   return { messageId: message.id, delivered, autoSubscribed: [] }
 }
@@ -112,12 +110,11 @@ export async function routeStreamMessage(
     }
   }
 
-  const delivered: { teammate: string; from: string }[] = []
-  for (const name of recipientNames) {
+  const delivered = [...recipientNames].map((name) => {
     const from = `zulip:${location}:${senderName}`
     writeToInbox(teamName, name, from, content, summary)
-    delivered.push({ teammate: name, from })
-  }
+    return { teammate: name, from }
+  })
 
   return { messageId: message.id, delivered, autoSubscribed }
 }

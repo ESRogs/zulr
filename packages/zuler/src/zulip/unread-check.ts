@@ -18,15 +18,7 @@ export function countUnreadFromTopic(
 ): number {
   const messages = readInbox(teamName, teammate)
   const prefix = `zulip:${stream}/${topic}:`
-
-  let count = 0
-  for (const msg of messages) {
-    if (msg.read) continue
-    if (msg.from.startsWith(prefix)) {
-      count++
-    }
-  }
-  return count
+  return messages.filter((msg) => !msg.read && msg.from.startsWith(prefix)).length
 }
 
 /**
