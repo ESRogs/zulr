@@ -29,16 +29,20 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         readClient = botClientResult.value
       }
 
-      return fetchMessages(readClient, {
-        anchor: 'newest',
-        numBefore: count,
-        numAfter: 0,
-        narrow: [
-          { operator: 'stream', operand: stream },
-          { operator: 'topic', operand: topic },
-        ],
-        applyMarkdown: false,
-      }).match(
+      return fetchMessages(
+        readClient,
+        {
+          anchor: 'newest',
+          numBefore: count,
+          numAfter: 0,
+          narrow: [
+            { operator: 'stream', operand: stream },
+            { operator: 'topic', operand: topic },
+          ],
+          applyMarkdown: false,
+        },
+        { markRead: !!sender },
+      ).match(
         (messages) => {
           if (messages.length === 0) {
             return textResult(`(no messages in ${stream}/${topic})`)
