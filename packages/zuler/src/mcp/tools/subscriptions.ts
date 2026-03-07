@@ -8,7 +8,7 @@ import {
   removeTopicSubscription,
 } from '../../state/subscriptions.ts'
 import { getTeammate } from '../../state/teammates.ts'
-import { errorResult, type ToolContext, textResult } from '../helpers.ts'
+import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void {
   const { db } = ctx.config
@@ -18,19 +18,19 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
     {
       description: 'Subscribe a teammate to a stream or a specific stream/topic.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        teammate: z.string().describe('Teammate name'),
         stream: z.string().describe('Stream name'),
         topic: z.string().optional().describe('Topic name (omit for whole-stream subscription)'),
       }),
     },
-    async ({ sender, stream, topic }) => {
+    async ({ teammate, stream, topic }) => {
       const result = topic
-        ? await addTopicSubscription(db, sender, stream, topic)
-        : await addStreamSubscription(db, sender, stream)
+        ? await addTopicSubscription(db, teammate, stream, topic)
+        : await addStreamSubscription(db, teammate, stream)
 
       return result.match(
         () => textResult(`subscribed to ${topic ? `${stream}/${topic}` : stream}`),
-        (err) => errorResult(`error: ${err.message}`),
+        (err) => errorResult(`error: ${formatError(err)}`),
       )
     },
   )
@@ -45,7 +45,7 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
       description:
         'Unsubscribe a teammate from a stream, a specific topic, or all subscriptions in a stream.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        teammate: z.string().describe('Teammate name'),
         stream: z.string().describe('Stream name'),
         topic: z.string().optional().describe('Topic name (omit for stream-level unsubscribe)'),
         all: z
@@ -55,17 +55,17 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
           .describe('Remove stream and all topic subscriptions'),
       }),
     },
-    async ({ sender, stream, topic, all }) => {
+    async ({ teammate, stream, topic, all }) => {
       const result = all
-        ? await removeAllStreamSubscriptions(db, sender, stream)
+        ? await removeAllStreamSubscriptions(db, teammate, stream)
         : topic
-          ? await removeTopicSubscription(db, sender, stream, topic)
-          : await removeStreamSubscription(db, sender, stream)
+          ? await removeTopicSubscription(db, teammate, stream, topic)
+          : await removeStreamSubscription(db, teammate, stream)
 
       const target = all ? `${stream} (all)` : topic ? `${stream}/${topic}` : stream
       return result.match(
         () => textResult(`unsubscribed from ${target}`),
-        (err) => errorResult(`error: ${err.message}`),
+        (err) => errorResult(`error: ${formatError(err)}`),
       )
     },
   )
@@ -79,11 +79,11 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
     {
       description: "List a teammate's current stream and topic subscriptions.",
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        teammate: z.string().describe('Teammate name'),
       }),
     },
-    async ({ sender }) => {
-      const result = await getTeammate(db, sender)
+    async ({ teammate }) => {
+      const result = await getTeammate(db, teammate)
       return result.match(
         (t) => {
           const lines = [
@@ -94,7 +94,7 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
           ]
           return textResult(lines.length === 0 ? '(no subscriptions)' : lines.join('\n'))
         },
-        (err) => errorResult(`error: ${err.message}`),
+        (err) => errorResult(`error: ${formatError(err)}`),
       )
     },
   )
