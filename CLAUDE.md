@@ -120,6 +120,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 ### Style
 
 - Functional + statically typed. Standalone functions over classes. No inheritance.
+- Prefer functional patterns (`map`, `filter`, `flatMap`, `reduce`) for data transformations. Use imperative loops (`for`, `while`) when they're genuinely clearer — e.g., complex accumulation with early exits, side effects, or async/await in the loop body. Readability drives the choice.
 - Use `function` declarations for named/exported functions, not arrow `const`. Arrow functions are fine for inline callbacks and small helpers.
 - Type annotations at all function boundaries. No `any`.
 - Single quotes in TypeScript files.
