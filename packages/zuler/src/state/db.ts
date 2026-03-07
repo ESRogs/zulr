@@ -70,16 +70,25 @@ export function openDatabase(repoRoot: string): Kysely<ZulerDatabase> {
   return createDatabase(join(dir, 'state.db'))
 }
 
-const MIGRATIONS_SQL = `
-  -- Add bot_user_id column if it doesn't exist (migration from pre-bot-user-id schema)
-  ALTER TABLE teammates ADD COLUMN bot_user_id INTEGER;
-`
+const CURRENT_SCHEMA_VERSION = 1
+
+const MIGRATIONS: Record<number, string> = {
+  1: 'ALTER TABLE teammates ADD COLUMN bot_user_id INTEGER;',
+}
 
 function runMigrations(db: Database): void {
-  // Check if migration is needed by looking for the column
-  const cols = db.prepare("PRAGMA table_info('teammates')").all() as { name: string }[]
-  if (!cols.some((c) => c.name === 'bot_user_id')) {
-    db.exec(MIGRATIONS_SQL)
+  const row = db.prepare('PRAGMA user_version').get() as { user_version: number }
+  let version = row.user_version
+
+  while (version < CURRENT_SCHEMA_VERSION) {
+    const sql = MIGRATIONS[version + 1]
+    if (!sql) break
+    db.exec(sql)
+    version++
+  }
+
+  if (version !== row.user_version) {
+    db.exec(`PRAGMA user_version = ${version}`)
   }
 }
 
@@ -88,8 +97,19 @@ export function createDatabase(path: string): Kysely<ZulerDatabase> {
   const sqliteDb = new Database(path)
   sqliteDb.exec('PRAGMA journal_mode = WAL;')
   sqliteDb.exec('PRAGMA foreign_keys = ON;')
+
+  // Check if this is a fresh DB (no tables yet)
+  const tables = sqliteDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()
+  const isFresh = tables.length === 0
+
   sqliteDb.exec(SCHEMA_SQL)
-  runMigrations(sqliteDb)
+
+  if (isFresh) {
+    // New DB — schema already includes all columns, skip migrations
+    sqliteDb.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`)
+  } else {
+    runMigrations(sqliteDb)
+  }
 
   return new Kysely<ZulerDatabase>({
     dialect: new BunSqliteDialect({ database: sqliteDb }),

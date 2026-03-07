@@ -46,19 +46,32 @@ export function createMcpServer(config: ServerConfig) {
   // Cached Zulip members list, keyed by user_id
   let membersCache: Map<number, Member> | null = null
 
-  async function getMembersCache(): Promise<Map<number, Member>> {
-    if (membersCache) return membersCache
+  async function refreshMembersCache(): Promise<Map<number, Member>> {
     const result = await getMembers(adminClient)
-    if (result.isOk()) {
-      membersCache = new Map(result.value.members.map((m) => [m.user_id, m]))
+    if (result.isErr()) {
+      throw new Error(`failed to fetch Zulip members: ${JSON.stringify(result.error)}`)
     }
-    return membersCache ?? new Map()
+    membersCache = new Map(result.value.members.map((m) => [m.user_id, m]))
+    return membersCache
   }
 
-  async function isBot(userId: number): Promise<boolean> {
-    const cache = await getMembersCache()
+  async function getMember(userId: number): Promise<Member | undefined> {
+    const cache = membersCache ?? (await refreshMembersCache())
     const member = cache.get(userId)
-    return member?.is_bot ?? false
+    if (member) return member
+    // Cache miss — refresh once in case user was created after cache was built
+    const fresh = await refreshMembersCache()
+    return fresh.get(userId)
+  }
+
+  async function isBot(userId: number): Promise<{ isBot: boolean } | { error: string }> {
+    try {
+      const member = await getMember(userId)
+      if (!member) return { error: `unknown Zulip user ID: ${userId}` }
+      return { isBot: member.is_bot ?? false }
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) }
+    }
   }
 
   const server = new McpServer({
@@ -137,9 +150,13 @@ export function createMcpServer(config: ServerConfig) {
       const senderClient = clientResult.value
 
       if (to !== undefined) {
-        if (await isBot(to)) {
+        const botCheck = await isBot(to)
+        if ('error' in botCheck) {
+          return errorResult(`error: ${botCheck.error}`)
+        }
+        if (botCheck.isBot) {
           return errorResult(
-            'error: bots cannot DM other bots. Use a stream/topic so the conversation is visible to humans.',
+            'error: bots cannot DM other bots. Use a stream/topic for bot-to-bot communication.',
           )
         }
         const result = await sendDirectMessage(senderClient, { to: [to], content })

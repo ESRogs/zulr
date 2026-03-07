@@ -18,7 +18,7 @@ export function botEmail(name: string, site: string): string {
   return `${name}-bot@${host}`
 }
 
-type BotCredentials = { apiKey: string; userId: number | null }
+type BotCredentials = { readonly apiKey: string; readonly userId: number | null }
 
 /** Find an existing bot by email, returning its API key and user ID if found. */
 function findExistingBot(
