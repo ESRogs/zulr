@@ -1,0 +1,66 @@
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { z } from 'zod'
+import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
+import { clientForTeammate } from '../../bot-manager.ts'
+import { checkUnreadBeforePost } from '../../zulip/unread-check.ts'
+import { errorResult, type ToolContext, textResult } from '../helpers.ts'
+
+export function registerPostTool(server: McpServer, ctx: ToolContext): void {
+  const { db, zulipSite, teamName } = ctx.config
+
+  server.registerTool(
+    'post',
+    {
+      description:
+        'Send a Zulip message. For DMs, provide "to" as a user ID. For stream messages, provide "stream" and "topic".',
+      inputSchema: z.object({
+        sender: z.string().describe('Name of the registered teammate sending the message'),
+        content: z.string().describe('Message content'),
+        to: z.number().optional().describe('User ID for DMs'),
+        stream: z.string().optional().describe('Stream name for stream messages'),
+        topic: z.string().optional().describe('Topic for stream messages'),
+      }),
+    },
+    async ({ sender, content, to, stream, topic }) => {
+      if (stream && topic) {
+        const blocked = checkUnreadBeforePost(teamName, sender, stream, topic)
+        if (blocked) {
+          return errorResult(blocked)
+        }
+      }
+
+      const clientResult = await clientForTeammate(db, zulipSite, sender)
+      if (clientResult.isErr()) {
+        return errorResult(`error: ${JSON.stringify(clientResult.error)}`)
+      }
+      const senderClient = clientResult.value
+
+      if (to !== undefined) {
+        const botCheck = await ctx.isBot(to)
+        if ('error' in botCheck) {
+          return errorResult(`error: ${botCheck.error}`)
+        }
+        if (botCheck.isBot) {
+          return errorResult(
+            'error: bots cannot DM other bots. Use a stream/topic for bot-to-bot communication.',
+          )
+        }
+        const result = await sendDirectMessage(senderClient, { to: [to], content })
+        return result.match(
+          (res) => textResult(`sent DM (id: ${res.id})`),
+          (err) => errorResult(`error: ${JSON.stringify(err)}`),
+        )
+      }
+
+      if (stream && topic) {
+        const result = await sendStreamMessage(senderClient, { to: stream, topic, content })
+        return result.match(
+          (res) => textResult(`posted to ${stream}/${topic} (id: ${res.id})`),
+          (err) => errorResult(`error: ${JSON.stringify(err)}`),
+        )
+      }
+
+      return errorResult('error: provide either "to" (for DMs) or "stream" and "topic"')
+    },
+  )
+}
