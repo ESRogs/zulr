@@ -28,20 +28,19 @@ const buildUrl = (
 ): string => {
   const base = `${config.site.replace(/\/+$/, '')}/api/v1${path}`
   if (!params || Object.keys(params).length === 0) return base
-  const search = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) {
-    search.set(k, String(v))
-  }
+  const search = new URLSearchParams(
+    Object.entries(params).map(([k, v]): [string, string] => [k, String(v)]),
+  )
   return `${base}?${search.toString()}`
 }
 
-const buildFormBody = (body: Record<string, unknown>): URLSearchParams => {
-  const form = new URLSearchParams()
-  for (const [k, v] of Object.entries(body)) {
-    form.set(k, typeof v === 'string' ? v : JSON.stringify(v))
-  }
-  return form
-}
+const buildFormBody = (body: Record<string, unknown>): URLSearchParams =>
+  new URLSearchParams(
+    Object.entries(body).map(([k, v]): [string, string] => [
+      k,
+      typeof v === 'string' ? v : JSON.stringify(v),
+    ]),
+  )
 
 /** Make a validated request to the Zulip API. */
 const request = <T>(
