@@ -11,7 +11,7 @@ import {
   removeStreamSubscription,
   removeTopicSubscription,
 } from '../state/subscriptions.ts'
-import { getTeammate, listTeammates } from '../state/teammates.ts'
+import { getTeammate, isBotUserId, listTeammates } from '../state/teammates.ts'
 import { fetchMessages, formatMessages } from '../zulip/message-reader.ts'
 import { checkUnreadBeforePost } from '../zulip/unread-check.ts'
 
@@ -109,6 +109,11 @@ export function createMcpServer(config: ServerConfig) {
       const senderClient = clientResult.value
 
       if (to !== undefined) {
+        if (await isBotUserId(db, to)) {
+          return errorResult(
+            'error: bots cannot DM other bots. Use a stream/topic so the conversation is visible to humans.',
+          )
+        }
         const result = await sendDirectMessage(senderClient, { to: [to], content })
         return result.match(
           (res) => textResult(`sent DM (id: ${res.id})`),
