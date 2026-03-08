@@ -11,26 +11,22 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
     'read',
     {
       description:
-        'Fetch recent messages from a Zulip stream/topic. If sender is provided, uses their bot API key and marks fetched messages as read.',
+        'Fetch recent messages from a Zulip stream/topic. Uses the sender bot API key and marks fetched messages as read.',
       inputSchema: z.object({
+        sender: z.string().describe('Teammate name (uses their bot for read tracking)'),
         stream: z.string().describe('Stream name'),
         topic: z.string().describe('Topic name'),
         count: z.number().optional().default(10).describe('Number of messages to fetch'),
-        sender: z.string().optional().describe('Teammate name (uses their bot for read tracking)'),
       }),
     },
-    async ({ stream, topic, count, sender }) => {
-      let readClient = ctx.adminClient
-      if (sender) {
-        const botClientResult = await clientForTeammate(db, zulipSite, sender)
-        if (botClientResult.isErr()) {
-          return errorResult(`error: ${formatError(botClientResult.error)}`)
-        }
-        readClient = botClientResult.value
+    async ({ sender, stream, topic, count }) => {
+      const botClientResult = await clientForTeammate(db, zulipSite, sender)
+      if (botClientResult.isErr()) {
+        return errorResult(`error: ${formatError(botClientResult.error)}`)
       }
 
       return fetchMessages(
-        readClient,
+        botClientResult.value,
         {
           anchor: 'newest',
           numBefore: count,
@@ -41,7 +37,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
           ],
           applyMarkdown: false,
         },
-        { markRead: !!sender },
+        { markRead: true },
       ).match(
         (messages) => {
           if (messages.length === 0) {
