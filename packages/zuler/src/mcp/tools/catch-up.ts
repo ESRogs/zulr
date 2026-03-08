@@ -4,7 +4,7 @@ import { markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../../bot-manager.ts'
 import { getTeammate } from '../../state/teammates.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
-import { errorResult, type ToolContext, textResult } from '../helpers.ts'
+import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
   const { db, zulipSite } = ctx.config
@@ -35,7 +35,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       const botClientResult = await clientForTeammate(db, zulipSite, sender)
       if (botClientResult.isErr()) {
-        return errorResult(`error: ${JSON.stringify(botClientResult.error)}`)
+        return errorResult(`error: ${formatError(botClientResult.error)}`)
       }
       const botClient = botClientResult.value
 
@@ -64,12 +64,13 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
               narrow,
               applyMarkdown: false,
             },
-            { streamFallback: sub.stream, topicFallback: sub.topic },
+            { markRead: false, streamFallback: sub.stream, topicFallback: sub.topic },
           )
         }),
       )
 
       const allMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
+      const failedCount = fetchResults.filter((r) => r.isErr()).length
 
       // Sort by timestamp, take most recent maxMessages
       allMessages.sort((a, b) => a.timestamp - b.timestamp)
@@ -85,10 +86,13 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         trimmed.map((m) => m.id),
       )
 
-      const header =
-        allMessages.length > maxMessages
-          ? `Showing ${trimmed.length} of ${allMessages.length} unread messages (most recent):\n\n`
-          : ''
+      const warnings = [
+        ...(allMessages.length > maxMessages
+          ? [`Showing ${trimmed.length} of ${allMessages.length} unread messages (most recent).`]
+          : []),
+        ...(failedCount > 0 ? [`Warning: ${failedCount} subscription(s) failed to fetch.`] : []),
+      ]
+      const header = warnings.length > 0 ? `${warnings.join(' ')}\n\n` : ''
 
       return textResult(`${header}${formatMessages(trimmed, true)}`)
     },
