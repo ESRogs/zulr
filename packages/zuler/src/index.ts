@@ -1,7 +1,8 @@
+import { appendFileSync } from 'node:fs'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createClient } from 'zulip-ts'
 import { createMcpServer } from './mcp/server.ts'
-import { openDatabase } from './state/db.ts'
+import { openDatabase, stateDir } from './state/db.ts'
 import { startEventListener } from './zulip/event-listener.ts'
 
 const t0 = performance.now()
@@ -17,16 +18,23 @@ if (!zulipSite || !zulipEmail || !zulipApiKey) {
   process.exit(1)
 }
 
+const logFile = `${stateDir(repoRoot)}/zuler.log`
+function log(msg: string): void {
+  const line = `[${new Date().toISOString()}] ${msg}\n`
+  console.error(line.trimEnd())
+  appendFileSync(logFile, line)
+}
+
 const t1 = performance.now()
 const db = openDatabase(repoRoot)
 const tDb = performance.now()
-console.error(`[zuler] db opened in ${(tDb - t1).toFixed(0)}ms`)
+log(`db opened in ${(tDb - t1).toFixed(0)}ms`)
 
 const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
 
 const server = createMcpServer({ db, zulipSite, zulipEmail, zulipApiKey, teamName })
 const tServer = performance.now()
-console.error(`[zuler] server created in ${(tServer - tDb).toFixed(0)}ms`)
+log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
 // Start event listener in background
 startEventListener({
@@ -36,14 +44,14 @@ startEventListener({
   signal: new AbortController().signal,
   onRoute: (info) => {
     const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
-    console.error(`[zuler] ${location} from ${info.sender} → ${info.deliveredTo.join(', ')}`)
+    log(`${location} from ${info.sender} → ${info.deliveredTo.join(', ')}`)
   },
   onError: (err) => {
-    console.error('[zuler] event listener error:', err)
+    log(`event listener error: ${err}`)
   },
 })
 
 const transport = new StdioServerTransport()
 await server.connect(transport)
 const tReady = performance.now()
-console.error(`[zuler] ready in ${(tReady - t0).toFixed(0)}ms`)
+log(`ready in ${(tReady - t0).toFixed(0)}ms`)
