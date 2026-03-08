@@ -5,8 +5,6 @@ import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
 import { startEventListener } from './zulip/event-listener.ts'
 
-const t0 = performance.now()
-
 const zulipSite = process.env.ZULIP_SITE
 const zulipEmail = process.env.ZULIP_EMAIL
 const zulipApiKey = process.env.ZULIP_API_KEY
@@ -25,16 +23,9 @@ function log(msg: string): void {
   appendFileSync(logFile, line)
 }
 
-const t1 = performance.now()
 const db = openDatabase(repoRoot)
-const tDb = performance.now()
-log(`db opened in ${(tDb - t1).toFixed(0)}ms`)
-
 const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
-
 const server = createMcpServer({ db, zulipSite, zulipEmail, zulipApiKey, teamName })
-const tServer = performance.now()
-log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
 // Start event listener in background
 startEventListener({
@@ -53,5 +44,4 @@ startEventListener({
 
 const transport = new StdioServerTransport()
 await server.connect(transport)
-const tReady = performance.now()
-log(`ready in ${(tReady - t0).toFixed(0)}ms`)
+log('server started')
