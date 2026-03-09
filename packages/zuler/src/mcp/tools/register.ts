@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { registerBot } from '../../bot-manager.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
-export function registerRegisterTool(server: McpServer, ctx: ToolContext): void {
+export function registerBotRegistrationTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'register',
     {

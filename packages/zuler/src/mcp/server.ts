@@ -4,7 +4,7 @@ import { registerCatchUpTool } from './tools/catch-up.ts'
 import { registerInitTool } from './tools/init.ts'
 import { registerPostTool } from './tools/post.ts'
 import { registerReadTool } from './tools/read.ts'
-import { registerRegisterTool } from './tools/register.ts'
+import { registerBotRegistrationTool } from './tools/register.ts'
 import {
   registerSubscribeTool,
   registerSubscriptionsTool,
@@ -23,7 +23,7 @@ export function createMcpServer(config: ServerConfig) {
   })
 
   registerInitTool(server, ctx)
-  registerRegisterTool(server, ctx)
+  registerBotRegistrationTool(server, ctx)
   registerTeammatesTool(server, ctx)
   registerPostTool(server, ctx)
   registerReadTool(server, ctx)
