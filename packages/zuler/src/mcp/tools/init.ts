@@ -14,7 +14,7 @@ export function registerInitTool(server: McpServer, ctx: ToolContext): void {
     async () => {
       const teammatesResult = await listTeammates(ctx.config.db)
       if (teammatesResult.isErr()) {
-        return errorResult(`error: ${formatError(teammatesResult.error)}`)
+        return errorResult(formatError(teammatesResult.error))
       }
 
       const teammates = teammatesResult.value

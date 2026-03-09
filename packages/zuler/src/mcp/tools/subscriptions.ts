@@ -30,7 +30,7 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
 
       return result.match(
         () => textResult(`subscribed to ${topic ? `${stream}/${topic}` : stream}`),
-        (err) => errorResult(`error: ${formatError(err)}`),
+        (err) => errorResult(formatError(err)),
       )
     },
   )
@@ -65,7 +65,7 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
       const target = all ? `${stream} (all)` : topic ? `${stream}/${topic}` : stream
       return result.match(
         () => textResult(`unsubscribed from ${target}`),
-        (err) => errorResult(`error: ${formatError(err)}`),
+        (err) => errorResult(formatError(err)),
       )
     },
   )
@@ -94,7 +94,7 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
           ]
           return textResult(lines.length === 0 ? '(no subscriptions)' : lines.join('\n'))
         },
-        (err) => errorResult(`error: ${formatError(err)}`),
+        (err) => errorResult(formatError(err)),
       )
     },
   )

@@ -19,7 +19,7 @@ export function registerTeammatesTool(server: McpServer, ctx: ToolContext): void
               ? '(no registered teammates)'
               : list.map((t) => `${t.name} <${t.botEmail}>`).join('\n'),
           ),
-        (err) => errorResult(`error: ${formatError(err)}`),
+        (err) => errorResult(formatError(err)),
       )
     },
   )
