@@ -38,7 +38,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       if (to !== undefined) {
         const botCheckResult = await ctx.isBot(to)
         if (botCheckResult.isErr()) {
-          return errorResult(botCheckResult.error)
+          return errorResult(formatError(botCheckResult.error))
         }
         if (botCheckResult.value) {
           return errorResult(

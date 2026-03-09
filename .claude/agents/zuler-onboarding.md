@@ -37,7 +37,7 @@ Call the `init` tool to check setup status. If it works, the server is running a
 }
 ```
 
-The Zulip credentials (`ZULIP_SITE`, `ZULIP_EMAIL`, `ZULIP_API_KEY`) are shown in the `env` block above. Alternatively, they can go in a `.env` file in the repo root (Bun loads it automatically).
+The Zulip credentials (`ZULIP_SITE`, `ZULIP_EMAIL`, `ZULIP_API_KEY`) should go in a `.env` file in the repo root (Bun loads it automatically, and `.env` is gitignored). They're shown in the `env` block above for completeness, but avoid committing `.mcp.json` with secrets inline.
 
 ### 2. Register teammates
 
