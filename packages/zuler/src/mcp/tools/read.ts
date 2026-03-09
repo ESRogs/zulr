@@ -59,8 +59,8 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       const displayed = hasMore ? messages.slice(-count) : messages
 
       const header = hasMore
-        ? `(showing ${count} most recent — more messages exist in this topic)\n\n`
-        : ''
+        ? `(showing ${count} most recent — pass a larger count to see more history)\n\n`
+        : `(showing all ${displayed.length} message${displayed.length === 1 ? '' : 's'})\n\n`
 
       // Mark only the displayed messages as read; don't fail if this errors
       const markResult = await markAsRead(
