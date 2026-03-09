@@ -58,7 +58,9 @@ Use the `catch-up` tool to verify that read tracking works — it should show un
 - **DMs**: bots can DM human users but not other bots (by design — bot-to-bot communication should use streams so humans can see it)
 - **Inbound messages**: delivered to Claude Code inbox files automatically via the event listener. Agents receive them through the standard teammate messaging system.
 - **Unread check**: agents must read inbound messages from a topic before posting to it (prevents replying without reading)
-- **Read tracking**: the `read` and `catch-up` tools mark messages as read using each bot's API key, so Zulip's per-user read state tracks what each agent has seen
+- **Read tracking**: there are two levels of read state:
+  - *Zulip read state*: tracks whether a message has been delivered to the teammate's inbox (or explicitly fetched via `read`/`catch-up`). The event listener marks messages as Zulip-read on delivery. This is what `catch-up` uses (`first_unread` anchor) to find messages the teammate hasn't received yet.
+  - *Inbox file read state*: tracks whether the teammate has actually seen the message in their Claude Code context. This is what the unread-check enforcement uses to block posting before reading.
 
 ## Tone
 
