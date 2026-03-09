@@ -48,8 +48,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         return textResult('(no subscriptions)')
       }
 
-      // Fetch unread messages from all subscriptions in parallel (without marking read yet).
-      // Fetch maxMessages+1 per subscription to detect if more unreads exist.
+      // Fetch unread messages from all subscriptions in parallel (without marking read yet)
       const fetchResults = await Promise.all(
         subs.map((sub) => {
           const narrow = [
@@ -61,7 +60,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
             {
               anchor: 'first_unread',
               numBefore: 0,
-              numAfter: maxMessages + 1,
+              numAfter: maxMessages,
               narrow,
               applyMarkdown: false,
             },
@@ -70,10 +69,8 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         }),
       )
 
+      const allMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
       const failedCount = fetchResults.filter((r) => r.isErr()).length
-      const perSubResults = fetchResults.filter((r) => r.isOk()).map((r) => r.value)
-      const someSubsOverflowed = perSubResults.some((msgs) => msgs.length > maxMessages)
-      const allMessages = perSubResults.flatMap((msgs) => [...msgs.slice(0, maxMessages)])
 
       // Sort by timestamp, take most recent maxMessages
       allMessages.sort((a, b) => a.timestamp - b.timestamp)
@@ -92,13 +89,10 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       const warnings = [
         ...(allMessages.length > maxMessages
           ? [`Showing ${trimmed.length} of ${allMessages.length} unread messages (most recent).`]
-          : [`Showing all ${trimmed.length} unread message${trimmed.length === 1 ? '' : 's'}.`]),
-        ...(someSubsOverflowed
-          ? ['Some subscriptions have additional older unread messages.']
           : []),
         ...(failedCount > 0 ? [`Warning: ${failedCount} subscription(s) failed to fetch.`] : []),
       ]
-      const header = `${warnings.join(' ')}\n\n`
+      const header = warnings.length > 0 ? `${warnings.join(' ')}\n\n` : ''
 
       return textResult(`${header}${formatMessages(trimmed, true)}`)
     },

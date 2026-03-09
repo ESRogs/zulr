@@ -1,5 +1,4 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { okAsync } from 'neverthrow'
 import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../../bot-manager.ts'
@@ -31,7 +30,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
 
       // Fetch one extra to detect if there are more messages beyond the requested count.
       // Don't mark as read yet — we only want to mark the displayed messages.
-      return fetchMessages(
+      const fetchResult = await fetchMessages(
         botClient,
         {
           anchor: 'newest',
@@ -45,29 +44,32 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         },
         { markRead: false },
       )
-        .andThen((messages) => {
-          if (messages.length === 0) {
-            return okAsync(textResult(`(no messages in ${stream}/${topic})`))
-          }
 
-          const hasMore = messages.length > count
-          const displayed = hasMore ? messages.slice(-count) : messages
+      if (fetchResult.isErr()) {
+        return errorResult(formatError(fetchResult.error))
+      }
 
-          // Mark only the displayed messages as read
-          return markAsRead(
-            botClient,
-            displayed.map((m) => m.id),
-          ).map(() => {
-            const header = hasMore
-              ? `(showing ${count} most recent of ${count}+ messages — use count to fetch more)\n\n`
-              : `(showing all ${displayed.length} message${displayed.length === 1 ? '' : 's'})\n\n`
-            return textResult(`${header}${formatMessages(displayed, false)}`)
-          })
-        })
-        .match(
-          (result) => result,
-          (err) => errorResult(formatError(err)),
-        )
+      const messages = fetchResult.value
+      if (messages.length === 0) {
+        return textResult(`(no messages in ${stream}/${topic})`)
+      }
+
+      const hasMore = messages.length > count
+      // Zulip returns messages sorted by ID (oldest first), so slice from the end
+      const displayed = hasMore ? messages.slice(-count) : messages
+
+      const header = hasMore
+        ? `(showing ${count} most recent — more messages exist, use count to fetch more)\n\n`
+        : `(showing all ${displayed.length} message${displayed.length === 1 ? '' : 's'})\n\n`
+
+      // Mark only the displayed messages as read; don't fail if this errors
+      const markResult = await markAsRead(
+        botClient,
+        displayed.map((m) => m.id),
+      )
+      const warning = markResult.isErr() ? '(warning: failed to mark messages as read)\n' : ''
+
+      return textResult(`${warning}${header}${formatMessages(displayed, false)}`)
     },
   )
 }
