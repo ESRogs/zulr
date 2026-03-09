@@ -28,14 +28,14 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
     async ({ sender, maxMessages }) => {
       const teammateResult = await getTeammate(db, sender)
       if (teammateResult.isErr()) {
-        return errorResult(`error: ${teammateResult.error.message}`)
+        return errorResult(formatError(teammateResult.error))
       }
 
       const teammate = teammateResult.value
 
       const botClientResult = await clientForTeammate(db, zulipSite, sender)
       if (botClientResult.isErr()) {
-        return errorResult(`error: ${formatError(botClientResult.error)}`)
+        return errorResult(formatError(botClientResult.error))
       }
       const botClient = botClientResult.value
 

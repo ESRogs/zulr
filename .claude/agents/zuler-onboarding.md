@@ -16,7 +16,7 @@ Walk the user through these steps in order. Check what's already done before pro
 
 ### 1. Verify the MCP server is running
 
-Check if zuler tools are available by calling the `teammates` tool. If it works, the server is running. If not, help the user configure `.mcp.json`:
+Call the `init` tool to check setup status. If it works, the server is running and you'll see what's already configured. If the tool isn't available, help the user configure `.mcp.json` (in the repo root or `~/.claude/`):
 
 ```json
 {
@@ -27,14 +27,17 @@ Check if zuler tools are available by calling the `teammates` tool. If it works,
       "args": ["run", "packages/zuler/src/index.ts"],
       "env": {
         "ZULER_TEAM": "<team-name>",
-        "ZULER_REPO_ROOT": "<path-to-repo>"
+        "ZULER_REPO_ROOT": "<path-to-repo>",
+        "ZULIP_SITE": "https://your-org.zulipchat.com",
+        "ZULIP_EMAIL": "<admin-email>",
+        "ZULIP_API_KEY": "<admin-api-key>"
       }
     }
   }
 }
 ```
 
-They also need a `.env` file with `ZULIP_SITE`, `ZULIP_EMAIL`, and `ZULIP_API_KEY`.
+The Zulip credentials (`ZULIP_SITE`, `ZULIP_EMAIL`, `ZULIP_API_KEY`) should go in a `.env` file in the repo root (Bun loads it automatically, and `.env` is gitignored). They're shown in the `env` block above for completeness, but avoid committing `.mcp.json` with secrets inline.
 
 ### 2. Register teammates
 

@@ -31,24 +31,24 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
 
       const clientResult = await clientForTeammate(db, zulipSite, sender)
       if (clientResult.isErr()) {
-        return errorResult(`error: ${formatError(clientResult.error)}`)
+        return errorResult(formatError(clientResult.error))
       }
       const senderClient = clientResult.value
 
       if (to !== undefined) {
         const botCheckResult = await ctx.isBot(to)
         if (botCheckResult.isErr()) {
-          return errorResult(`error: ${botCheckResult.error}`)
+          return errorResult(formatError(botCheckResult.error))
         }
         if (botCheckResult.value) {
           return errorResult(
-            'error: bots cannot DM other bots. Use a stream/topic for bot-to-bot communication.',
+            'bots cannot DM other bots. Use a stream/topic for bot-to-bot communication.',
           )
         }
         const result = await sendDirectMessage(senderClient, { to: [to], content })
         return result.match(
           (res) => textResult(`sent DM (id: ${res.id})`),
-          (err) => errorResult(`error: ${formatError(err)}`),
+          (err) => errorResult(formatError(err)),
         )
       }
 
@@ -56,11 +56,11 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         const result = await sendStreamMessage(senderClient, { to: stream, topic, content })
         return result.match(
           (res) => textResult(`posted to ${stream}/${topic} (id: ${res.id})`),
-          (err) => errorResult(`error: ${formatError(err)}`),
+          (err) => errorResult(formatError(err)),
         )
       }
 
-      return errorResult('error: provide either "to" (for DMs) or "stream" and "topic"')
+      return errorResult('provide either "to" (for DMs) or "stream" and "topic"')
     },
   )
 }

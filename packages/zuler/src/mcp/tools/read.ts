@@ -22,7 +22,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
     async ({ sender, stream, topic, count }) => {
       const botClientResult = await clientForTeammate(db, zulipSite, sender)
       if (botClientResult.isErr()) {
-        return errorResult(`error: ${formatError(botClientResult.error)}`)
+        return errorResult(formatError(botClientResult.error))
       }
 
       return fetchMessages(
@@ -45,7 +45,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
           }
           return textResult(formatMessages(messages, false))
         },
-        (err) => errorResult(`error: ${formatError(err)}`),
+        (err) => errorResult(formatError(err)),
       )
     },
   )
