@@ -1,5 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { okAsync } from 'neverthrow'
 import { z } from 'zod'
+import { markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../../bot-manager.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
@@ -25,11 +27,15 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         return errorResult(formatError(botClientResult.error))
       }
 
+      const botClient = botClientResult.value
+
+      // Fetch one extra to detect if there are more messages beyond the requested count.
+      // Don't mark as read yet — we only want to mark the displayed messages.
       return fetchMessages(
-        botClientResult.value,
+        botClient,
         {
           anchor: 'newest',
-          numBefore: count,
+          numBefore: count + 1,
           numAfter: 0,
           narrow: [
             { operator: 'stream', operand: stream },
@@ -37,16 +43,31 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
           ],
           applyMarkdown: false,
         },
-        { markRead: true },
-      ).match(
-        (messages) => {
-          if (messages.length === 0) {
-            return textResult(`(no messages in ${stream}/${topic})`)
-          }
-          return textResult(formatMessages(messages, false))
-        },
-        (err) => errorResult(formatError(err)),
+        { markRead: false },
       )
+        .andThen((messages) => {
+          if (messages.length === 0) {
+            return okAsync(textResult(`(no messages in ${stream}/${topic})`))
+          }
+
+          const hasMore = messages.length > count
+          const displayed = hasMore ? messages.slice(-count) : messages
+
+          // Mark only the displayed messages as read
+          return markAsRead(
+            botClient,
+            displayed.map((m) => m.id),
+          ).map(() => {
+            const header = hasMore
+              ? `(showing ${count} most recent of ${count}+ messages — use count to fetch more)\n\n`
+              : `(showing all ${displayed.length} message${displayed.length === 1 ? '' : 's'})\n\n`
+            return textResult(`${header}${formatMessages(displayed, false)}`)
+          })
+        })
+        .match(
+          (result) => result,
+          (err) => errorResult(formatError(err)),
+        )
     },
   )
 }
