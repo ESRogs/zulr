@@ -41,7 +41,7 @@ function bootEventListener(): void {
       log(`${location} from ${info.sender} → ${info.deliveredTo.join(', ')}`)
     },
     onError: (err) => {
-      log(`event listener error: ${err}`)
+      log(`event listener error: ${typeof err === 'object' ? JSON.stringify(err) : err}`)
     },
   })
   log('event listener started')
