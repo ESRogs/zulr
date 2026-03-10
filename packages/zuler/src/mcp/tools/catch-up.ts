@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../../bot-manager.ts'
 import { getTeammate } from '../../state/teammates.ts'
-import { type FormattedMessage, fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
+import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
@@ -82,7 +82,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       // Collect messages, filtering by time window, sorted chronologically
       const allMessages = fetchResults
-        .flatMap((r) => (r.isOk() ? (r.value as FormattedMessage[]) : []))
+        .flatMap((r) => (r.isOk() ? [...r.value] : []))
         .filter((msg) => msg.timestamp >= cutoff)
         .toSorted((a, b) => a.timestamp - b.timestamp)
 
@@ -107,10 +107,16 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         }
       }
 
+      const skippedCount = allMessages.length - trimmed.length
       const infos = [
         allMessages.length > maxMessages
           ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent).`
           : `Showing all ${trimmed.length} message${trimmed.length === 1 ? '' : 's'}.`,
+        ...(unreadOnly && skippedCount > 0
+          ? [
+              `${skippedCount} older unread message${skippedCount === 1 ? '' : 's'} not shown — call again to see them.`,
+            ]
+          : []),
         ...(failedCount > 0 ? [`Warning: ${failedCount} subscription(s) failed to fetch.`] : []),
       ]
       const header = `${markWarning}${infos.join(' ')}\n\n`
