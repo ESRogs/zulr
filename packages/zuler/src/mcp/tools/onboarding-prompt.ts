@@ -1,32 +1,14 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { type ToolContext, textResult } from '../helpers.ts'
 
-/** Read the onboarding agent definition, stripping YAML frontmatter. */
-function loadOnboardingPrompt(): string {
-  const mdPath = join(
-    import.meta.dir,
-    '..',
-    '..',
-    '..',
-    '..',
-    '..',
-    '.claude',
-    'agents',
-    'zuler-onboarding.md',
-  )
-  try {
-    const content = readFileSync(mdPath, 'utf-8')
-    // Strip YAML frontmatter (between --- markers)
-    return content.replace(/^---\n[\s\S]*?\n---\n/, '').trim()
-  } catch {
-    return 'Error: could not load zuler-onboarding.md agent definition.'
-  }
-}
-
-const ONBOARDING_PROMPT = loadOnboardingPrompt()
+// Load the onboarding agent definition at build time
+const mdFile = Bun.file(
+  new URL('../../../../../.claude/agents/zuler-onboarding.md', import.meta.url),
+)
+const rawContent = await mdFile.text()
+// Strip YAML frontmatter (between --- markers)
+const ONBOARDING_PROMPT = rawContent.replace(/^---\n[\s\S]*?\n---\n/, '').trim()
 
 export function registerOnboardingPromptTool(server: McpServer, _ctx: ToolContext): void {
   server.registerTool(
