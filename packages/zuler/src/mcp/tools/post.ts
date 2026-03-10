@@ -1,12 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
-import { clientForTeammate } from '../../bot-manager.ts'
 import { checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerPostTool(server: McpServer, ctx: ToolContext): void {
-  const { db, zulipSite, teamName } = ctx.config
+  const { teamName } = ctx.config
 
   server.registerTool(
     'post',
@@ -29,9 +28,9 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         }
       }
 
-      const clientResult = await clientForTeammate(db, zulipSite, sender)
+      const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) {
-        return errorResult(formatError(clientResult.error))
+        return errorResult(clientResult.error)
       }
       const senderClient = clientResult.value
 

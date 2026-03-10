@@ -14,9 +14,28 @@ Zuler connects Claude Code agents to Zulip, giving agent teams a persistent, hum
 
 Walk the user through these steps in order. Check what's already done before proceeding.
 
-### 1. Verify the MCP server is running
+### 0. Zulip organization
 
-Call the `init` tool to check setup status. If it works, the server is running and you'll see what's already configured. If the tool isn't available, help the user configure `.mcp.json` (in the repo root or `~/.claude/`):
+If the user doesn't have a Zulip organization yet, help them set one up:
+- Go to https://zulip.com/new/ to create a free organization
+- Once created, get their API key from Settings > Account & privacy > API key
+- They'll need: the site URL (e.g. `https://myorg.zulipchat.com`), their email, and the API key
+
+### 1. Configure credentials
+
+Call the `init` tool to check setup status. If credentials aren't configured, tell the user to create a `.env` file in the repo root themselves with:
+
+```
+ZULIP_SITE=https://your-org.zulipchat.com
+ZULIP_EMAIL=your-email@your-org.zulipchat.com
+ZULIP_API_KEY=your-api-key
+```
+
+IMPORTANT: Do NOT ask the user to share their credentials with you. They should create the `.env` file directly — credentials should never be passed through the chat. Once they've created it, call the `init` tool again to verify (it picks up new credentials automatically).
+
+### 2. Verify the MCP server is running
+
+Call the `init` tool. If it shows "Zuler Setup Status" with credentials configured, the server is working. If the tool isn't available, help the user configure `.mcp.json` (in the repo root or `~/.claude/`):
 
 ```json
 {
@@ -27,31 +46,28 @@ Call the `init` tool to check setup status. If it works, the server is running a
       "args": ["run", "packages/zuler/src/index.ts"],
       "env": {
         "ZULER_TEAM": "<team-name>",
-        "ZULER_REPO_ROOT": "<path-to-repo>",
-        "ZULIP_SITE": "https://your-org.zulipchat.com",
-        "ZULIP_EMAIL": "<admin-email>",
-        "ZULIP_API_KEY": "<admin-api-key>"
+        "ZULER_REPO_ROOT": "<path-to-repo>"
       }
     }
   }
 }
 ```
 
-The Zulip credentials (`ZULIP_SITE`, `ZULIP_EMAIL`, `ZULIP_API_KEY`) should go in a `.env` file in the repo root (Bun loads it automatically, and `.env` is gitignored). They're shown in the `env` block above for completeness, but avoid committing `.mcp.json` with secrets inline.
+Zulip credentials go in a `.env` file in the repo root (not in `.mcp.json` — avoid committing secrets).
 
-### 2. Register teammates
+### 3. Register teammates
 
 For each agent that needs Zulip access, call the `register` tool with their name. This creates a Zulip bot and stores credentials.
 
-### 3. Set up subscriptions
+### 4. Set up subscriptions
 
 Help the user subscribe teammates to relevant streams and topics using the `subscribe` tool. Ask what streams exist and which agents should follow which conversations.
 
-### 4. Test message delivery
+### 5. Test message delivery
 
 Send a test message using the `post` tool to a stream the user can see. Then verify it appears in Zulip. If the user has a teammate agent running, test that inbound messages get routed correctly.
 
-### 5. Test catch-up
+### 6. Test catch-up
 
 Use the `catch-up` tool to verify that read tracking works — it should show unread messages for the teammate.
 

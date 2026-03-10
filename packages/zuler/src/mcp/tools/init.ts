@@ -12,6 +12,22 @@ export function registerInitTool(server: McpServer, ctx: ToolContext): void {
       inputSchema: z.object({}),
     },
     async () => {
+      // Try loading .env if credentials aren't already configured
+      if (!ctx.isConfigured()) {
+        ctx.tryLoadEnv()
+      }
+
+      if (!ctx.isConfigured()) {
+        return textResult(`# Zuler Setup Required
+
+Zulip credentials are not configured. Ask the user which option they prefer:
+
+1. **Guided setup (recommended)** — spawn a zuler-onboarding teammate that walks through setup step by step. Call the \`onboarding-prompt\` tool to get the agent prompt.
+2. **Manual setup** — the user creates a \`.env\` file in the repo root with ZULIP_SITE, ZULIP_EMAIL, and ZULIP_API_KEY, then calls init again to verify.
+
+Present both options to the user and wait for their choice before proceeding.`)
+      }
+
       const teammatesResult = await listTeammates(ctx.config.db)
       if (teammatesResult.isErr()) {
         return errorResult(formatError(teammatesResult.error))
@@ -25,7 +41,7 @@ export function registerInitTool(server: McpServer, ctx: ToolContext): void {
 ${teammates.map((t) => `  ${t.name} <${t.botEmail}>`).join('\n')}
 
 Zuler is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and \`catch-up\` tools to communicate via Zulip.`
-          : `No teammates registered yet.
+          : `Zulip credentials are configured. No teammates registered yet.
 
 ## Quick Start
 
@@ -41,15 +57,12 @@ Zuler is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and 
 4. **Check for messages**:
    Call the \`catch-up\` tool to see unread messages.`
 
-      return textResult(`# Zuler Setup Status
+      const guidedSetup =
+        teammates.length === 0
+          ? `\n\n## Guided Setup (recommended)\n\nFor guided setup, call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.`
+          : ''
 
-${status}
-
-## Guided Setup (Claude Code)
-
-For a guided experience, spawn the zuler-onboarding agent. It will walk you through setup step by step:
-
-  Tell Claude: "Use the zuler-onboarding agent to help me set up Zulip integration"`)
+      return textResult(`# Zuler Setup Status\n\n${status}${guidedSetup}`)
     },
   )
 }

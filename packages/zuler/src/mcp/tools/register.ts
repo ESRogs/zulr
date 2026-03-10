@@ -1,7 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { registerBot } from '../../bot-manager.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  notConfiguredResult,
+  type ToolContext,
+  textResult,
+} from '../helpers.ts'
 
 export function registerRegisterTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -13,7 +19,11 @@ export function registerRegisterTool(server: McpServer, ctx: ToolContext): void 
       }),
     },
     async ({ name }) => {
-      const result = await registerBot(ctx.adminClient, ctx.config.db, name)
+      const adminClient = ctx.getAdminClient()
+      if (!adminClient) {
+        return notConfiguredResult()
+      }
+      const result = await registerBot(adminClient, ctx.config.db, name)
       if (result.isOk()) {
         ctx.invalidateMembersCache()
       }

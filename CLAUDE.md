@@ -108,6 +108,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 ## Git
 
 - Default to squash merge when merging PRs: `gh pr merge --squash --delete-branch`
+- **Never merge PRs without the user's explicit approval.** Create the PR, then wait.
 
 ## Project Conventions
 
