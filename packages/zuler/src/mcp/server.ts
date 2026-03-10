@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { createToolContext, type ServerConfig } from './helpers.ts'
 import { registerCatchUpTool } from './tools/catch-up.ts'
 import { registerInitTool } from './tools/init.ts'
+import { registerOnboardingPromptTool } from './tools/onboarding-prompt.ts'
 import { registerPostTool } from './tools/post.ts'
 import { registerReadTool } from './tools/read.ts'
 import { registerRegisterTool } from './tools/register.ts'
@@ -23,6 +24,7 @@ export function createMcpServer(config: ServerConfig) {
   })
 
   registerInitTool(server, ctx)
+  registerOnboardingPromptTool(server, ctx)
   registerRegisterTool(server, ctx)
   registerTeammatesTool(server, ctx)
   registerPostTool(server, ctx)
