@@ -1,18 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { errorResult, type ToolContext, textResult } from '../helpers.ts'
+import { type ToolContext, textResult } from '../helpers.ts'
 
-/** Lazily load and cache the onboarding agent definition. */
-let cachedPrompt: string | null = null
-
-async function getOnboardingPrompt(): Promise<string> {
-  if (cachedPrompt) return cachedPrompt
-  const mdUrl = new URL('../../../../../.claude/agents/zuler-onboarding.md', import.meta.url)
-  const content = await Bun.file(mdUrl).text()
-  // Strip YAML frontmatter (between --- markers)
-  cachedPrompt = content.replace(/^---\n[\s\S]*?\n---\n/, '').trim()
-  return cachedPrompt
-}
+const mdUrl = new URL('../../../../../.claude/agents/zuler-onboarding.md', import.meta.url)
+const rawContent = await Bun.file(mdUrl).text()
+const ONBOARDING_PROMPT = rawContent.replace(/^---\n[\s\S]*?\n---\n/, '').trim()
 
 export function registerOnboardingPromptTool(server: McpServer, _ctx: ToolContext): void {
   server.registerTool(
@@ -23,9 +15,7 @@ export function registerOnboardingPromptTool(server: McpServer, _ctx: ToolContex
       inputSchema: z.object({}),
     },
     async () => {
-      try {
-        const prompt = await getOnboardingPrompt()
-        return textResult(`# How to spawn the zuler onboarding teammate
+      return textResult(`# How to spawn the zuler onboarding teammate
 
 Follow these steps exactly:
 
@@ -39,10 +29,7 @@ Do NOT spawn this as a subagent. It must be a teammate so it persists throughout
 
 ---
 
-${prompt}`)
-      } catch {
-        return errorResult('Could not load zuler-onboarding.md agent definition.')
-      }
+${ONBOARDING_PROMPT}`)
     },
   )
 }
