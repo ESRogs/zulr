@@ -12,11 +12,7 @@ const zulipEmail = process.env.ZULIP_EMAIL
 const zulipApiKey = process.env.ZULIP_API_KEY
 const teamName = process.env.ZULER_TEAM ?? 'default'
 const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
-
-if (!zulipSite || !zulipEmail || !zulipApiKey) {
-  console.error('Missing ZULIP_SITE, ZULIP_EMAIL, or ZULIP_API_KEY')
-  process.exit(1)
-}
+const configured = !!(zulipSite && zulipEmail && zulipApiKey)
 
 const logFile = `${stateDir(repoRoot)}/zuler.log`
 function log(msg: string): void {
@@ -30,26 +26,37 @@ const db = openDatabase(repoRoot)
 const tDb = performance.now()
 log(`db opened in ${(tDb - t1).toFixed(0)}ms`)
 
-const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
-
-const server = createMcpServer({ db, zulipSite, zulipEmail, zulipApiKey, teamName })
+const server = createMcpServer({
+  db,
+  zulipSite: zulipSite ?? '',
+  zulipEmail: zulipEmail ?? '',
+  zulipApiKey: zulipApiKey ?? '',
+  teamName,
+})
 const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
-// Start event listener in background
-startEventListener({
-  client: adminClient,
-  db,
-  teamName,
-  signal: new AbortController().signal,
-  onRoute: (info) => {
-    const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
-    log(`${location} from ${info.sender} → ${info.deliveredTo.join(', ')}`)
-  },
-  onError: (err) => {
-    log(`event listener error: ${err}`)
-  },
-})
+// Only start the event listener if credentials are configured
+if (configured) {
+  const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
+  startEventListener({
+    client: adminClient,
+    db,
+    teamName,
+    signal: new AbortController().signal,
+    onRoute: (info) => {
+      const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
+      log(`${location} from ${info.sender} → ${info.deliveredTo.join(', ')}`)
+    },
+    onError: (err) => {
+      log(`event listener error: ${err}`)
+    },
+  })
+} else {
+  log(
+    'Zulip credentials not configured — event listener not started. Call the init tool for setup instructions.',
+  )
+}
 
 const transport = new StdioServerTransport()
 await server.connect(transport)

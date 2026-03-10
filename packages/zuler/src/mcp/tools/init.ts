@@ -12,6 +12,31 @@ export function registerInitTool(server: McpServer, ctx: ToolContext): void {
       inputSchema: z.object({}),
     },
     async () => {
+      const { zulipSite, zulipEmail, zulipApiKey } = ctx.config
+      const configured = !!(zulipSite && zulipEmail && zulipApiKey)
+
+      if (!configured) {
+        return textResult(`# Zuler Setup Required
+
+Zulip credentials are not configured. Add these to a \`.env\` file in your repo root:
+
+\`\`\`
+ZULIP_SITE=https://your-org.zulipchat.com
+ZULIP_EMAIL=your-bot@your-org.zulipchat.com
+ZULIP_API_KEY=your-api-key
+\`\`\`
+
+Then restart Claude Code to pick up the changes.
+
+You can find your API key at: \`{your-zulip-site}/#settings/account-and-privacy\`
+
+## Guided Setup (Claude Code)
+
+For a guided experience, spawn the zuler-onboarding agent:
+
+  Tell Claude: "Use the zuler-onboarding agent to help me set up Zulip integration"`)
+      }
+
       const teammatesResult = await listTeammates(ctx.config.db)
       if (teammatesResult.isErr()) {
         return errorResult(formatError(teammatesResult.error))
@@ -25,7 +50,7 @@ export function registerInitTool(server: McpServer, ctx: ToolContext): void {
 ${teammates.map((t) => `  ${t.name} <${t.botEmail}>`).join('\n')}
 
 Zuler is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and \`catch-up\` tools to communicate via Zulip.`
-          : `No teammates registered yet.
+          : `Zulip credentials are configured. No teammates registered yet.
 
 ## Quick Start
 
