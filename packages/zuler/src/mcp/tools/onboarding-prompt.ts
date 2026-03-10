@@ -12,6 +12,7 @@ function loadOnboardingPrompt(): string {
     '..',
     '..',
     '..',
+    '..',
     '.claude',
     'agents',
     'zuler-onboarding.md',
