@@ -22,16 +22,16 @@ const db = openDatabase(repoRoot)
 const tDb = performance.now()
 log(`db opened in ${(tDb - t1).toFixed(0)}ms`)
 
-const server = createMcpServer({ db, teamName, repoRoot })
+const { server, ctx } = createMcpServer({ db, teamName, repoRoot })
 const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
-// Start event listener if credentials are available
-const zulipSite = process.env.ZULIP_SITE
-const zulipEmail = process.env.ZULIP_EMAIL
-const zulipApiKey = process.env.ZULIP_API_KEY
+function bootEventListener(): void {
+  const zulipSite = process.env.ZULIP_SITE
+  const zulipEmail = process.env.ZULIP_EMAIL
+  const zulipApiKey = process.env.ZULIP_API_KEY
+  if (!zulipSite || !zulipEmail || !zulipApiKey) return
 
-if (zulipSite && zulipEmail && zulipApiKey) {
   const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
   startEventListener({
     client: adminClient,
@@ -46,8 +46,15 @@ if (zulipSite && zulipEmail && zulipApiKey) {
       log(`event listener error: ${err}`)
     },
   })
+  log('event listener started')
+}
+
+// Start event listener now if credentials are available, or later when they're loaded
+if (ctx.isConfigured()) {
+  bootEventListener()
 } else {
-  log('Zulip credentials not configured — call the init tool for setup instructions.')
+  log('Zulip credentials not configured — waiting for init tool to load them.')
+  ctx.onCredentialsLoaded(bootEventListener)
 }
 
 const transport = new StdioServerTransport()

@@ -46,8 +46,13 @@ export type ToolContext = {
   readonly getTeammateClient: (sender: string) => ResultAsync<ZulipClient, string>
   /** Returns true if Zulip credentials are configured. */
   readonly isConfigured: () => boolean
-  /** Try to load credentials from .env file if not already configured. */
+  /**
+   * Try to load credentials from .env file if not already configured.
+   * If credentials become available, starts the event listener for inbound messages.
+   */
   readonly tryLoadEnv: () => void
+  /** Set the callback to start the event listener when credentials become available. */
+  readonly onCredentialsLoaded: (callback: () => void) => void
   readonly isBot: (userId: number) => ResultAsync<boolean, string>
   readonly invalidateMembersCache: () => void
 }
@@ -132,17 +137,27 @@ export function createToolContext(config: ServerConfig): ToolContext {
     })
   }
 
+  let credentialsLoadedCallback: (() => void) | null = null
+  let eventListenerStarted = false
+
   return {
     config,
     getAdminClient: tryGetClient,
     isConfigured: () => !!getZulipCredentials(),
     tryLoadEnv: () => {
+      const wasConfigured = !!getZulipCredentials()
       const loaded = loadEnvFile(config.repoRoot)
       if (loaded && getZulipCredentials()) {
-        // New credentials appeared — reset client so it gets recreated
         adminClient = undefined
         membersCache = null
+        if (!wasConfigured && !eventListenerStarted && credentialsLoadedCallback) {
+          eventListenerStarted = true
+          credentialsLoadedCallback()
+        }
       }
+    },
+    onCredentialsLoaded: (callback: () => void) => {
+      credentialsLoadedCallback = callback
     },
     getTeammateClient: (sender: string) => {
       const creds = getZulipCredentials()

@@ -32,5 +32,5 @@ export function createMcpServer(config: ServerConfig) {
   registerSubscriptionsTool(server, ctx)
   registerCatchUpTool(server, ctx)
 
-  return server
+  return { server, ctx }
 }
