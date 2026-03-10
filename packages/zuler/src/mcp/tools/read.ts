@@ -1,19 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
-import { clientForTeammate } from '../../bot-manager.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
-import {
-  errorResult,
-  formatError,
-  notConfiguredResult,
-  type ToolContext,
-  textResult,
-} from '../helpers.ts'
+import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerReadTool(server: McpServer, ctx: ToolContext): void {
-  const { db } = ctx.config
-
   server.registerTool(
     'read',
     {
@@ -27,12 +18,9 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, stream, topic, count }) => {
-      if (!ctx.isConfigured()) {
-        return notConfiguredResult()
-      }
-      const botClientResult = await clientForTeammate(db, ctx.getZulipSite() as string, sender)
+      const botClientResult = await ctx.getTeammateClient(sender)
       if (botClientResult.isErr()) {
-        return errorResult(formatError(botClientResult.error))
+        return errorResult(botClientResult.error)
       }
 
       const botClient = botClientResult.value
