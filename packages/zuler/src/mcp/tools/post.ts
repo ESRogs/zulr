@@ -35,11 +35,10 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         }
       }
 
-      const zulipSite = ctx.getZulipSite()
-      if (!zulipSite) {
+      if (!ctx.isConfigured()) {
         return notConfiguredResult()
       }
-      const clientResult = await clientForTeammate(db, zulipSite, sender)
+      const clientResult = await clientForTeammate(db, ctx.getZulipSite() as string, sender)
       if (clientResult.isErr()) {
         return errorResult(formatError(clientResult.error))
       }
