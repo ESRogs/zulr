@@ -30,6 +30,7 @@ function bootEventListener(): void {
   const creds = ctx.getCredentials()
   if (!creds) return
 
+  log(`connecting to ${creds.site} as ${creds.email}`)
   const adminClient = createClient(creds)
   startEventListener({
     client: adminClient,
