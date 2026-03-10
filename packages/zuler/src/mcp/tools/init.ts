@@ -20,21 +20,12 @@ export function registerInitTool(server: McpServer, ctx: ToolContext): void {
       if (!ctx.isConfigured()) {
         return textResult(`# Zuler Setup Required
 
-Zulip credentials are not configured. Two options:
+Zulip credentials are not configured. Ask the user which option they prefer:
 
-## Option 1: Guided Setup (recommended)
+1. **Guided setup (recommended)** — spawn a zuler-onboarding teammate that walks through setup step by step. Call the \`onboarding-prompt\` tool to get the agent prompt.
+2. **Manual setup** — the user creates a \`.env\` file in the repo root with ZULIP_SITE, ZULIP_EMAIL, and ZULIP_API_KEY, then calls init again to verify.
 
-Spawn a zuler-onboarding teammate for guided setup. Call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.
-
-## Option 2: Manual Setup
-
-Add a \`.env\` file in your repo root with:
-
-    ZULIP_SITE=https://your-org.zulipchat.com
-    ZULIP_EMAIL=your-email@your-org.zulipchat.com
-    ZULIP_API_KEY=your-api-key
-
-Then call this tool again to verify.`)
+Present both options to the user and wait for their choice before proceeding.`)
       }
 
       const teammatesResult = await listTeammates(ctx.config.db)
