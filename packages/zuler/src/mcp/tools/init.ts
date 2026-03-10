@@ -24,9 +24,7 @@ Zulip credentials are not configured. Two options:
 
 ## Option 1: Guided Setup
 
-Spawn the zuler-onboarding agent — it will walk you through creating a Zulip organization (if needed) and configuring credentials.
-
-Tell Claude: "Use the zuler-onboarding agent to help me set up Zulip integration"
+Spawn a zuler-onboarding teammate for guided setup. Call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.
 
 ## Option 2: Manual Setup
 
@@ -72,11 +70,9 @@ Zuler is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and 
 
 ${status}
 
-## Guided Setup (Claude Code)
+## Guided Setup
 
-For a guided experience, spawn the zuler-onboarding agent. It will walk you through setup step by step:
-
-  Tell Claude: "Use the zuler-onboarding agent to help me set up Zulip integration"`)
+For guided setup, call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.`)
     },
   )
 }
