@@ -36,7 +36,7 @@ Add a \`.env\` file in your repo root with:
     ZULIP_EMAIL=your-email@your-org.zulipchat.com
     ZULIP_API_KEY=your-api-key
 
-Then call this tool again to verify.`)
+Then call this tool again to verify. Tools will work immediately, but inbound message delivery requires a restart.`)
       }
 
       const teammatesResult = await listTeammates(ctx.config.db)

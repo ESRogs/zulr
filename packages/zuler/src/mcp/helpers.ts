@@ -44,7 +44,7 @@ export type ToolContext = {
   /** Returns true if Zulip credentials are configured. */
   readonly isConfigured: () => boolean
   /** Try to load credentials from .env file. Returns true if newly loaded. */
-  readonly tryLoadEnv: () => boolean
+  readonly tryLoadEnv: () => void
   readonly isBot: (userId: number) => ResultAsync<boolean, string>
   readonly invalidateMembersCache: () => void
 }
@@ -60,7 +60,9 @@ function loadEnvFile(repoRoot: string): boolean {
       if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue
       const eqIndex = trimmed.indexOf('=')
       const key = trimmed.slice(0, eqIndex).trim()
-      const value = trimmed.slice(eqIndex + 1).trim()
+      const rawValue = trimmed.slice(eqIndex + 1).trim()
+      // Strip surrounding quotes (single or double)
+      const value = rawValue.replace(/^(['"])(.*)\1$/, '$2')
       if (key && !process.env[key]) {
         process.env[key] = value
         loaded = true
@@ -127,13 +129,12 @@ export function createToolContext(config: ServerConfig): ToolContext {
     getZulipSite: () => process.env.ZULIP_SITE,
     isConfigured: () => !!getZulipCredentials(),
     tryLoadEnv: () => {
-      const loaded = loadEnvFile(config.repoRoot)
-      if (loaded && getZulipCredentials()) {
+      loadEnvFile(config.repoRoot)
+      if (getZulipCredentials()) {
         // Reset client so it gets recreated with new credentials
         adminClient = undefined
         membersCache = null
       }
-      return loaded
     },
     isBot,
     invalidateMembersCache: () => {

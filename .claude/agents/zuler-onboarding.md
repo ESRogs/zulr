@@ -46,17 +46,14 @@ Call the `init` tool. If it shows "Zuler Setup Status" with credentials configur
       "args": ["run", "packages/zuler/src/index.ts"],
       "env": {
         "ZULER_TEAM": "<team-name>",
-        "ZULER_REPO_ROOT": "<path-to-repo>",
-        "ZULIP_SITE": "https://your-org.zulipchat.com",
-        "ZULIP_EMAIL": "<admin-email>",
-        "ZULIP_API_KEY": "<admin-api-key>"
+        "ZULER_REPO_ROOT": "<path-to-repo>"
       }
     }
   }
 }
 ```
 
-The Zulip credentials (`ZULIP_SITE`, `ZULIP_EMAIL`, `ZULIP_API_KEY`) should go in a `.env` file in the repo root (Bun loads it automatically, and `.env` is gitignored). They're shown in the `env` block above for completeness, but avoid committing `.mcp.json` with secrets inline.
+Zulip credentials go in a `.env` file in the repo root (not in `.mcp.json` — avoid committing secrets).
 
 ### 3. Register teammates
 
