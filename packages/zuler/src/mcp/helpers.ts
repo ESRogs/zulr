@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
@@ -16,9 +15,11 @@ export function errorResult(text: string) {
   return { content: [{ type: 'text' as const, text }], isError: true as const }
 }
 
+const NOT_CONFIGURED_MESSAGE = 'Zulip credentials not configured. Call the init tool first.'
+
 /** Error result for when Zulip credentials aren't configured. */
 export function notConfiguredResult() {
-  return errorResult('Zulip credentials not configured. Call the init tool first.')
+  return errorResult(NOT_CONFIGURED_MESSAGE)
 }
 
 /** Format any error type consistently for MCP tool responses. */
@@ -40,23 +41,29 @@ export type ToolContext = {
   readonly config: ServerConfig
   /** Returns the admin client, or undefined if credentials aren't configured. */
   readonly getAdminClient: () => ZulipClient | undefined
-  /** Returns the Zulip site URL, or undefined if not configured. */
-  readonly getZulipSite: () => string | undefined
   /** Get a ZulipClient for a registered teammate's bot. Checks credentials are configured. */
   readonly getTeammateClient: (sender: string) => ResultAsync<ZulipClient, string>
   /** Returns true if Zulip credentials are configured. */
   readonly isConfigured: () => boolean
-  /** Try to load credentials from .env file. Returns true if newly loaded. */
+  /** Try to load credentials from .env file if not already configured. */
   readonly tryLoadEnv: () => void
   readonly isBot: (userId: number) => ResultAsync<boolean, string>
   readonly invalidateMembersCache: () => void
 }
 
-/** Parse a .env file and set any missing process.env vars. */
+/**
+ * Parse a .env file and set any missing process.env vars.
+ *
+ * Bun loads .env at process start, but this is needed for the lazy-load case
+ * where the .env file is created after the MCP server starts (during onboarding).
+ */
 function loadEnvFile(repoRoot: string): boolean {
   const envPath = join(repoRoot, '.env')
   try {
-    const content = readFileSync(envPath, 'utf-8')
+    const file = Bun.file(envPath)
+    // Bun.file doesn't throw on missing files — check size
+    if (file.size === 0) return false
+    const content = file.toString()
     let loaded = false
     for (const line of content.split('\n')) {
       const trimmed = line.trim()
@@ -99,7 +106,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
 
   function refreshMembersCache(): ResultAsync<Map<number, Member>, string> {
     const client = ensureClient()
-    if (!client) return errAsync('Zulip credentials not configured')
+    if (!client) return errAsync(NOT_CONFIGURED_MESSAGE)
     return getMembers(client)
       .map((res) => {
         membersCache = new Map(res.members.map((m) => [m.user_id, m]))
@@ -129,19 +136,18 @@ export function createToolContext(config: ServerConfig): ToolContext {
   return {
     config,
     getAdminClient: ensureClient,
-    getZulipSite: () => process.env.ZULIP_SITE,
     isConfigured: () => !!getZulipCredentials(),
     tryLoadEnv: () => {
-      loadEnvFile(config.repoRoot)
-      if (getZulipCredentials()) {
-        // Reset client so it gets recreated with new credentials
+      const loaded = loadEnvFile(config.repoRoot)
+      if (loaded && getZulipCredentials()) {
+        // New credentials appeared — reset client so it gets recreated
         adminClient = undefined
         membersCache = null
       }
     },
     getTeammateClient: (sender: string) => {
       const creds = getZulipCredentials()
-      if (!creds) return errAsync('Zulip credentials not configured')
+      if (!creds) return errAsync(NOT_CONFIGURED_MESSAGE)
       return clientForTeammate(config.db, creds.site, sender).mapErr(formatError)
     },
     isBot,
