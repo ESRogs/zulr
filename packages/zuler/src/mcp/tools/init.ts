@@ -57,13 +57,12 @@ Zuler is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and 
 4. **Check for messages**:
    Call the \`catch-up\` tool to see unread messages.`
 
-      return textResult(`# Zuler Setup Status
+      const guidedSetup =
+        teammates.length === 0
+          ? `\n\n## Guided Setup (recommended)\n\nFor guided setup, call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.`
+          : ''
 
-${status}
-
-## Guided Setup (recommended)
-
-For guided setup, call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.`)
+      return textResult(`# Zuler Setup Status\n\n${status}${guidedSetup}`)
     },
   )
 }
