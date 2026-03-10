@@ -80,18 +80,20 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       const failedCount = fetchResults.filter((r) => r.isErr()).length
 
-      // Collect messages, filtering by time window, sorted chronologically
+      // Collect messages, sorted chronologically. Time filter only applies in
+      // default mode — unreadOnly mode shows all unreads regardless of age.
       const allMessages = fetchResults
         .flatMap((r) => (r.isOk() ? [...r.value] : []))
-        .filter((msg) => msg.timestamp >= cutoff)
+        .filter((msg) => unreadOnly || msg.timestamp >= cutoff)
         .toSorted((a, b) => a.timestamp - b.timestamp)
 
       const trimmed = allMessages.slice(-maxMessages)
 
       if (trimmed.length === 0) {
-        const mode = unreadOnly ? 'unread' : 'recent'
         return textResult(
-          `(no ${mode} messages in the last ${maxHours} hour(s) across your subscriptions)`,
+          unreadOnly
+            ? '(no unread messages across your subscriptions)'
+            : `(no recent messages in the last ${maxHours} hours across your subscriptions)`,
         )
       }
 
