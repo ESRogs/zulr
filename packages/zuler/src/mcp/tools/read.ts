@@ -3,10 +3,16 @@ import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../../bot-manager.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  notConfiguredResult,
+  type ToolContext,
+  textResult,
+} from '../helpers.ts'
 
 export function registerReadTool(server: McpServer, ctx: ToolContext): void {
-  const { db, zulipSite } = ctx.config
+  const { db } = ctx.config
 
   server.registerTool(
     'read',
@@ -21,6 +27,10 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, stream, topic, count }) => {
+      const zulipSite = ctx.getZulipSite()
+      if (!zulipSite) {
+        return notConfiguredResult()
+      }
       const botClientResult = await clientForTeammate(db, zulipSite, sender)
       if (botClientResult.isErr()) {
         return errorResult(formatError(botClientResult.error))

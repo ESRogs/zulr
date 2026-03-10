@@ -7,12 +7,8 @@ import { startEventListener } from './zulip/event-listener.ts'
 
 const t0 = performance.now()
 
-const zulipSite = process.env.ZULIP_SITE
-const zulipEmail = process.env.ZULIP_EMAIL
-const zulipApiKey = process.env.ZULIP_API_KEY
 const teamName = process.env.ZULER_TEAM ?? 'default'
 const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
-const configured = !!(zulipSite && zulipEmail && zulipApiKey)
 
 const logFile = `${stateDir(repoRoot)}/zuler.log`
 function log(msg: string): void {
@@ -26,18 +22,16 @@ const db = openDatabase(repoRoot)
 const tDb = performance.now()
 log(`db opened in ${(tDb - t1).toFixed(0)}ms`)
 
-const server = createMcpServer({
-  db,
-  zulipSite: zulipSite ?? '',
-  zulipEmail: zulipEmail ?? '',
-  zulipApiKey: zulipApiKey ?? '',
-  teamName,
-})
+const server = createMcpServer({ db, teamName, repoRoot })
 const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
-// Only start the event listener if credentials are configured
-if (configured) {
+// Start event listener if credentials are available
+const zulipSite = process.env.ZULIP_SITE
+const zulipEmail = process.env.ZULIP_EMAIL
+const zulipApiKey = process.env.ZULIP_API_KEY
+
+if (zulipSite && zulipEmail && zulipApiKey) {
   const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
   startEventListener({
     client: adminClient,
@@ -53,9 +47,7 @@ if (configured) {
     },
   })
 } else {
-  log(
-    'Zulip credentials not configured — event listener not started. Call the init tool for setup instructions.',
-  )
+  log('Zulip credentials not configured — call the init tool for setup instructions.')
 }
 
 const transport = new StdioServerTransport()
