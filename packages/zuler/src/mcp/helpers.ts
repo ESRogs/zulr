@@ -64,6 +64,9 @@ export type ToolContext = {
  *
  * Bun loads .env at process start, but this is needed for the lazy-load case
  * where the .env file is created after the MCP server starts (during onboarding).
+ *
+ * Limitations: does not handle `export` prefix, multiline values, or escaped
+ * quotes. Sufficient for the three well-known ZULIP_* vars.
  */
 function loadEnvFile(repoRoot: string): boolean {
   const envPath = join(repoRoot, '.env')

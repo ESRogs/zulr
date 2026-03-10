@@ -23,7 +23,7 @@ If the user doesn't have a Zulip organization yet, help them set one up:
 
 ### 1. Configure credentials
 
-Call the `init` tool to check setup status. If credentials aren't configured, help the user create a `.env` file in the repo root with their Zulip credentials:
+Call the `init` tool to check setup status. If credentials aren't configured, tell the user to create a `.env` file in the repo root themselves with:
 
 ```
 ZULIP_SITE=https://your-org.zulipchat.com
@@ -31,7 +31,7 @@ ZULIP_EMAIL=your-email@your-org.zulipchat.com
 ZULIP_API_KEY=your-api-key
 ```
 
-After creating the `.env`, call the `init` tool again — it will pick up the new credentials automatically (no restart needed).
+IMPORTANT: Do NOT ask the user to share their credentials with you. They should create the `.env` file directly — credentials should never be passed through the chat. Once they've created it, call the `init` tool again to verify (it picks up new credentials automatically).
 
 ### 2. Verify the MCP server is running
 
