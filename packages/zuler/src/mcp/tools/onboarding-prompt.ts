@@ -6,7 +6,7 @@ import { type ToolContext, textResult } from '../helpers.ts'
 // Strip YAML frontmatter (between --- markers)
 const ONBOARDING_PROMPT = onboardingMd.replace(/^---\n[\s\S]*?\n---\n/, '').trim()
 
-export function registerOnboardingPromptTool(server: McpServer, _ctx: ToolContext): void {
+export function registerOnboardingPromptTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'onboarding-prompt',
     {
@@ -15,14 +15,15 @@ export function registerOnboardingPromptTool(server: McpServer, _ctx: ToolContex
       inputSchema: z.object({}),
     },
     async () => {
+      const teamName = ctx.config.teamName
       return textResult(`# How to spawn the zuler onboarding teammate
 
 Follow these steps exactly:
 
-1. **Create a team** (if not already in one): Call TeamCreate with a team_name matching the project (e.g. the repo name)
+1. **Create a team** (if not already in one): Call TeamCreate with team_name "${teamName}"
 2. **Spawn the teammate**: Call the Agent tool with:
    - name: "zuler-onboarding"
-   - team_name: the team name from step 1
+   - team_name: "${teamName}"
    - prompt: the prompt below (everything after the --- line)
 
 Do NOT spawn this as a subagent. It must be a teammate so it persists throughout setup.
