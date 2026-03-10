@@ -4,6 +4,7 @@ import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import type { Member, ZulipClient } from 'zulip-ts'
 import { createClient, getMembers } from 'zulip-ts'
+import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 
 /** MCP tool response helpers */
@@ -41,6 +42,8 @@ export type ToolContext = {
   readonly getAdminClient: () => ZulipClient | undefined
   /** Returns the Zulip site URL, or undefined if not configured. */
   readonly getZulipSite: () => string | undefined
+  /** Get a ZulipClient for a registered teammate's bot. Checks credentials are configured. */
+  readonly getTeammateClient: (sender: string) => ResultAsync<ZulipClient, string>
   /** Returns true if Zulip credentials are configured. */
   readonly isConfigured: () => boolean
   /** Try to load credentials from .env file. Returns true if newly loaded. */
@@ -135,6 +138,11 @@ export function createToolContext(config: ServerConfig): ToolContext {
         adminClient = undefined
         membersCache = null
       }
+    },
+    getTeammateClient: (sender: string) => {
+      const creds = getZulipCredentials()
+      if (!creds) return errAsync('Zulip credentials not configured')
+      return clientForTeammate(config.db, creds.site, sender).mapErr(formatError)
     },
     isBot,
     invalidateMembersCache: () => {
