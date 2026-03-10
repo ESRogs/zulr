@@ -74,12 +74,17 @@ export function registerOnboardingPromptTool(server: McpServer, _ctx: ToolContex
       inputSchema: z.object({}),
     },
     async () => {
-      return textResult(`# Zuler Onboarding Agent
+      return textResult(`# How to spawn the zuler onboarding teammate
 
-IMPORTANT: Spawn this as a **teammate** (not a subagent) so it persists and can interact with the user throughout setup. Use the Agent tool with:
-- name: "zuler-onboarding"
-- team_name: set to the current team name if in a team, or create a team first
-- prompt: the text below
+Follow these steps exactly:
+
+1. **Create a team** (if not already in one): Call TeamCreate with team_name "zuler"
+2. **Spawn the teammate**: Call the Agent tool with:
+   - name: "zuler-onboarding"
+   - team_name: "zuler"
+   - prompt: the prompt below (everything after the --- line)
+
+Do NOT spawn this as a subagent. It must be a teammate so it persists throughout setup.
 
 ---
 
