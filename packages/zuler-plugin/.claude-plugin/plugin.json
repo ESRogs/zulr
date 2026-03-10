@@ -1,0 +1,8 @@
+{
+  "name": "zuler",
+  "description": "Connect Claude Code agent teams to Zulip for persistent, human-visible communication",
+  "version": "0.1.0",
+  "author": {
+    "name": "ESRogs"
+  }
+}
