@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../../bot-manager.ts'
 import { getTeammate } from '../../state/teammates.ts'
-import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
+import { type FormattedMessage, fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
@@ -82,7 +82,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       // Collect messages, filtering by time window, sorted chronologically
       const allMessages = fetchResults
-        .flatMap((r) => (r.isOk() ? [...r.value] : []))
+        .flatMap((r) => (r.isOk() ? (r.value as FormattedMessage[]) : []))
         .filter((msg) => msg.timestamp >= cutoff)
         .toSorted((a, b) => a.timestamp - b.timestamp)
 
@@ -96,16 +96,16 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       }
 
       // In unreadOnly mode, mark the returned messages as read
-      const markWarning = unreadOnly
-        ? (
-            await markAsRead(
-              botClient,
-              trimmed.map((m) => m.id),
-            )
-          ).isErr()
-          ? '(warning: failed to mark messages as read)\n'
-          : ''
-        : ''
+      let markWarning = ''
+      if (unreadOnly) {
+        const markResult = await markAsRead(
+          botClient,
+          trimmed.map((m) => m.id),
+        )
+        if (markResult.isErr()) {
+          markWarning = `(warning: failed to mark messages as read: ${formatError(markResult.error)})\n`
+        }
+      }
 
       const infos = [
         allMessages.length > maxMessages
