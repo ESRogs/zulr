@@ -22,7 +22,7 @@ Zulip credentials are not configured. Add these to a \`.env\` file in your repo 
 
 \`\`\`
 ZULIP_SITE=https://your-org.zulipchat.com
-ZULIP_EMAIL=your-bot@your-org.zulipchat.com
+ZULIP_EMAIL=your-email@your-org.zulipchat.com
 ZULIP_API_KEY=your-api-key
 \`\`\`
 
