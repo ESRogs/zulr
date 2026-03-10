@@ -13,19 +13,27 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
     'catch-up',
     {
       description:
-        "Fetch unread messages from all subscribed streams/topics. Uses Zulip's per-bot read tracking, so it returns messages the teammate hasn't seen yet. Marks them as read after fetching. Useful after restart or context compaction.",
+        'Fetch recent messages from all subscribed streams/topics. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart).',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
         maxMessages: z
           .number()
           .optional()
-          .default(25)
-          .describe(
-            'Maximum total messages to return (default: 25). Returns the most recent if more are available.',
-          ),
+          .default(50)
+          .describe('Maximum total messages to return (default: 50)'),
+        maxHours: z
+          .number()
+          .optional()
+          .default(24)
+          .describe('Maximum lookback time in hours (default: 24)'),
+        unreadOnly: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe('If true, fetch only unread messages and mark them as read'),
       }),
     },
-    async ({ sender, maxMessages }) => {
+    async ({ sender, maxMessages, maxHours, unreadOnly }) => {
       const teammateResult = await getTeammate(db, sender)
       if (teammateResult.isErr()) {
         return errorResult(formatError(teammateResult.error))
@@ -45,10 +53,17 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       ]
 
       if (subs.length === 0) {
-        return textResult('(no subscriptions)')
+        return errorResult('no subscriptions — subscribe to streams before catching up')
       }
 
-      // Fetch unread messages from all subscriptions in parallel (without marking read yet)
+      const cutoff = Date.now() / 1000 - maxHours * 3600
+      const perSubLimit = Math.max(10, Math.ceil(maxMessages / subs.length))
+
+      const fetchConfig = unreadOnly
+        ? { anchor: 'first_unread' as const, numBefore: 0, numAfter: perSubLimit }
+        : { anchor: 'newest' as const, numBefore: perSubLimit, numAfter: 0 }
+
+      // Fetch from all subscriptions in parallel (without marking read)
       const fetchResults = await Promise.all(
         subs.map((sub) => {
           const narrow = [
@@ -57,42 +72,48 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
           ]
           return fetchMessages(
             botClient,
-            {
-              anchor: 'first_unread',
-              numBefore: 0,
-              numAfter: maxMessages,
-              narrow,
-              applyMarkdown: false,
-            },
+            { ...fetchConfig, narrow, applyMarkdown: false },
             { markRead: false, streamFallback: sub.stream, topicFallback: sub.topic },
           )
         }),
       )
 
-      const allMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
       const failedCount = fetchResults.filter((r) => r.isErr()).length
 
-      // Sort by timestamp, take most recent maxMessages
-      allMessages.sort((a, b) => a.timestamp - b.timestamp)
+      // Collect messages, filtering by time window, sorted chronologically
+      const allMessages = fetchResults
+        .flatMap((r) => (r.isOk() ? [...r.value] : []))
+        .filter((msg) => msg.timestamp >= cutoff)
+        .toSorted((a, b) => a.timestamp - b.timestamp)
+
       const trimmed = allMessages.slice(-maxMessages)
 
       if (trimmed.length === 0) {
-        return textResult('(no unread messages across your subscriptions)')
+        const mode = unreadOnly ? 'unread' : 'recent'
+        return textResult(
+          `(no ${mode} messages in the last ${maxHours} hour(s) across your subscriptions)`,
+        )
       }
 
-      // Mark only the messages we're returning as read
-      await markAsRead(
-        botClient,
-        trimmed.map((m) => m.id),
-      )
+      // In unreadOnly mode, mark the returned messages as read
+      const markWarning = unreadOnly
+        ? (
+            await markAsRead(
+              botClient,
+              trimmed.map((m) => m.id),
+            )
+          ).isErr()
+          ? '(warning: failed to mark messages as read)\n'
+          : ''
+        : ''
 
-      const warnings = [
-        ...(allMessages.length > maxMessages
-          ? [`Showing ${trimmed.length} of ${allMessages.length} unread messages (most recent).`]
-          : []),
+      const infos = [
+        allMessages.length > maxMessages
+          ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent).`
+          : `Showing all ${trimmed.length} message${trimmed.length === 1 ? '' : 's'}.`,
         ...(failedCount > 0 ? [`Warning: ${failedCount} subscription(s) failed to fetch.`] : []),
       ]
-      const header = warnings.length > 0 ? `${warnings.join(' ')}\n\n` : ''
+      const header = `${markWarning}${infos.join(' ')}\n\n`
 
       return textResult(`${header}${formatMessages(trimmed, true)}`)
     },
