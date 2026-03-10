@@ -22,7 +22,7 @@ export function registerInitTool(server: McpServer, ctx: ToolContext): void {
 
 Zulip credentials are not configured. Two options:
 
-## Option 1: Guided Setup
+## Option 1: Guided Setup (recommended)
 
 Spawn a zuler-onboarding teammate for guided setup. Call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.
 
@@ -70,7 +70,7 @@ Zuler is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and 
 
 ${status}
 
-## Guided Setup
+## Guided Setup (recommended)
 
 For guided setup, call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.`)
     },
