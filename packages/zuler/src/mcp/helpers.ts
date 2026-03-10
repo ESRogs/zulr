@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
@@ -60,10 +61,8 @@ export type ToolContext = {
 function loadEnvFile(repoRoot: string): boolean {
   const envPath = join(repoRoot, '.env')
   try {
-    const file = Bun.file(envPath)
-    // Bun.file doesn't throw on missing files — check size
-    if (file.size === 0) return false
-    const content = file.toString()
+    // readFileSync instead of Bun.file because this is called synchronously
+    const content = readFileSync(envPath, 'utf-8')
     let loaded = false
     for (const line of content.split('\n')) {
       const trimmed = line.trim()
@@ -96,7 +95,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
   let adminClient: ZulipClient | undefined
   let membersCache: Map<number, Member> | null = null
 
-  function ensureClient(): ZulipClient | undefined {
+  function tryGetClient(): ZulipClient | undefined {
     if (adminClient) return adminClient
     const creds = getZulipCredentials()
     if (!creds) return undefined
@@ -105,7 +104,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
   }
 
   function refreshMembersCache(): ResultAsync<Map<number, Member>, string> {
-    const client = ensureClient()
+    const client = tryGetClient()
     if (!client) return errAsync(NOT_CONFIGURED_MESSAGE)
     return getMembers(client)
       .map((res) => {
@@ -135,7 +134,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
 
   return {
     config,
-    getAdminClient: ensureClient,
+    getAdminClient: tryGetClient,
     isConfigured: () => !!getZulipCredentials(),
     tryLoadEnv: () => {
       const loaded = loadEnvFile(config.repoRoot)
