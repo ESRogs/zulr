@@ -27,12 +27,10 @@ const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
 function bootEventListener(): void {
-  const zulipSite = process.env.ZULIP_SITE
-  const zulipEmail = process.env.ZULIP_EMAIL
-  const zulipApiKey = process.env.ZULIP_API_KEY
-  if (!zulipSite || !zulipEmail || !zulipApiKey) return
+  const creds = ctx.getCredentials()
+  if (!creds) return
 
-  const adminClient = createClient({ site: zulipSite, email: zulipEmail, apiKey: zulipApiKey })
+  const adminClient = createClient(creds)
   startEventListener({
     client: adminClient,
     db,

@@ -46,6 +46,8 @@ export type ToolContext = {
   readonly getTeammateClient: (sender: string) => ResultAsync<ZulipClient, string>
   /** Returns true if Zulip credentials are configured. */
   readonly isConfigured: () => boolean
+  /** Returns Zulip credentials if configured. */
+  readonly getCredentials: () => { site: string; email: string; apiKey: string } | undefined
   /**
    * Try to load credentials from .env file if not already configured.
    * If credentials become available, starts the event listener for inbound messages.
@@ -144,6 +146,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     config,
     getAdminClient: tryGetClient,
     isConfigured: () => !!getZulipCredentials(),
+    getCredentials: getZulipCredentials,
     tryLoadEnv: () => {
       const wasConfigured = !!getZulipCredentials()
       const loaded = loadEnvFile(config.repoRoot)
