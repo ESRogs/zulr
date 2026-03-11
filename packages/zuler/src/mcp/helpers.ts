@@ -150,10 +150,9 @@ export function createToolContext(config: ServerConfig): ToolContext {
         member ? okAsync(member) : errAsync(`unknown Zulip user ID: ${identifier}`),
       )
     }
-    const query = identifier.toLowerCase()
     function findInCache(cache: Map<number, Member>): Member | undefined {
       for (const m of cache.values()) {
-        if (m.full_name.toLowerCase() === query || m.email.toLowerCase() === query) return m
+        if (m.full_name === identifier || m.email === identifier) return m
       }
       return undefined
     }
