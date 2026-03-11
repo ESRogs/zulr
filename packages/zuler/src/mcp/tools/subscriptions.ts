@@ -16,11 +16,11 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
   server.registerTool(
     'subscribe',
     {
-      description: 'Subscribe a teammate to a stream or a specific stream/topic.',
+      description: 'Subscribe a teammate to a channel or a specific channel/topic.',
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
-        stream: z.string().describe('Stream name'),
-        topic: z.string().optional().describe('Topic name (omit for whole-stream subscription)'),
+        stream: z.string().describe('Channel name'),
+        topic: z.string().optional().describe('Topic name (omit for whole-channel subscription)'),
       }),
     },
     async ({ teammate, stream, topic }) => {
@@ -43,11 +43,11 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
     'unsubscribe',
     {
       description:
-        'Unsubscribe a teammate from a stream, a specific topic, or all subscriptions in a stream.',
+        'Unsubscribe a teammate from a channel, a specific topic, or all subscriptions in a channel.',
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
-        stream: z.string().describe('Stream name'),
-        topic: z.string().optional().describe('Topic name (omit for stream-level unsubscribe)'),
+        stream: z.string().describe('Channel name'),
+        topic: z.string().optional().describe('Topic name (omit for channel-level unsubscribe)'),
         all: z
           .boolean()
           .optional()
@@ -77,7 +77,7 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
   server.registerTool(
     'subscriptions',
     {
-      description: "List a teammate's current stream and topic subscriptions.",
+      description: "List a teammate's current channel and topic subscriptions.",
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
       }),
