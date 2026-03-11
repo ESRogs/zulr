@@ -5,10 +5,14 @@ import {
   CreateChannelResponseSchema,
   type GetStreamsResponse,
   GetStreamsResponseSchema,
+  type GetSubscribersResponse,
+  GetSubscribersResponseSchema,
   type GetTopicsResponse,
   GetTopicsResponseSchema,
   type SubscribeResponse,
   SubscribeResponseSchema,
+  type SuccessResponse,
+  SuccessResponseSchema,
   type UpdateChannelResponse,
   UpdateChannelResponseSchema,
 } from './schemas.ts'
@@ -68,6 +72,23 @@ export function updateChannel(
     { method: 'PATCH', path: `/streams/${streamId}`, body },
     UpdateChannelResponseSchema,
   )
+}
+
+export function getSubscribers(
+  client: ZulipClient,
+  streamId: number,
+): ResultAsync<GetSubscribersResponse, ZulipError> {
+  return client.request(
+    { method: 'GET', path: `/streams/${streamId}/members` },
+    GetSubscribersResponseSchema,
+  )
+}
+
+export function archiveStream(
+  client: ZulipClient,
+  streamId: number,
+): ResultAsync<SuccessResponse, ZulipError> {
+  return client.request({ method: 'DELETE', path: `/streams/${streamId}` }, SuccessResponseSchema)
 }
 
 export function subscribe(

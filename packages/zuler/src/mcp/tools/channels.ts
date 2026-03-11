@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { createChannel, getTopics, updateChannel } from 'zulip-ts'
+import { archiveStream, createChannel, getSubscribers, getTopics, updateChannel } from 'zulip-ts'
 import {
   errorResult,
   formatError,
@@ -136,6 +136,67 @@ export function registerTopicsTool(server: McpServer, ctx: ToolContext): void {
           if (res.topics.length === 0) return textResult(`(no topics in ${channel})`)
           const lines = res.topics.map((t) => t.name)
           return textResult(lines.join('\n'))
+        },
+        (err) => errorResult(formatError(err)),
+      )
+    },
+  )
+}
+
+export function registerSubscribersTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'channel-subscribers',
+    {
+      description: 'List subscribers of a Zulip channel.',
+      inputSchema: z.object({
+        channel: z.string().describe('Channel name'),
+      }),
+    },
+    async ({ channel }) => {
+      const client = ctx.getAdminClient()
+      if (!client) return notConfiguredResult()
+
+      const streamResult = await ctx.resolveChannel(channel)
+      if (streamResult.isErr()) return errorResult(streamResult.error)
+
+      const result = await getSubscribers(client, streamResult.value.stream_id)
+      if (result.isErr()) return errorResult(formatError(result.error))
+
+      const subscribers = result.value.subscribers
+      if (subscribers.length === 0) return textResult(`(no subscribers in ${channel})`)
+
+      const names = await Promise.all(
+        subscribers.map(async (id) => {
+          const resolved = await ctx.resolveUser(id)
+          return resolved.isOk() ? resolved.value.full_name : `unknown (${id})`
+        }),
+      )
+      return textResult(`${channel}: ${names.length} subscriber(s)\n${names.join('\n')}`)
+    },
+  )
+}
+
+export function registerArchiveChannelTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'archive-channel',
+    {
+      description: 'Archive a Zulip channel. This is reversible by an admin in the Zulip UI.',
+      inputSchema: z.object({
+        channel: z.string().describe('Channel name to archive'),
+      }),
+    },
+    async ({ channel }) => {
+      const client = ctx.getAdminClient()
+      if (!client) return notConfiguredResult()
+
+      const streamResult = await ctx.resolveChannel(channel)
+      if (streamResult.isErr()) return errorResult(streamResult.error)
+
+      const result = await archiveStream(client, streamResult.value.stream_id)
+      return result.match(
+        () => {
+          ctx.invalidateChannelsCache()
+          return textResult(`archived channel "${channel}"`)
         },
         (err) => errorResult(formatError(err)),
       )

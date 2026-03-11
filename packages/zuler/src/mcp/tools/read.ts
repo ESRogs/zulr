@@ -24,7 +24,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
           .union([z.number(), z.string()])
           .optional()
           .describe('User ID, full name, or email (for DM conversations)'),
-        count: z.number().optional().default(10).describe('Number of messages to fetch'),
+        count: z.coerce.number().optional().default(10).describe('Number of messages to fetch'),
       }),
     },
     async ({ sender, stream, topic, user, count }) => {

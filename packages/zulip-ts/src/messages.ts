@@ -5,6 +5,8 @@ import {
   GetMessagesResponseSchema,
   type SendMessageResponse,
   SendMessageResponseSchema,
+  type SuccessResponse,
+  SuccessResponseSchema,
   type UpdateMessageFlagsResponse,
   UpdateMessageFlagsResponseSchema,
   type UpdateMessageResponse,
@@ -127,6 +129,32 @@ export function updateMessage(
   return client.request(
     { method: 'PATCH', path: `/messages/${messageId}`, body },
     UpdateMessageResponseSchema,
+  )
+}
+
+export function addReaction(
+  client: ZulipClient,
+  messageId: number,
+  emojiName: string,
+): ResultAsync<SuccessResponse, ZulipError> {
+  return client.request(
+    { method: 'POST', path: `/messages/${messageId}/reactions`, body: { emoji_name: emojiName } },
+    SuccessResponseSchema,
+  )
+}
+
+export function removeReaction(
+  client: ZulipClient,
+  messageId: number,
+  emojiName: string,
+): ResultAsync<SuccessResponse, ZulipError> {
+  return client.request(
+    {
+      method: 'DELETE',
+      path: `/messages/${messageId}/reactions`,
+      body: { emoji_name: emojiName },
+    },
+    SuccessResponseSchema,
   )
 }
 

@@ -5,6 +5,9 @@ const SuccessResponseFields = {
   msg: z.string(),
 }
 
+export const SuccessResponseSchema = z.object(SuccessResponseFields)
+export type SuccessResponse = z.infer<typeof SuccessResponseSchema>
+
 // --- Messages ---
 
 const BaseMessageFields = {
@@ -77,6 +80,12 @@ export const GetStreamsResponseSchema = z.object({
   streams: z.array(StreamSchema),
 })
 export type GetStreamsResponse = z.infer<typeof GetStreamsResponseSchema>
+
+export const GetSubscribersResponseSchema = z.object({
+  ...SuccessResponseFields,
+  subscribers: z.array(z.number()),
+})
+export type GetSubscribersResponse = z.infer<typeof GetSubscribersResponseSchema>
 
 export const SubscribeResponseSchema = z.object({
   ...SuccessResponseFields,
