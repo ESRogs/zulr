@@ -16,7 +16,6 @@ import { registerReactTool } from './tools/reactions.ts'
 import { registerReadTool } from './tools/read.ts'
 import { registerRegisterTool } from './tools/register.ts'
 import { registerSearchTool } from './tools/search.ts'
-import { registerStatusTool } from './tools/status.ts'
 import {
   registerSubscribeTool,
   registerSubscriptionsTool,
@@ -47,7 +46,6 @@ export function createMcpServer(config: ServerConfig) {
   registerReactTool(server, ctx)
   registerReadTool(server, ctx)
   registerSearchTool(server, ctx)
-  registerStatusTool(server, ctx)
   registerSubscribeTool(server, ctx)
   registerUnsubscribeTool(server, ctx)
   registerSubscriptionsTool(server, ctx)
