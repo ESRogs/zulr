@@ -1,6 +1,9 @@
 import type { Kysely } from 'kysely'
-import { ResultAsync } from 'neverthrow'
+import type { ResultAsync } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
+import { AlreadyExistsError, dbOp, NotFoundError, type StateError } from './db-utils.ts'
+
+export type { StateError } from './db-utils.ts'
 
 export type Teammate = {
   readonly name: string
@@ -12,25 +15,6 @@ export type Teammate = {
 export type TeammateWithSubs = Teammate & {
   readonly streamSubs: readonly string[]
   readonly topicSubs: readonly { readonly stream: string; readonly topic: string }[]
-}
-
-export type StateError =
-  | { readonly type: 'not_found'; readonly message: string }
-  | { readonly type: 'already_exists'; readonly message: string }
-  | { readonly type: 'db_error'; readonly message: string }
-
-class NotFoundError extends Error {}
-class AlreadyExistsError extends Error {}
-
-export const wrapDbError = (e: unknown): StateError => {
-  if (e instanceof NotFoundError) return { type: 'not_found', message: e.message }
-  if (e instanceof AlreadyExistsError) return { type: 'already_exists', message: e.message }
-  return { type: 'db_error', message: e instanceof Error ? e.message : String(e) }
-}
-
-/** Wrap a DB operation, catching promise rejections as StateError. */
-function dbOp<T>(fn: () => Promise<T>): ResultAsync<T, StateError> {
-  return ResultAsync.fromPromise(fn(), wrapDbError)
 }
 
 export function registerTeammate(
