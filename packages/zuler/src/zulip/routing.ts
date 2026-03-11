@@ -57,7 +57,14 @@ export async function routeDm(
     .filter(([email]) => email !== message.sender_email && recipientEmails.has(email))
     .map(([_, name]) => {
       const from = `zulip:${senderName}`
-      writeToInbox(teamName, name, { from, text: content, summary, zulipMessageId: message.id })
+      writeToInbox(teamName, name, {
+        from,
+        text: content,
+        summary,
+        zulipMessageId: message.id,
+        zulipSenderId: message.sender_id,
+        zulipSender: senderName,
+      })
       return { teammate: name, from }
     })
 
@@ -117,6 +124,7 @@ export async function routeStreamMessage(
       text: content,
       summary,
       zulipMessageId: message.id,
+      zulipSenderId: message.sender_id,
       zulipStream: stream,
       zulipTopic: topic,
       zulipSender: senderName,

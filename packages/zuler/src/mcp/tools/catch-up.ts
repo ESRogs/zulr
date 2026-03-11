@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
 import { getTeammate } from '../../state/teammates.ts'
 import {
-  consumeAllUnreadInboxMessages,
+  consumeAllUnreadDmMessages,
+  consumeAllUnreadStreamMessages,
   inboxToFormattedMessages,
   mergeWithInbox,
 } from '../../zulip/inbox.ts'
@@ -82,9 +83,10 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       const failedCount = fetchResults.filter((r) => r.isErr()).length
 
-      // Consume inbox after fetch attempts complete
-      const inboxMessages = consumeAllUnreadInboxMessages(ctx.config.teamName, sender)
-      const inboxFormatted = inboxToFormattedMessages(inboxMessages)
+      // Consume inbox after fetch attempts complete (stream messages + DMs)
+      const streamInbox = consumeAllUnreadStreamMessages(ctx.config.teamName, sender)
+      const dmInbox = consumeAllUnreadDmMessages(ctx.config.teamName, sender)
+      const inboxFormatted = inboxToFormattedMessages([...streamInbox, ...dmInbox])
 
       // Merge Zulip results with inbox-only messages, deduplicate by ID
       const zulipMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
