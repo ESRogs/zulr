@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { FormattedMessage } from './message-reader.ts'
 
 type InboxMessage = {
   readonly from: string
@@ -9,6 +10,9 @@ type InboxMessage = {
   readonly timestamp: string
   readonly read: boolean
   readonly zulipMessageId?: number
+  readonly zulipStream?: string
+  readonly zulipTopic?: string
+  readonly zulipSender?: string
 }
 
 type InboxEntry = {
@@ -16,6 +20,9 @@ type InboxEntry = {
   readonly text: string
   readonly summary: string
   readonly zulipMessageId?: number
+  readonly zulipStream?: string
+  readonly zulipTopic?: string
+  readonly zulipSender?: string
 }
 
 /** Resolve the inbox directory for a given team name. */
@@ -60,32 +67,75 @@ export function writeToInbox(teamName: string, teammate: string, entry: InboxEnt
   writeFileSync(path, JSON.stringify(messages, null, 2))
 }
 
-/**
- * Mark specific inbox messages as read by their Zulip message IDs.
- * Returns the number of messages marked.
- */
-export function markInboxMessagesByIdAsRead(
-  teamName: string,
-  teammate: string,
-  messageIds: readonly number[],
-): number {
-  const path = inboxPath(teamName, teammate)
+/** Consume (mark as read and return) unread inbox messages matching a predicate. */
+function consumeMatching(
+  path: string,
+  predicate: (m: InboxMessage) => boolean,
+): readonly InboxMessage[] {
   const messages = loadInbox(path)
-  if (messages.length === 0) return 0
+  if (messages.length === 0) return []
 
-  const idSet = new Set(messageIds)
-  let marked = 0
+  const consumed: InboxMessage[] = []
   const updated = messages.map((m) => {
-    if (!m.read && m.zulipMessageId !== undefined && idSet.has(m.zulipMessageId)) {
-      marked++
+    if (!m.read && predicate(m)) {
+      consumed.push(m)
       return { ...m, read: true }
     }
     return m
   })
-  if (marked > 0) {
+  if (consumed.length > 0) {
     writeFileSync(path, JSON.stringify(updated, null, 2))
   }
-  return marked
+  return consumed
+}
+
+/** Consume unread inbox messages matching a stream/topic. */
+export function consumeUnreadInboxMessages(
+  teamName: string,
+  teammate: string,
+  stream: string,
+  topic: string,
+): readonly InboxMessage[] {
+  return consumeMatching(
+    inboxPath(teamName, teammate),
+    (m) => m.zulipStream === stream && m.zulipTopic === topic,
+  )
+}
+
+/** Consume all unread inbox messages from Zulip stream sources (not DMs). */
+export function consumeAllUnreadInboxMessages(
+  teamName: string,
+  teammate: string,
+): readonly InboxMessage[] {
+  return consumeMatching(inboxPath(teamName, teammate), (m) => !!m.zulipStream)
+}
+
+/** Convert inbox messages to FormattedMessage for merging with Zulip API results. */
+export function inboxToFormattedMessages(messages: readonly InboxMessage[]): FormattedMessage[] {
+  return messages.flatMap((m) => {
+    // Only convert messages with structured fields — skip legacy messages
+    if (!m.zulipStream || !m.zulipTopic || !m.zulipSender) return []
+    return [
+      {
+        id: m.zulipMessageId ?? -(Date.parse(m.timestamp) || 0),
+        stream: m.zulipStream,
+        topic: m.zulipTopic,
+        sender: m.zulipSender,
+        content: m.text,
+        timestamp: (Date.parse(m.timestamp) || 0) / 1000,
+      },
+    ]
+  })
+}
+
+/** Merge Zulip messages with inbox-only messages, deduplicating by ID. */
+export function mergeWithInbox(
+  zulipMessages: readonly FormattedMessage[],
+  inboxMessages: readonly FormattedMessage[],
+): FormattedMessage[] {
+  const zulipIds = new Set(zulipMessages.map((m) => m.id))
+  const inboxOnly = inboxMessages.filter((m) => m.id < 0 || !zulipIds.has(m.id))
+  return [...zulipMessages, ...inboxOnly]
 }
 
 export type { InboxMessage, InboxEntry }

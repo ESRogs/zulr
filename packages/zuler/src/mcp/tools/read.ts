@@ -1,7 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
-import { markInboxMessagesByIdAsRead } from '../../zulip/inbox.ts'
+import {
+  consumeUnreadInboxMessages,
+  inboxToFormattedMessages,
+  mergeWithInbox,
+} from '../../zulip/inbox.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
@@ -10,7 +14,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
     'read',
     {
       description:
-        'Fetch recent messages from a Zulip stream/topic. Uses the sender bot API key and marks fetched messages as read.',
+        'Fetch recent messages from a Zulip stream/topic. Uses the sender bot API key and marks fetched messages as read. Also consumes any unread messages from the inbox for this topic.',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name (uses their bot for read tracking)'),
         stream: z.string().describe('Stream name'),
@@ -26,8 +30,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
 
       const botClient = botClientResult.value
 
-      // Fetch one extra to detect if there are more messages beyond the requested count.
-      // Don't mark as read yet — we only want to mark the displayed messages.
+      // Fetch from Zulip first — consume inbox only after a successful fetch
       const fetchResult = await fetchMessages(
         botClient,
         {
@@ -47,28 +50,38 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         return errorResult(formatError(fetchResult.error))
       }
 
-      const messages = fetchResult.value
-      if (messages.length === 0) {
+      // Consume unread inbox messages for this topic (marks them as read in the inbox file)
+      const inboxMessages = consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic)
+      const inboxFormatted = inboxToFormattedMessages(inboxMessages)
+
+      // Merge Zulip results with inbox-only messages
+      const zulipMessages = fetchResult.value
+      const allMessages = mergeWithInbox(zulipMessages, inboxFormatted)
+
+      if (allMessages.length === 0) {
         return textResult(`(no messages in ${stream}/${topic})`)
       }
 
-      const hasMore = messages.length > count
-      // Zulip returns messages sorted by ID (oldest first), so slice from the end
-      const displayed = hasMore ? messages.slice(-count) : messages
+      const hasMore = allMessages.length > count
+      const sorted = allMessages.toSorted((a, b) => a.timestamp - b.timestamp)
+      const displayed = sorted.slice(-count)
 
       const header = hasMore
-        ? `(showing ${count} most recent — pass a larger count to see more history)\n\n`
+        ? `(showing ${displayed.length} most recent — pass a larger count to see more history)\n\n`
         : `(showing all ${displayed.length} message${displayed.length === 1 ? '' : 's'})\n\n`
 
-      // Mark only the displayed messages as read on Zulip; don't fail if this errors
-      const displayedIds = displayed.map((m) => m.id)
-      const markResult = await markAsRead(botClient, displayedIds)
-      const warning = markResult.isErr() ? '(warning: failed to mark messages as read)\n' : ''
+      const body = `${header}${formatMessages(displayed, false)}`
 
-      // Also mark matching messages as read in the Claude Code inbox
-      markInboxMessagesByIdAsRead(ctx.config.teamName, sender, displayedIds)
+      // Mark only displayed Zulip messages as read; don't fail if this errors
+      const displayedZulipIds = displayed.filter((m) => m.id > 0).map((m) => m.id)
+      if (displayedZulipIds.length > 0) {
+        const markResult = await markAsRead(botClient, displayedZulipIds)
+        if (markResult.isErr()) {
+          return textResult(`(warning: failed to mark messages as read)\n${body}`)
+        }
+      }
 
-      return textResult(`${warning}${header}${formatMessages(displayed, false)}`)
+      return textResult(body)
     },
   )
 }

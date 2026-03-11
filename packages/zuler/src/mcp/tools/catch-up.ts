@@ -2,7 +2,11 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
 import { getTeammate } from '../../state/teammates.ts'
-import { markInboxMessagesByIdAsRead } from '../../zulip/inbox.ts'
+import {
+  consumeAllUnreadInboxMessages,
+  inboxToFormattedMessages,
+  mergeWithInbox,
+} from '../../zulip/inbox.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
@@ -78,10 +82,17 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       const failedCount = fetchResults.filter((r) => r.isErr()).length
 
+      // Consume inbox after fetch attempts complete
+      const inboxMessages = consumeAllUnreadInboxMessages(ctx.config.teamName, sender)
+      const inboxFormatted = inboxToFormattedMessages(inboxMessages)
+
+      // Merge Zulip results with inbox-only messages, deduplicate by ID
+      const zulipMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
+      const merged = mergeWithInbox(zulipMessages, inboxFormatted)
+
       // Collect messages, sorted chronologically. Time filter only applies in
       // default mode — unreadOnly mode shows all unreads regardless of age.
-      const allMessages = fetchResults
-        .flatMap((r) => (r.isOk() ? [...r.value] : []))
+      const allMessages = merged
         .filter((msg) => unreadOnly || msg.timestamp >= cutoff)
         .toSorted((a, b) => a.timestamp - b.timestamp)
 
@@ -95,19 +106,17 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         )
       }
 
-      const trimmedIds = trimmed.map((m) => m.id)
+      // Only use real Zulip IDs (positive) for API calls
+      const trimmedZulipIds = trimmed.filter((m) => m.id > 0).map((m) => m.id)
 
       // Mark as read on Zulip (unreadOnly mode only — default mode doesn't change Zulip state)
       let markWarning = ''
-      if (unreadOnly) {
-        const markResult = await markAsRead(botClient, trimmedIds)
+      if (unreadOnly && trimmedZulipIds.length > 0) {
+        const markResult = await markAsRead(botClient, trimmedZulipIds)
         if (markResult.isErr()) {
           markWarning = `(warning: failed to mark messages as read: ${formatError(markResult.error)})\n`
         }
       }
-
-      // Mark as read in the Claude Code inbox (both modes — clears the unread check)
-      markInboxMessagesByIdAsRead(ctx.config.teamName, sender, trimmedIds)
 
       const skippedCount = allMessages.length - trimmed.length
       const infos = [

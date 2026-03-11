@@ -112,7 +112,15 @@ export async function routeStreamMessage(
 
   const delivered = [...recipientNames].map((name) => {
     const from = `zulip:${location}:${senderName}`
-    writeToInbox(teamName, name, { from, text: content, summary, zulipMessageId: message.id })
+    writeToInbox(teamName, name, {
+      from,
+      text: content,
+      summary,
+      zulipMessageId: message.id,
+      zulipStream: stream,
+      zulipTopic: topic,
+      zulipSender: senderName,
+    })
     return { teammate: name, from }
   })
 

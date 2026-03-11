@@ -2,13 +2,8 @@ import { readInbox } from './inbox.ts'
 
 /**
  * Count unread inbound messages from a specific stream/topic in a
- * teammate's Claude Code inbox.
- *
- * Inbound stream messages have a `from` field like:
- *   "zulip:<stream>/<topic>:<sender>"
- *
- * Uses exact matching for stream/topic names since Zulip treats
- * topics as case-sensitive.
+ * teammate's Claude Code inbox. Matches on the structured
+ * zulipStream and zulipTopic fields (case-sensitive).
  */
 export function countUnreadFromTopic(
   teamName: string,
@@ -17,8 +12,9 @@ export function countUnreadFromTopic(
   topic: string,
 ): number {
   const messages = readInbox(teamName, teammate)
-  const prefix = `zulip:${stream}/${topic}:`
-  return messages.filter((msg) => !msg.read && msg.from.startsWith(prefix)).length
+  return messages.filter(
+    (msg) => !msg.read && msg.zulipStream === stream && msg.zulipTopic === topic,
+  ).length
 }
 
 /**

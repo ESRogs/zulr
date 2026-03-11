@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { markInboxMessagesByIdAsRead, readInbox, writeToInbox } from './inbox.ts'
+import { consumeUnreadInboxMessages, readInbox, writeToInbox } from './inbox.ts'
 import { checkUnreadBeforePost, countUnreadFromTopic } from './unread-check.ts'
 
 let teamName: string
@@ -24,6 +24,9 @@ test('returns 0 when no unread messages from that topic', () => {
     from: 'zulip:other-stream/other-topic:Bob',
     text: 'hello',
     summary: 'hello',
+    zulipStream: 'other-stream',
+    zulipTopic: 'other-topic',
+    zulipSender: 'Bob',
   })
   expect(countUnreadFromTopic(teamName, 'alice', 'general', 'greetings')).toBe(0)
 })
@@ -33,11 +36,17 @@ test('counts unread messages from matching topic', () => {
     from: 'zulip:general/greetings:Bob',
     text: 'msg1',
     summary: 'msg1',
+    zulipStream: 'general',
+    zulipTopic: 'greetings',
+    zulipSender: 'Bob',
   })
   writeToInbox(teamName, 'alice', {
     from: 'zulip:general/greetings:Charlie',
     text: 'msg2',
     summary: 'msg2',
+    zulipStream: 'general',
+    zulipTopic: 'greetings',
+    zulipSender: 'Charlie',
   })
   expect(countUnreadFromTopic(teamName, 'alice', 'general', 'greetings')).toBe(2)
 })
@@ -47,11 +56,17 @@ test('ignores messages from different topics in same stream', () => {
     from: 'zulip:general/greetings:Bob',
     text: 'msg1',
     summary: 'msg1',
+    zulipStream: 'general',
+    zulipTopic: 'greetings',
+    zulipSender: 'Bob',
   })
   writeToInbox(teamName, 'alice', {
     from: 'zulip:general/other:Bob',
     text: 'msg2',
     summary: 'msg2',
+    zulipStream: 'general',
+    zulipTopic: 'other',
+    zulipSender: 'Bob',
   })
   expect(countUnreadFromTopic(teamName, 'alice', 'general', 'greetings')).toBe(1)
 })
@@ -61,6 +76,9 @@ test('uses exact matching for stream and topic names', () => {
     from: 'zulip:General/Greetings:Bob',
     text: 'msg',
     summary: 'msg',
+    zulipStream: 'General',
+    zulipTopic: 'Greetings',
+    zulipSender: 'Bob',
   })
   expect(countUnreadFromTopic(teamName, 'alice', 'General', 'Greetings')).toBe(1)
   expect(countUnreadFromTopic(teamName, 'alice', 'general', 'greetings')).toBe(0)
@@ -76,6 +94,9 @@ test('checkUnreadBeforePost returns error when unread', () => {
     from: 'zulip:general/greetings:Bob',
     text: 'msg',
     summary: 'msg',
+    zulipStream: 'general',
+    zulipTopic: 'greetings',
+    zulipSender: 'Bob',
   })
   const result = checkUnreadBeforePost(teamName, 'alice', 'general', 'greetings')
   expect(result).toContain('1 unread message(s)')
@@ -87,57 +108,45 @@ test('checkUnreadBeforePost returns undefined when no unread', () => {
   expect(result).toBeUndefined()
 })
 
-// --- markInboxMessagesByIdAsRead tests ---
+// --- consumeUnreadInboxMessages tests ---
 
-test('marks matching messages as read by zulipMessageId', () => {
+test('consumeUnreadInboxMessages marks matching messages and returns them', () => {
   writeToInbox(teamName, 'alice', {
     from: 'zulip:general/greetings:Bob',
     text: 'msg1',
     summary: 'msg1',
-    zulipMessageId: 101,
+    zulipStream: 'general',
+    zulipTopic: 'greetings',
+    zulipSender: 'Bob',
   })
   writeToInbox(teamName, 'alice', {
-    from: 'zulip:general/greetings:Charlie',
+    from: 'zulip:general/other:Bob',
     text: 'msg2',
     summary: 'msg2',
-    zulipMessageId: 102,
+    zulipStream: 'general',
+    zulipTopic: 'other',
+    zulipSender: 'Bob',
   })
 
-  const marked = markInboxMessagesByIdAsRead(teamName, 'alice', [101])
+  const consumed = consumeUnreadInboxMessages(teamName, 'alice', 'general', 'greetings')
 
-  expect(marked).toBe(1)
+  expect(consumed).toHaveLength(1)
+  expect(consumed[0]!.text).toBe('msg1')
   const inbox = readInbox(teamName, 'alice')
   expect(inbox[0]!.read).toBe(true)
   expect(inbox[1]!.read).toBe(false)
 })
 
-test('does not mark messages without zulipMessageId', () => {
+test('consumeUnreadInboxMessages leaves messages without structured fields alone', () => {
   writeToInbox(teamName, 'alice', {
     from: 'zulip:general/greetings:Bob',
-    text: 'old msg',
-    summary: 'old msg',
+    text: 'legacy msg',
+    summary: 'legacy',
   })
 
-  const marked = markInboxMessagesByIdAsRead(teamName, 'alice', [999])
+  const consumed = consumeUnreadInboxMessages(teamName, 'alice', 'general', 'greetings')
 
-  expect(marked).toBe(0)
+  expect(consumed).toHaveLength(0)
   const inbox = readInbox(teamName, 'alice')
   expect(inbox[0]!.read).toBe(false)
-})
-
-test('does not re-mark already read messages', () => {
-  writeToInbox(teamName, 'alice', {
-    from: 'zulip:general/greetings:Bob',
-    text: 'msg',
-    summary: 'msg',
-    zulipMessageId: 101,
-  })
-  markInboxMessagesByIdAsRead(teamName, 'alice', [101])
-  const marked = markInboxMessagesByIdAsRead(teamName, 'alice', [101])
-  expect(marked).toBe(0)
-})
-
-test('markInboxMessagesByIdAsRead returns 0 when inbox does not exist', () => {
-  const marked = markInboxMessagesByIdAsRead(teamName, 'nobody', [101])
-  expect(marked).toBe(0)
 })
