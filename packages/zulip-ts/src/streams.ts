@@ -1,6 +1,8 @@
 import type { ResultAsync } from 'neverthrow'
 import type { ZulipClient, ZulipError } from './client.ts'
 import {
+  type CreateChannelResponse,
+  CreateChannelResponseSchema,
   type GetStreamsResponse,
   GetStreamsResponseSchema,
   type GetTopicsResponse,
@@ -20,6 +22,30 @@ export function getTopics(
   return client.request(
     { method: 'GET', path: `/users/me/${streamId}/topics` },
     GetTopicsResponseSchema,
+  )
+}
+
+export type CreateChannelParams = {
+  readonly name: string
+  readonly description?: string
+  readonly subscribers: readonly number[]
+}
+
+export function createChannel(
+  client: ZulipClient,
+  params: CreateChannelParams,
+): ResultAsync<CreateChannelResponse, ZulipError> {
+  return client.request(
+    {
+      method: 'POST',
+      path: '/channels/create',
+      body: {
+        name: params.name,
+        subscribers: params.subscribers,
+        ...(params.description !== undefined ? { description: params.description } : {}),
+      },
+    },
+    CreateChannelResponseSchema,
   )
 }
 

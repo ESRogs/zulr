@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { getStreams, getTopics } from 'zulip-ts'
+import { createChannel, getStreams, getTopics } from 'zulip-ts'
 import {
   errorResult,
   formatError,
@@ -8,6 +8,38 @@ import {
   type ToolContext,
   textResult,
 } from '../helpers.ts'
+
+export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'create-channel',
+    {
+      description: 'Create a new Zulip channel.',
+      inputSchema: z.object({
+        name: z.string().describe('Channel name'),
+        description: z.string().optional().describe('Channel description'),
+      }),
+    },
+    async ({ name, description }) => {
+      const client = ctx.getAdminClient()
+      if (!client) return notConfiguredResult()
+
+      // Resolve admin user ID for the subscribers list
+      const adminResult = await ctx.resolveUser(client.config.email)
+      if (adminResult.isErr()) return errorResult(adminResult.error)
+
+      const result = await createChannel(client, {
+        name,
+        description,
+        subscribers: [adminResult.value.user_id],
+      })
+
+      return result.match(
+        (res) => textResult(`created channel "${name}" (id: ${res.id})`),
+        (err) => errorResult(formatError(err)),
+      )
+    },
+  )
+}
 
 export function registerChannelsTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(

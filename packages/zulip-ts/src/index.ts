@@ -22,6 +22,7 @@ export {
 export type {
   Bot,
   CreateBotResponse,
+  CreateChannelResponse,
   DmMessage,
   DmRecipient,
   Event,
@@ -41,5 +42,6 @@ export type {
   UpdateMessageFlagsResponse,
   UpdateMessageResponse,
 } from './schemas.ts'
-export { getStreams, getTopics, subscribe } from './streams.ts'
+export type { CreateChannelParams } from './streams.ts'
+export { createChannel, getStreams, getTopics, subscribe } from './streams.ts'
 export { getMembers } from './users.ts'

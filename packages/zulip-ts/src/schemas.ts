@@ -82,6 +82,13 @@ export const SubscribeResponseSchema = z.object({
 })
 export type SubscribeResponse = z.infer<typeof SubscribeResponseSchema>
 
+export const CreateChannelResponseSchema = z.object({
+  result: z.literal('success'),
+  msg: z.string(),
+  id: z.number(),
+})
+export type CreateChannelResponse = z.infer<typeof CreateChannelResponseSchema>
+
 export const TopicSchema = z.object({
   name: z.string(),
   max_id: z.number(),
