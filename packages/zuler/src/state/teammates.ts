@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely'
-import { err, ok, type Result } from 'neverthrow'
+import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
 
 export type Teammate = {
@@ -24,54 +24,58 @@ export const wrapDbError = (e: unknown): StateError => ({
   message: e instanceof Error ? e.message : String(e),
 })
 
-export async function registerTeammate(
+/** Wrap a DB operation that returns a ResultAsync, catching unexpected promise rejections. */
+function dbOp<T>(fn: () => Promise<T>): ResultAsync<T, StateError> {
+  return okAsync(undefined).andThen(() => ResultAsync.fromPromise(fn(), wrapDbError))
+}
+
+export function registerTeammate(
   db: Kysely<ZulerDatabase>,
   teammate: Teammate,
-): Promise<Result<Teammate, StateError>> {
-  try {
+): ResultAsync<Teammate, StateError> {
+  return dbOp(async () => {
     const existing = await db
       .selectFrom('teammates')
       .where('name', '=', teammate.name)
       .selectAll()
       .executeTakeFirst()
 
+    return existing
+  }).andThen((existing) => {
     if (existing) {
-      return err({
+      return errAsync<Teammate, StateError>({
         type: 'already_exists',
         message: `teammate '${teammate.name}' is already registered`,
       })
     }
 
-    await db
-      .insertInto('teammates')
-      .values({
-        name: teammate.name,
-        bot_email: teammate.botEmail,
-        api_key: teammate.apiKey,
-        bot_user_id: teammate.botUserId,
-      })
-      .execute()
-
-    return ok(teammate)
-  } catch (e) {
-    return err(wrapDbError(e))
-  }
+    return dbOp(async () => {
+      await db
+        .insertInto('teammates')
+        .values({
+          name: teammate.name,
+          bot_email: teammate.botEmail,
+          api_key: teammate.apiKey,
+          bot_user_id: teammate.botUserId,
+        })
+        .execute()
+      return teammate
+    })
+  })
 }
 
-export async function getTeammate(
+export function getTeammate(
   db: Kysely<ZulerDatabase>,
   name: string,
-): Promise<Result<TeammateWithSubs, StateError>> {
-  try {
+): ResultAsync<TeammateWithSubs, StateError> {
+  return dbOp(async () => {
     const row = await db
       .selectFrom('teammates')
       .where('name', '=', name)
       .selectAll()
       .executeTakeFirst()
 
-    if (!row) {
-      return err({ type: 'not_found', message: `teammate '${name}' not found` })
-    }
+    if (!row) return undefined
 
     const streamSubs = await db
       .selectFrom('stream_subscriptions')
@@ -85,51 +89,53 @@ export async function getTeammate(
       .select(['stream', 'topic'])
       .execute()
 
-    return ok({
+    return {
       name: row.name,
       botEmail: row.bot_email,
       apiKey: row.api_key,
       botUserId: row.bot_user_id,
       streamSubs: streamSubs.map((r) => r.stream),
       topicSubs: topicSubs.map((r) => ({ stream: r.stream, topic: r.topic })),
-    })
-  } catch (e) {
-    return err(wrapDbError(e))
-  }
+    }
+  }).andThen((result) =>
+    result
+      ? okAsync(result)
+      : errAsync<TeammateWithSubs, StateError>({
+          type: 'not_found',
+          message: `teammate '${name}' not found`,
+        }),
+  )
 }
 
-export async function listTeammates(
+export function listTeammates(
   db: Kysely<ZulerDatabase>,
-): Promise<Result<readonly Teammate[], StateError>> {
-  try {
+): ResultAsync<readonly Teammate[], StateError> {
+  return dbOp(async () => {
     const rows = await db.selectFrom('teammates').selectAll().execute()
-
-    return ok(
-      rows.map((r) => ({
-        name: r.name,
-        botEmail: r.bot_email,
-        apiKey: r.api_key,
-        botUserId: r.bot_user_id,
-      })),
-    )
-  } catch (e) {
-    return err(wrapDbError(e))
-  }
+    return rows.map((r) => ({
+      name: r.name,
+      botEmail: r.bot_email,
+      apiKey: r.api_key,
+      botUserId: r.bot_user_id,
+    }))
+  })
 }
 
-export async function updateTeammateCredentials(
+export function updateTeammateCredentials(
   db: Kysely<ZulerDatabase>,
   name: string,
   updates: { readonly apiKey: string; readonly botUserId: number | null },
-): Promise<Result<void, StateError>> {
-  try {
-    await db
+): ResultAsync<void, StateError> {
+  return dbOp(async () => {
+    const result = await db
       .updateTable('teammates')
       .set({ api_key: updates.apiKey, bot_user_id: updates.botUserId })
       .where('name', '=', name)
-      .execute()
-    return ok(undefined)
-  } catch (e) {
-    return err(wrapDbError(e))
-  }
+      .executeTakeFirst()
+    return result.numUpdatedRows
+  }).andThen((numUpdated) =>
+    numUpdated === 0n
+      ? errAsync<void, StateError>({ type: 'not_found', message: `teammate '${name}' not found` })
+      : okAsync(undefined),
+  )
 }
