@@ -121,7 +121,7 @@ async function readDms(ctx: ToolContext, sender: string, userId: number, count: 
       anchor: 'newest',
       numBefore: count + 1,
       numAfter: 0,
-      narrow: [{ operator: 'pm-with', operand: userId }],
+      narrow: [{ operator: 'pm-with', operand: String(userId) }],
       applyMarkdown: false,
     },
     { markRead: false },
