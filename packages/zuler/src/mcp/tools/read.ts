@@ -15,11 +15,11 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
     'read',
     {
       description:
-        'Fetch recent messages from a Zulip stream/topic or DM conversation. For stream messages, provide "stream" and "topic". For DMs, provide "user" (ID, name, or email). Uses the sender bot API key and marks fetched messages as read.',
+        'Fetch recent messages from a Zulip channel/topic or DM conversation. For channel messages, provide "channel" and "topic". For DMs, provide "user" (ID, name, or email). Uses the sender bot API key and marks fetched messages as read.',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name (uses their bot for read tracking)'),
-        stream: z.string().optional().describe('Stream name (for stream messages)'),
-        topic: z.string().optional().describe('Topic name (for stream messages)'),
+        channel: z.string().optional().describe('Channel name'),
+        topic: z.string().optional().describe('Topic name'),
         user: z
           .union([z.number(), z.string()])
           .optional()
@@ -27,7 +27,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         count: z.coerce.number().optional().default(10).describe('Number of messages to fetch'),
       }),
     },
-    async ({ sender, stream, topic, user, count }) => {
+    async ({ sender, channel, topic, user, count }) => {
       if (user !== undefined) {
         const resolveResult = await ctx.resolveUser(user)
         if (resolveResult.isErr()) {
@@ -35,10 +35,10 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         }
         return readDms(ctx, sender, resolveResult.value.user_id, count)
       }
-      if (stream && topic) {
-        return readStream(ctx, sender, stream, topic, count)
+      if (channel && topic) {
+        return readStream(ctx, sender, channel, topic, count)
       }
-      return errorResult('provide either "stream" and "topic" (for streams) or "user" (for DMs)')
+      return errorResult('provide either "channel" and "topic" (for channels) or "user" (for DMs)')
     },
   )
 }
