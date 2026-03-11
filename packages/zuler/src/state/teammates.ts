@@ -101,12 +101,22 @@ export function listTeammates(
 export function updateTeammateCredentials(
   db: Kysely<ZulerDatabase>,
   name: string,
-  updates: { readonly apiKey: string; readonly botUserId: number | null },
+  updates: {
+    readonly apiKey: string
+    readonly botUserId: number | null
+    readonly botEmail?: string
+  },
 ): ResultAsync<void, StateError> {
   return dbOp(async () => {
+    const set: Record<string, unknown> = {
+      api_key: updates.apiKey,
+      bot_user_id: updates.botUserId,
+    }
+    if (updates.botEmail) set.bot_email = updates.botEmail
+
     const result = await db
       .updateTable('teammates')
-      .set({ api_key: updates.apiKey, bot_user_id: updates.botUserId })
+      .set(set)
       .where('name', '=', name)
       .executeTakeFirst()
 
