@@ -23,7 +23,14 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const result = await createChannel(client, { name, description })
+      const adminResult = await ctx.resolveUser(client.config.email)
+      if (adminResult.isErr()) return errorResult(adminResult.error)
+
+      const result = await createChannel(client, {
+        name,
+        description,
+        subscribers: [adminResult.value.user_id],
+      })
 
       return result.match(
         (res) => textResult(`created channel "${name}" (id: ${res.id})`),

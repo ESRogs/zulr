@@ -30,7 +30,7 @@ export function getTopics(
 export type CreateChannelParams = {
   readonly name: string
   readonly description?: string
-  readonly subscribers?: readonly number[]
+  readonly subscribers: readonly number[]
 }
 
 export function createChannel(
@@ -43,7 +43,7 @@ export function createChannel(
       path: '/channels/create',
       body: {
         name: params.name,
-        ...(params.subscribers !== undefined ? { subscribers: params.subscribers } : {}),
+        subscribers: params.subscribers,
         ...(params.description !== undefined ? { description: params.description } : {}),
       },
     },
