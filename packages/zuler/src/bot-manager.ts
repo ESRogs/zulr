@@ -20,14 +20,15 @@ export function botEmail(name: string, site: string): string {
 
 type BotCredentials = { readonly apiKey: string; readonly userId: number | null }
 
-/** Find an existing bot by email, returning its API key and user ID if found. */
+/** Find an existing bot by email or full_name, returning its API key and user ID if found. */
 function findExistingBot(
   adminClient: ZulipClient,
   email: string,
+  name: string,
 ): ResultAsync<BotCredentials | undefined, BotManagerError> {
   return getBots(adminClient)
     .map((res) => {
-      const bot = res.bots.find((b) => b.username === email)
+      const bot = res.bots.find((b) => b.username === email || b.full_name === name)
       if (!bot) return undefined
       return { apiKey: bot.api_key, userId: bot.user_id ?? null }
     })
@@ -85,7 +86,7 @@ export function registerBot(
     }
 
     // Not in DB — find or create on Zulip
-    return findExistingBot(adminClient, email).andThen((existing) => {
+    return findExistingBot(adminClient, email, name).andThen((existing) => {
       const credsResult = existing
         ? okAsync<BotCredentials, BotManagerError>(existing)
         : createNewBot(adminClient, name)
