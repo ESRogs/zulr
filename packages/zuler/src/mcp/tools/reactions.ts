@@ -25,7 +25,7 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const fn = remove ? removeReaction : addReaction
-      const result = await fn(clientResult.value, messageId, emoji)
+      const result = await fn(clientResult.value.client, messageId, emoji)
 
       return result.match(
         () => textResult(`${remove ? 'removed' : 'added'} :${emoji}: on message ${messageId}`),

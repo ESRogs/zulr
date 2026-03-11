@@ -56,7 +56,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
           )
         }
 
-        const result = await sendDirectMessage(clientResult.value, {
+        const result = await sendDirectMessage(clientResult.value.client, {
           to: [recipient.user_id],
           content,
         })
@@ -71,7 +71,11 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
         }
-        const result = await sendStreamMessage(clientResult.value, { to: stream, topic, content })
+        const result = await sendStreamMessage(clientResult.value.client, {
+          to: stream,
+          topic,
+          content,
+        })
         return result.match(
           (res) => textResult(`posted to ${stream}/${topic} (id: ${res.id})`),
           (err) => errorResult(formatError(err)),

@@ -55,7 +55,7 @@ async function readStream(
     return errorResult(botClientResult.error)
   }
 
-  const botClient = botClientResult.value
+  const botClient = botClientResult.value.client
 
   const fetchResult = await fetchMessages(
     botClient,
@@ -113,7 +113,7 @@ async function readDms(ctx: ToolContext, sender: string, userId: number, count: 
     return errorResult(botClientResult.error)
   }
 
-  const botClient = botClientResult.value
+  const { client: botClient, botUserId } = botClientResult.value
 
   const fetchResult = await fetchMessages(
     botClient,
@@ -124,7 +124,7 @@ async function readDms(ctx: ToolContext, sender: string, userId: number, count: 
       narrow: [{ operator: 'pm-with', operand: [userId] }],
       applyMarkdown: false,
     },
-    { markRead: false },
+    { markRead: false, botUserId },
   )
 
   if (fetchResult.isErr()) {

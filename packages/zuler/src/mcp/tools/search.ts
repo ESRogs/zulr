@@ -24,6 +24,8 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
+      const { client, botUserId } = clientResult.value
+
       const narrow = [
         { operator: 'search', operand: query },
         ...(channel ? [{ operator: 'stream', operand: channel }] : []),
@@ -31,7 +33,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
       ]
 
       const result = await fetchMessages(
-        clientResult.value,
+        client,
         {
           anchor: 'newest',
           numBefore: count,
@@ -39,7 +41,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
           narrow,
           applyMarkdown: false,
         },
-        { markRead: false },
+        { markRead: false, botUserId },
       )
 
       if (result.isErr()) return errorResult(formatError(result.error))
@@ -47,7 +49,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
       const messages = result.value
       if (messages.length === 0) return textResult('(no results)')
 
-      const sorted = [...messages].sort((a, b) => a.timestamp - b.timestamp)
+      const sorted = messages.toSorted((a, b) => a.timestamp - b.timestamp)
       return textResult(`${sorted.length} result(s):\n\n${formatMessages(sorted, true)}`)
     },
   )

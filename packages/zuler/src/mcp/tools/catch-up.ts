@@ -16,16 +16,16 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
     'catch-up',
     {
       description:
-        'Fetch recent messages from all subscribed streams/topics and DMs. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart). Consider reacting to important messages after catching up to signal you\'ve read them.',
+        "Fetch recent messages from all subscribed streams/topics and DMs. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart). Consider reacting to important messages after catching up to signal you've read them.",
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
-        maxMessages: z
-          .coerce.number()
+        maxMessages: z.coerce
+          .number()
           .optional()
           .default(50)
           .describe('Maximum total messages to return (default: 50)'),
-        maxHours: z
-          .coerce.number()
+        maxHours: z.coerce
+          .number()
           .optional()
           .default(24)
           .describe('Maximum lookback time in hours (default: 24)'),
@@ -48,7 +48,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       if (botClientResult.isErr()) {
         return errorResult(botClientResult.error)
       }
-      const botClient = botClientResult.value
+      const botClient = botClientResult.value.client
 
       const subs: { stream: string; topic?: string }[] = [
         ...teammate.streamSubs.map((stream) => ({ stream })),
@@ -79,7 +79,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         fetchMessages(
           botClient,
           { ...fetchConfig, narrow: [{ operator: 'is', operand: 'dm' }], applyMarkdown: false },
-          { markRead: false },
+          { markRead: false, botUserId: teammate.botUserId },
         ),
       ])
 
@@ -92,20 +92,23 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       // Merge Zulip results with inbox-only messages, deduplicate by ID
       const zulipMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
-      const merged = mergeWithInbox(zulipMessages, inboxFormatted)
+      const allFetched = mergeWithInbox(zulipMessages, inboxFormatted)
 
-      // Collect messages, sorted chronologically. Time filter only applies in
-      // default mode — unreadOnly mode shows all unreads regardless of age.
-      const allMessages = merged
-        .filter((msg) => unreadOnly || msg.timestamp >= cutoff)
-        .toSorted((a, b) => a.timestamp - b.timestamp)
+      // Filter out group DMs (not supported yet)
+      const groupDmCount = allFetched.filter((m) => m.isGroupDm).length
+      const merged = allFetched.filter((m) => !m.isGroupDm)
+
+      // Apply time filter and count how many were excluded
+      const timeFiltered = merged.filter((msg) => msg.timestamp >= cutoff)
+      const olderCount = merged.length - timeFiltered.length
+      const allMessages = timeFiltered.toSorted((a, b) => a.timestamp - b.timestamp)
 
       const trimmed = allMessages.slice(-maxMessages)
 
       if (trimmed.length === 0) {
         return textResult(
           unreadOnly
-            ? '(no unread messages across your subscriptions)'
+            ? `(no unread messages in the last ${maxHours} hours across your subscriptions)`
             : `(no recent messages in the last ${maxHours} hours across your subscriptions)`,
         )
       }
@@ -122,14 +125,18 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         }
       }
 
-      const skippedCount = allMessages.length - trimmed.length
       const infos = [
         allMessages.length > maxMessages
-          ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent).`
+          ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent) — increase maxMessages to see all.`
           : `Showing all ${trimmed.length} message${trimmed.length === 1 ? '' : 's'}.`,
-        ...(unreadOnly && skippedCount > 0
+        ...(olderCount > 0
           ? [
-              `${skippedCount} older unread message${skippedCount === 1 ? '' : 's'} not shown — call again to see them.`,
+              `${olderCount} older message${olderCount === 1 ? '' : 's'} outside ${maxHours}h window — increase maxHours to see them.`,
+            ]
+          : []),
+        ...(groupDmCount > 0
+          ? [
+              `${groupDmCount} group DM${groupDmCount === 1 ? '' : 's'} skipped (not supported yet).`,
             ]
           : []),
         ...(failedCount > 0 ? [`Warning: ${failedCount} subscription(s) failed to fetch.`] : []),

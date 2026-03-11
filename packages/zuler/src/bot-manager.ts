@@ -169,19 +169,25 @@ export function registerBot(
     })
 }
 
+export type TeammateClient = {
+  readonly client: ZulipClient
+  readonly botUserId: number | null
+}
+
 /** Create a ZulipClient for a registered teammate's bot. */
 export function clientForTeammate(
   db: Kysely<ZulerDatabase>,
   site: string,
   name: string,
-): ResultAsync<ZulipClient, BotManagerError> {
+): ResultAsync<TeammateClient, BotManagerError> {
   return getTeammate(db, name)
     .mapErr(wrapState)
-    .map((teammate) =>
-      createClient({
+    .map((teammate) => ({
+      client: createClient({
         site,
         email: teammate.botEmail,
         apiKey: teammate.apiKey,
       }),
-    )
+      botUserId: teammate.botUserId,
+    }))
 }
