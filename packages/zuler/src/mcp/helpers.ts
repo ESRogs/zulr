@@ -150,6 +150,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
         member ? okAsync(member) : errAsync(`unknown Zulip user ID: ${identifier}`),
       )
     }
+    // Exact match — callers use canonical names/emails from Zulip's API
     function findInCache(cache: Map<number, Member>): Member | undefined {
       for (const m of cache.values()) {
         if (m.full_name === identifier || m.email === identifier) return m
