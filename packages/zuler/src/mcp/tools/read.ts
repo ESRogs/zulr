@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
+import { getTeammate } from '../../state/teammates.ts'
 import {
   consumeUnreadDmMessages,
   consumeUnreadInboxMessages,
@@ -28,15 +29,19 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, stream, topic, user, count }) => {
+      const teammateResult = await getTeammate(ctx.config.db, sender)
+      if (teammateResult.isErr()) return errorResult(formatError(teammateResult.error))
+      const botUserId = teammateResult.value.botUserId ?? undefined
+
       if (user !== undefined) {
         const resolveResult = await ctx.resolveUser(user)
         if (resolveResult.isErr()) {
           return errorResult(resolveResult.error)
         }
-        return readDms(ctx, sender, resolveResult.value.user_id, count)
+        return readDms(ctx, sender, resolveResult.value.user_id, count, botUserId)
       }
       if (stream && topic) {
-        return readStream(ctx, sender, stream, topic, count)
+        return readStream(ctx, sender, stream, topic, count, botUserId)
       }
       return errorResult('provide either "stream" and "topic" (for streams) or "user" (for DMs)')
     },
@@ -49,6 +54,7 @@ async function readStream(
   stream: string,
   topic: string,
   count: number,
+  botUserId?: number,
 ) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
@@ -69,7 +75,7 @@ async function readStream(
       ],
       applyMarkdown: false,
     },
-    { markRead: false },
+    { markRead: false, botUserId },
   )
 
   if (fetchResult.isErr()) {
@@ -107,7 +113,13 @@ async function readStream(
   return textResult(body)
 }
 
-async function readDms(ctx: ToolContext, sender: string, userId: number, count: number) {
+async function readDms(
+  ctx: ToolContext,
+  sender: string,
+  userId: number,
+  count: number,
+  botUserId?: number,
+) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)
@@ -124,7 +136,7 @@ async function readDms(ctx: ToolContext, sender: string, userId: number, count: 
       narrow: [{ operator: 'pm-with', operand: [userId] }],
       applyMarkdown: false,
     },
-    { markRead: false },
+    { markRead: false, botUserId },
   )
 
   if (fetchResult.isErr()) {
