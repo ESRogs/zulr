@@ -23,6 +23,7 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
+      // Zulip API requires at least one subscriber; use the admin user
       const adminResult = await ctx.resolveUser(client.config.email)
       if (adminResult.isErr()) return errorResult(adminResult.error)
 
