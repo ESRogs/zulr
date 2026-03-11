@@ -1,18 +1,24 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getStreams, getTopics } from 'zulip-ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  notConfiguredResult,
+  type ToolContext,
+  textResult,
+} from '../helpers.ts'
 
 export function registerChannelsTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'channels',
     {
-      description: 'List all Zulip channels (streams).',
+      description: 'List all Zulip channels.',
       inputSchema: z.object({}),
     },
     async () => {
       const client = ctx.getAdminClient()
-      if (!client) return errorResult('Zulip credentials not configured. Call the init tool first.')
+      if (!client) return notConfiguredResult()
 
       const result = await getStreams(client)
       return result.match(
@@ -43,7 +49,7 @@ export function registerTopicsTool(server: McpServer, ctx: ToolContext): void {
     },
     async ({ channel }) => {
       const client = ctx.getAdminClient()
-      if (!client) return errorResult('Zulip credentials not configured. Call the init tool first.')
+      if (!client) return notConfiguredResult()
 
       // Resolve channel name to ID
       const streamsResult = await getStreams(client)

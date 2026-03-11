@@ -1,21 +1,25 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
+import type { ZulipClient, ZulipError } from 'zulip-ts'
 import { getMessages, getStreams, updateMessage } from 'zulip-ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  notConfiguredResult,
+  type ToolContext,
+  textResult,
+} from '../helpers.ts'
 
 const RESOLVED_PREFIX = '✔ '
-const NOT_CONFIGURED = 'Zulip credentials not configured. Call the init tool first.'
 
 /** Find any message ID in a topic (needed for updateMessage). */
-async function findMessageIdInTopic(
-  ctx: ToolContext,
+function findMessageIdInTopic(
+  client: ZulipClient,
   stream: string,
   topic: string,
-): Promise<{ ok: true; messageId: number } | { ok: false; error: string }> {
-  const client = ctx.getAdminClient()
-  if (!client) return { ok: false, error: NOT_CONFIGURED }
-
-  const result = await getMessages(client, {
+): ResultAsync<number, ZulipError | string> {
+  return getMessages(client, {
     anchor: 'newest',
     numBefore: 1,
     numAfter: 0,
@@ -24,14 +28,11 @@ async function findMessageIdInTopic(
       { operator: 'topic', operand: topic },
     ],
     applyMarkdown: false,
+  }).andThen((res) => {
+    const msg = res.messages[0]
+    if (!msg) return errAsync<number, string>(`no messages found in ${stream}/${topic}`)
+    return okAsync(msg.id)
   })
-
-  if (result.isErr()) return { ok: false, error: formatError(result.error) }
-
-  const msg = result.value.messages[0]
-  if (!msg) return { ok: false, error: `no messages found in ${stream}/${topic}` }
-
-  return { ok: true, messageId: msg.id }
 }
 
 export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): void {
@@ -50,12 +51,12 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
       }
 
       const client = ctx.getAdminClient()
-      if (!client) return errorResult(NOT_CONFIGURED)
+      if (!client) return notConfiguredResult()
 
-      const found = await findMessageIdInTopic(ctx, stream, topic)
-      if (!found.ok) return errorResult(found.error)
+      const found = await findMessageIdInTopic(client, stream, topic)
+      if (found.isErr()) return errorResult(formatError(found.error))
 
-      const result = await updateMessage(client, found.messageId, {
+      const result = await updateMessage(client, found.value, {
         topic: `${RESOLVED_PREFIX}${topic}`,
         propagateMode: 'change_all',
       })
@@ -80,17 +81,17 @@ export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext):
     },
     async ({ stream, topic }) => {
       const client = ctx.getAdminClient()
-      if (!client) return errorResult(NOT_CONFIGURED)
+      if (!client) return notConfiguredResult()
 
       const resolvedTopic = topic.startsWith(RESOLVED_PREFIX) ? topic : `${RESOLVED_PREFIX}${topic}`
       const unresolvedTopic = topic.startsWith(RESOLVED_PREFIX)
         ? topic.slice(RESOLVED_PREFIX.length)
         : topic
 
-      const found = await findMessageIdInTopic(ctx, stream, resolvedTopic)
-      if (!found.ok) return errorResult(found.error)
+      const found = await findMessageIdInTopic(client, stream, resolvedTopic)
+      if (found.isErr()) return errorResult(formatError(found.error))
 
-      const result = await updateMessage(client, found.messageId, {
+      const result = await updateMessage(client, found.value, {
         topic: unresolvedTopic,
         propagateMode: 'change_all',
       })
@@ -117,20 +118,19 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
     },
     async ({ stream, topic, toStream, toTopic }) => {
       const client = ctx.getAdminClient()
-      if (!client) return errorResult(NOT_CONFIGURED)
+      if (!client) return notConfiguredResult()
 
-      // Resolve destination channel name to ID
       const streamsResult = await getStreams(client)
       if (streamsResult.isErr()) return errorResult(formatError(streamsResult.error))
 
       const destStream = streamsResult.value.streams.find((s) => s.name === toStream)
       if (!destStream) return errorResult(`destination channel "${toStream}" not found`)
 
-      const found = await findMessageIdInTopic(ctx, stream, topic)
-      if (!found.ok) return errorResult(found.error)
+      const found = await findMessageIdInTopic(client, stream, topic)
+      if (found.isErr()) return errorResult(formatError(found.error))
 
       const destTopic = toTopic ?? topic
-      const result = await updateMessage(client, found.messageId, {
+      const result = await updateMessage(client, found.value, {
         streamId: destStream.stream_id,
         topic: destTopic,
         propagateMode: 'change_all',

@@ -9,12 +9,14 @@ export type {
   NarrowFilter,
   SendDirectMessageParams,
   SendStreamMessageParams,
+  UpdateMessageParams,
 } from './messages.ts'
 export {
   getMessages,
   markAsRead,
   sendDirectMessage,
   sendStreamMessage,
+  updateMessage,
   updateMessageFlags,
 } from './messages.ts'
 export type {
@@ -39,6 +41,5 @@ export type {
   UpdateMessageFlagsResponse,
   UpdateMessageResponse,
 } from './schemas.ts'
-export type { UpdateMessageParams } from './streams.ts'
-export { getStreams, getTopics, subscribe, updateMessage } from './streams.ts'
+export { getStreams, getTopics, subscribe } from './streams.ts'
 export { getMembers } from './users.ts'
