@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { Member, ZulipClient } from 'zulip-ts'
-import { createClient, getMembers } from 'zulip-ts'
+import type { Member, Stream, ZulipClient } from 'zulip-ts'
+import { createClient, getMembers, getStreams } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 
@@ -58,6 +58,8 @@ export type ToolContext = {
   readonly isBot: (userId: number) => ResultAsync<boolean, string>
   /** Resolve a user by ID, full name, or email. Returns the Member if found. */
   readonly resolveUser: (identifier: string | number) => ResultAsync<Member, string>
+  /** Resolve a channel name to a Stream object. */
+  readonly resolveChannel: (client: ZulipClient, name: string) => ResultAsync<Stream, string>
   readonly invalidateMembersCache: () => void
 }
 
@@ -155,11 +157,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     // Exact match — callers use canonical names/emails from Zulip's API
     function findInCache(cache: Map<number, Member>): Member | undefined {
       for (const m of cache.values()) {
-        if (
-          m.full_name === identifier ||
-          m.email === identifier ||
-          m.delivery_email === identifier
-        )
+        if (m.full_name === identifier || m.email === identifier || m.delivery_email === identifier)
           return m
       }
       return undefined
@@ -173,6 +171,16 @@ export function createToolContext(config: ServerConfig): ToolContext {
       if (found) return okAsync(found)
       return errAsync(`no Zulip user found matching "${identifier}"`)
     })
+  }
+
+  function resolveChannel(client: ZulipClient, name: string): ResultAsync<Stream, string> {
+    return getStreams(client)
+      .mapErr((err) => `failed to fetch channels: ${JSON.stringify(err)}`)
+      .andThen((res) => {
+        const stream = res.streams.find((s) => s.name === name)
+        if (!stream) return errAsync(`channel "${name}" not found`)
+        return okAsync(stream)
+      })
   }
 
   let credentialsLoadedCallback: (() => void) | null = null
@@ -205,6 +213,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     },
     isBot,
     resolveUser,
+    resolveChannel,
     invalidateMembersCache: () => {
       membersCache = null
     },

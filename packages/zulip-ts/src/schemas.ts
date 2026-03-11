@@ -82,15 +82,16 @@ export const SubscribeResponseSchema = z.object({
 })
 export type SubscribeResponse = z.infer<typeof SubscribeResponseSchema>
 
-export const UpdateChannelResponseSchema = z.object({
+const SuccessResponseFields = {
   result: z.literal('success'),
   msg: z.string(),
-})
+}
+
+export const UpdateChannelResponseSchema = z.object(SuccessResponseFields)
 export type UpdateChannelResponse = z.infer<typeof UpdateChannelResponseSchema>
 
 export const CreateChannelResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   id: z.number(),
 })
 export type CreateChannelResponse = z.infer<typeof CreateChannelResponseSchema>
@@ -102,16 +103,12 @@ export const TopicSchema = z.object({
 export type Topic = z.infer<typeof TopicSchema>
 
 export const GetTopicsResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   topics: z.array(TopicSchema),
 })
 export type GetTopicsResponse = z.infer<typeof GetTopicsResponseSchema>
 
-export const UpdateMessageResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
-})
+export const UpdateMessageResponseSchema = z.object(SuccessResponseFields)
 export type UpdateMessageResponse = z.infer<typeof UpdateMessageResponseSchema>
 
 // --- Users ---

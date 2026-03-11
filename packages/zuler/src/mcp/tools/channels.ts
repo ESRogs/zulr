@@ -23,15 +23,7 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      // Resolve admin user ID for the subscribers list
-      const adminResult = await ctx.resolveUser(client.config.email)
-      if (adminResult.isErr()) return errorResult(adminResult.error)
-
-      const result = await createChannel(client, {
-        name,
-        description,
-        subscribers: [adminResult.value.user_id],
-      })
+      const result = await createChannel(client, { name, description })
 
       return result.match(
         (res) => textResult(`created channel "${name}" (id: ${res.id})`),
@@ -60,13 +52,10 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const streamsResult = await getStreams(client)
-      if (streamsResult.isErr()) return errorResult(formatError(streamsResult.error))
+      const streamResult = await ctx.resolveChannel(client, channel)
+      if (streamResult.isErr()) return errorResult(streamResult.error)
 
-      const stream = streamsResult.value.streams.find((s) => s.name === channel)
-      if (!stream) return errorResult(`channel "${channel}" not found`)
-
-      const result = await updateChannel(client, stream.stream_id, {
+      const result = await updateChannel(client, streamResult.value.stream_id, {
         newName: name,
         description,
       })
@@ -129,14 +118,10 @@ export function registerTopicsTool(server: McpServer, ctx: ToolContext): void {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      // Resolve channel name to ID
-      const streamsResult = await getStreams(client)
-      if (streamsResult.isErr()) return errorResult(formatError(streamsResult.error))
+      const streamResult = await ctx.resolveChannel(client, channel)
+      if (streamResult.isErr()) return errorResult(streamResult.error)
 
-      const stream = streamsResult.value.streams.find((s) => s.name === channel)
-      if (!stream) return errorResult(`channel "${channel}" not found`)
-
-      const result = await getTopics(client, stream.stream_id)
+      const result = await getTopics(client, streamResult.value.stream_id)
       return result.match(
         (res) => {
           if (res.topics.length === 0) return textResult(`(no topics in ${channel})`)
