@@ -102,6 +102,8 @@ export function registerBot(
           // Bot exists in DB but not on Zulip — return what we have
           return okAsync({ botEmail: existing.botEmail, apiKey: existing.apiKey })
         }
+        // Refresh if API key changed, bot_user_id is missing, or user ID differs.
+        // If Zulip returns null for userId, keep the DB value (don't downgrade from known to unknown).
         const needsUpdate =
           zulipBot.apiKey !== existing.apiKey ||
           existing.botUserId === null ||
