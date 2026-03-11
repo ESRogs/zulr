@@ -49,8 +49,8 @@ async function getCachedBotClient(
     return undefined
   }
 
-  cache.set(name, result.value)
-  return result.value
+  cache.set(name, result.value.client)
+  return result.value.client
 }
 
 /**
