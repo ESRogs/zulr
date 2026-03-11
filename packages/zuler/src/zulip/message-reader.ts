@@ -39,8 +39,10 @@ export function fetchMessages(
         }
       }
       // DM — extract the other participants (exclude the bot making the API call)
-      const excludeId = botUserId ?? msg.sender_id
-      const others = msg.display_recipient.filter((r) => r.id !== excludeId).map((r) => r.full_name)
+      // If botUserId is unknown, skip enrichment rather than guessing wrong
+      const others = botUserId
+        ? msg.display_recipient.filter((r) => r.id !== botUserId).map((r) => r.full_name)
+        : []
       return {
         id: msg.id,
         stream: '',
@@ -48,7 +50,7 @@ export function fetchMessages(
         sender: msg.sender_full_name,
         content: msg.content,
         timestamp: msg.timestamp,
-        dmWith: others.join(', '),
+        ...(others.length > 0 ? { dmWith: others.join(', ') } : {}),
         isGroupDm: msg.display_recipient.length > 2,
       }
     })

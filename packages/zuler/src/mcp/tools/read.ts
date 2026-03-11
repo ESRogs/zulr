@@ -41,7 +41,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         return readDms(ctx, sender, resolveResult.value.user_id, count, botUserId)
       }
       if (stream && topic) {
-        return readStream(ctx, sender, stream, topic, count, botUserId)
+        return readStream(ctx, sender, stream, topic, count)
       }
       return errorResult('provide either "stream" and "topic" (for streams) or "user" (for DMs)')
     },
@@ -54,7 +54,6 @@ async function readStream(
   stream: string,
   topic: string,
   count: number,
-  botUserId?: number,
 ) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
@@ -75,7 +74,7 @@ async function readStream(
       ],
       applyMarkdown: false,
     },
-    { markRead: false, botUserId },
+    { markRead: false },
   )
 
   if (fetchResult.isErr()) {
@@ -118,7 +117,7 @@ async function readDms(
   sender: string,
   userId: number,
   count: number,
-  botUserId?: number,
+  botUserId?: number | null,
 ) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
