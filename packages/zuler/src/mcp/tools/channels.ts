@@ -160,15 +160,18 @@ export function registerSubscribersTool(server: McpServer, ctx: ToolContext): vo
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
       const result = await getSubscribers(client, streamResult.value.stream_id)
-      return result.match(
-        (res) => {
-          if (res.subscribers.length === 0) return textResult(`(no subscribers in ${channel})`)
-          return textResult(
-            `${channel}: ${res.subscribers.length} subscriber(s)\nUser IDs: ${res.subscribers.join(', ')}`,
-          )
-        },
-        (err) => errorResult(formatError(err)),
+      if (result.isErr()) return errorResult(formatError(result.error))
+
+      const subscribers = result.value.subscribers
+      if (subscribers.length === 0) return textResult(`(no subscribers in ${channel})`)
+
+      const names = await Promise.all(
+        subscribers.map(async (id) => {
+          const resolved = await ctx.resolveUser(id)
+          return resolved.isOk() ? resolved.value.full_name : `unknown (${id})`
+        }),
       )
+      return textResult(`${channel}: ${names.length} subscriber(s)\n${names.join('\n')}`)
     },
   )
 }
