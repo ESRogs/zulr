@@ -11,7 +11,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
     'post',
     {
       description:
-        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For stream messages, provide "stream" and "topic".',
+        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For stream messages, provide "stream" and "topic". Consider reacting to the message you\'re responding to before posting, so others know you\'ve seen it.',
       inputSchema: z.object({
         sender: z.string().describe('Name of the registered teammate sending the message'),
         content: z.string().describe('Message content'),

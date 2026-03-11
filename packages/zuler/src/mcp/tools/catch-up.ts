@@ -16,7 +16,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
     'catch-up',
     {
       description:
-        'Fetch recent messages from all subscribed streams/topics. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart).',
+        'Fetch recent messages from all subscribed streams/topics and DMs. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart). Consider reacting to important messages after catching up to signal you\'ve read them.',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
         maxMessages: z

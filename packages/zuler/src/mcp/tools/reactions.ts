@@ -8,7 +8,7 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
     'react',
     {
       description:
-        'Add or remove an emoji reaction on a Zulip message. Use the emoji name without colons (e.g. "thumbs_up", "check", "eyes").',
+        'Add or remove an emoji reaction on a Zulip message. Use the emoji name without colons (e.g. "thumbs_up", "check", "eyes"). Consider using reactions to acknowledge messages — e.g. "eyes" when you start working on something, "check" when done.',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name (uses their bot identity)'),
         messageId: z.coerce.number().describe('Zulip message ID to react to'),
