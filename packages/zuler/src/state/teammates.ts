@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely'
-import { errAsync, okAsync, ResultAsync } from 'neverthrow'
+import { ResultAsync } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
 
 export type Teammate = {
@@ -19,10 +19,14 @@ export type StateError =
   | { readonly type: 'already_exists'; readonly message: string }
   | { readonly type: 'db_error'; readonly message: string }
 
-export const wrapDbError = (e: unknown): StateError => ({
-  type: 'db_error',
-  message: e instanceof Error ? e.message : String(e),
-})
+class NotFoundError extends Error {}
+class AlreadyExistsError extends Error {}
+
+export const wrapDbError = (e: unknown): StateError => {
+  if (e instanceof NotFoundError) return { type: 'not_found', message: e.message }
+  if (e instanceof AlreadyExistsError) return { type: 'already_exists', message: e.message }
+  return { type: 'db_error', message: e instanceof Error ? e.message : String(e) }
+}
 
 /** Wrap a DB operation, catching promise rejections as StateError. */
 function dbOp<T>(fn: () => Promise<T>): ResultAsync<T, StateError> {
@@ -40,27 +44,21 @@ export function registerTeammate(
       .selectAll()
       .executeTakeFirst()
 
-    return existing
-  }).andThen((existing) => {
     if (existing) {
-      return errAsync<Teammate, StateError>({
-        type: 'already_exists',
-        message: `teammate '${teammate.name}' is already registered`,
-      })
+      throw new AlreadyExistsError(`teammate '${teammate.name}' is already registered`)
     }
 
-    return dbOp(async () => {
-      await db
-        .insertInto('teammates')
-        .values({
-          name: teammate.name,
-          bot_email: teammate.botEmail,
-          api_key: teammate.apiKey,
-          bot_user_id: teammate.botUserId,
-        })
-        .execute()
-      return teammate
-    })
+    await db
+      .insertInto('teammates')
+      .values({
+        name: teammate.name,
+        bot_email: teammate.botEmail,
+        api_key: teammate.apiKey,
+        bot_user_id: teammate.botUserId,
+      })
+      .execute()
+
+    return teammate
   })
 }
 
@@ -75,7 +73,9 @@ export function getTeammate(
       .selectAll()
       .executeTakeFirst()
 
-    if (!row) return undefined
+    if (!row) {
+      throw new NotFoundError(`teammate '${name}' not found`)
+    }
 
     const streamSubs = await db
       .selectFrom('stream_subscriptions')
@@ -97,14 +97,7 @@ export function getTeammate(
       streamSubs: streamSubs.map((r) => r.stream),
       topicSubs: topicSubs.map((r) => ({ stream: r.stream, topic: r.topic })),
     }
-  }).andThen((result) =>
-    result
-      ? okAsync(result)
-      : errAsync<TeammateWithSubs, StateError>({
-          type: 'not_found',
-          message: `teammate '${name}' not found`,
-        }),
-  )
+  })
 }
 
 export function listTeammates(
@@ -132,10 +125,9 @@ export function updateTeammateCredentials(
       .set({ api_key: updates.apiKey, bot_user_id: updates.botUserId })
       .where('name', '=', name)
       .executeTakeFirst()
-    return result.numUpdatedRows
-  }).andThen((numUpdated) =>
-    numUpdated === 0n
-      ? errAsync<void, StateError>({ type: 'not_found', message: `teammate '${name}' not found` })
-      : okAsync(undefined),
-  )
+
+    if (result.numUpdatedRows === 0n) {
+      throw new NotFoundError(`teammate '${name}' not found`)
+    }
+  })
 }
