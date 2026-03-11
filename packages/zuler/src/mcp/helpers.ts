@@ -146,8 +146,8 @@ export function createToolContext(config: ServerConfig): ToolContext {
 
   function resolveUser(identifier: string | number): ResultAsync<Member, string> {
     // MCP transport may serialize numbers as strings
-    const asNumber = typeof identifier === 'string' ? Number(identifier) : identifier
-    if (typeof identifier === 'number' || (Number.isInteger(asNumber) && asNumber > 0)) {
+    const asNumber = typeof identifier === 'number' ? identifier : Number(identifier)
+    if (Number.isInteger(asNumber) && asNumber > 0) {
       return getMember(asNumber).andThen((member) =>
         member ? okAsync(member) : errAsync(`unknown Zulip user ID: ${asNumber}`),
       )
