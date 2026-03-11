@@ -71,7 +71,10 @@ export type ToolContext = {
   readonly resolveUser: (identifier: string | number) => ResultAsync<Member, string>
   /** Resolve a channel name to a Stream object. */
   readonly resolveChannel: (name: string) => ResultAsync<Stream, string>
+  /** List all channels (uses cache). */
+  readonly listChannels: () => ResultAsync<readonly Stream[], string>
   readonly invalidateMembersCache: () => void
+  readonly invalidateChannelsCache: () => void
 }
 
 /**
@@ -246,8 +249,15 @@ export function createToolContext(config: ServerConfig): ToolContext {
     isBot,
     resolveUser,
     resolveChannel,
+    listChannels: () => {
+      if (isCacheValid(channelsCache)) return okAsync(channelsCache.data)
+      return refreshChannelsCache()
+    },
     invalidateMembersCache: () => {
       membersCache = null
+    },
+    invalidateChannelsCache: () => {
+      channelsCache = null
     },
   }
 }

@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { createChannel, getStreams, getTopics, updateChannel } from 'zulip-ts'
+import { createChannel, getTopics, updateChannel } from 'zulip-ts'
 import {
   errorResult,
   formatError,
@@ -34,7 +34,10 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
       })
 
       return result.match(
-        (res) => textResult(`created channel "${name}" (id: ${res.id})`),
+        (res) => {
+          ctx.invalidateChannelsCache()
+          return textResult(`created channel "${name}" (id: ${res.id})`)
+        },
         (err) => errorResult(formatError(err)),
       )
     },
@@ -70,8 +73,9 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
 
       return result.match(
         () => {
+          ctx.invalidateChannelsCache()
           const changes = [
-            name ? `renamed to "${name}"` : '',
+            name !== undefined ? `renamed to "${name}"` : '',
             description !== undefined ? 'description updated' : '',
           ]
             .filter(Boolean)
@@ -92,22 +96,19 @@ export function registerChannelsTool(server: McpServer, ctx: ToolContext): void 
       inputSchema: z.object({}),
     },
     async () => {
-      const client = ctx.getAdminClient()
-      if (!client) return notConfiguredResult()
-
-      const result = await getStreams(client)
+      const result = await ctx.listChannels()
       return result.match(
-        (res) => {
-          if (res.streams.length === 0) return textResult('(no channels)')
-          const lines = res.streams
-            .toSorted((a, b) => a.name.localeCompare(b.name))
+        (streams) => {
+          if (streams.length === 0) return textResult('(no channels)')
+          const lines = [...streams]
+            .sort((a, b) => a.name.localeCompare(b.name))
             .map((s) => {
               const desc = s.description ? ` — ${s.description}` : ''
               return `${s.name} (id: ${s.stream_id})${desc}`
             })
           return textResult(lines.join('\n'))
         },
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(err),
       )
     },
   )
