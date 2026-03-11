@@ -39,9 +39,10 @@ export type {
   StreamMessage,
   SubscribeResponse,
   Topic,
+  UpdateChannelResponse,
   UpdateMessageFlagsResponse,
   UpdateMessageResponse,
 } from './schemas.ts'
-export type { CreateChannelParams } from './streams.ts'
-export { createChannel, getStreams, getTopics, subscribe } from './streams.ts'
+export type { CreateChannelParams, UpdateChannelParams } from './streams.ts'
+export { createChannel, getStreams, getTopics, subscribe, updateChannel } from './streams.ts'
 export { getMembers } from './users.ts'

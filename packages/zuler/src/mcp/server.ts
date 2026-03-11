@@ -4,6 +4,7 @@ import { registerCatchUpTool } from './tools/catch-up.ts'
 import {
   registerChannelsTool,
   registerCreateChannelTool,
+  registerEditChannelTool,
   registerTopicsTool,
 } from './tools/channels.ts'
 import { registerInitTool } from './tools/init.ts'
@@ -44,6 +45,7 @@ export function createMcpServer(config: ServerConfig) {
   registerSubscriptionsTool(server, ctx)
   registerCatchUpTool(server, ctx)
   registerCreateChannelTool(server, ctx)
+  registerEditChannelTool(server, ctx)
   registerChannelsTool(server, ctx)
   registerTopicsTool(server, ctx)
   registerResolveTopicTool(server, ctx)

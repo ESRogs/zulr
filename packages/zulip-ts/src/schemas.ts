@@ -82,6 +82,12 @@ export const SubscribeResponseSchema = z.object({
 })
 export type SubscribeResponse = z.infer<typeof SubscribeResponseSchema>
 
+export const UpdateChannelResponseSchema = z.object({
+  result: z.literal('success'),
+  msg: z.string(),
+})
+export type UpdateChannelResponse = z.infer<typeof UpdateChannelResponseSchema>
+
 export const CreateChannelResponseSchema = z.object({
   result: z.literal('success'),
   msg: z.string(),

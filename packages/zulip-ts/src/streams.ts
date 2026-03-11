@@ -9,6 +9,8 @@ import {
   GetTopicsResponseSchema,
   type SubscribeResponse,
   SubscribeResponseSchema,
+  type UpdateChannelResponse,
+  UpdateChannelResponseSchema,
 } from './schemas.ts'
 
 export function getStreams(client: ZulipClient): ResultAsync<GetStreamsResponse, ZulipError> {
@@ -46,6 +48,25 @@ export function createChannel(
       },
     },
     CreateChannelResponseSchema,
+  )
+}
+
+export type UpdateChannelParams = {
+  readonly newName?: string
+  readonly description?: string
+}
+
+export function updateChannel(
+  client: ZulipClient,
+  streamId: number,
+  params: UpdateChannelParams,
+): ResultAsync<UpdateChannelResponse, ZulipError> {
+  const body: Record<string, unknown> = {}
+  if (params.newName !== undefined) body.new_name = params.newName
+  if (params.description !== undefined) body.description = params.description
+  return client.request(
+    { method: 'PATCH', path: `/streams/${streamId}`, body },
+    UpdateChannelResponseSchema,
   )
 }
 

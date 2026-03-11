@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { createChannel, getStreams, getTopics } from 'zulip-ts'
+import { createChannel, getStreams, getTopics, updateChannel } from 'zulip-ts'
 import {
   errorResult,
   formatError,
@@ -35,6 +35,52 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
 
       return result.match(
         (res) => textResult(`created channel "${name}" (id: ${res.id})`),
+        (err) => errorResult(formatError(err)),
+      )
+    },
+  )
+}
+
+export function registerEditChannelTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'edit-channel',
+    {
+      description: 'Rename a Zulip channel or update its description.',
+      inputSchema: z.object({
+        channel: z.string().describe('Current channel name'),
+        name: z.string().optional().describe('New channel name'),
+        description: z.string().optional().describe('New channel description'),
+      }),
+    },
+    async ({ channel, name, description }) => {
+      if (name === undefined && description === undefined) {
+        return errorResult('provide "name" and/or "description" to update')
+      }
+
+      const client = ctx.getAdminClient()
+      if (!client) return notConfiguredResult()
+
+      const streamsResult = await getStreams(client)
+      if (streamsResult.isErr()) return errorResult(formatError(streamsResult.error))
+
+      const stream = streamsResult.value.streams.find((s) => s.name === channel)
+      if (!stream) return errorResult(`channel "${channel}" not found`)
+
+      const result = await updateChannel(client, stream.stream_id, {
+        newName: name,
+        description,
+      })
+
+      return result.match(
+        () => {
+          const changes = [
+            name ? `renamed to "${name}"` : '',
+            description !== undefined ? 'description updated' : '',
+          ]
+            .filter(Boolean)
+            .join(', ')
+          return textResult(`${channel}: ${changes}`)
+        },
         (err) => errorResult(formatError(err)),
       )
     },
