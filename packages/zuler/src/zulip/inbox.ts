@@ -142,6 +142,7 @@ export function inboxToFormattedMessages(messages: readonly InboxMessage[]): For
         sender: m.zulipSender,
         content: m.text,
         timestamp: (Date.parse(m.timestamp) || 0) / 1000,
+        ...(isDm ? { dmWith: m.zulipSender } : {}),
       },
     ]
   })
