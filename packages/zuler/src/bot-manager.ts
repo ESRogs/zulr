@@ -13,6 +13,7 @@ import {
 export type BotManagerError =
   | { readonly type: 'zulip'; readonly inner: ZulipError }
   | { readonly type: 'state'; readonly inner: StateError }
+  | { readonly type: 'bot_deleted'; readonly message: string }
 
 const wrapZulip = (e: ZulipError): BotManagerError => ({ type: 'zulip', inner: e })
 const wrapState = (e: StateError): BotManagerError => ({ type: 'state', inner: e })
@@ -97,12 +98,8 @@ export function registerBot(
       return findExistingBot(adminClient, existing.botEmail, name).andThen((zulipBot) => {
         if (!zulipBot) {
           return errAsync<{ botEmail: string; apiKey: string }, BotManagerError>({
-            type: 'zulip',
-            inner: {
-              type: 'api',
-              code: 'BOT_NOT_FOUND',
-              message: `bot '${name}' exists in the local DB but was not found on Zulip. It may have been deleted. Re-register the teammate.`,
-            },
+            type: 'bot_deleted',
+            message: `bot '${name}' exists in the local DB but was not found on Zulip. It may have been deleted.`,
           })
         }
         // Refresh if API key changed, bot_user_id is missing, or user ID differs.
@@ -114,7 +111,7 @@ export function registerBot(
         if (needsUpdate) {
           return updateTeammateCredentials(db, name, {
             apiKey: zulipBot.apiKey,
-            botUserId: zulipBot.userId,
+            botUserId: zulipBot.userId ?? existing.botUserId,
           })
             .mapErr(wrapState)
             .map(() => ({ botEmail: existing.botEmail, apiKey: zulipBot.apiKey }))
@@ -122,9 +119,9 @@ export function registerBot(
         return okAsync({ botEmail: existing.botEmail, apiKey: existing.apiKey })
       })
     })
-    .orElse((stateErr) => {
-      if (stateErr.type === 'state' && stateErr.inner.type !== 'not_found') {
-        return errAsync(stateErr)
+    .orElse((err) => {
+      if (err.type !== 'state' || err.inner.type !== 'not_found') {
+        return errAsync(err)
       }
 
       // Not in DB — find or create on Zulip
