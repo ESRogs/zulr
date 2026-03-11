@@ -13,7 +13,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
         query: z.string().describe('Search query'),
         channel: z.string().optional().describe('Limit search to this channel'),
         topic: z.string().optional().describe('Limit search to this topic (requires channel)'),
-        count: z.number().optional().default(20).describe('Max results (default: 20)'),
+        count: z.coerce.number().optional().default(20).describe('Max results (default: 20)'),
       }),
     },
     async ({ sender, query, channel, topic, count }) => {

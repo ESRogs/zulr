@@ -20,12 +20,12 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
         maxMessages: z
-          .number()
+          .coerce.number()
           .optional()
           .default(50)
           .describe('Maximum total messages to return (default: 50)'),
         maxHours: z
-          .number()
+          .coerce.number()
           .optional()
           .default(24)
           .describe('Maximum lookback time in hours (default: 24)'),
