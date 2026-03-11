@@ -56,6 +56,8 @@ export type ToolContext = {
   /** Set the callback to start the event listener when credentials become available. */
   readonly onCredentialsLoaded: (callback: () => void) => void
   readonly isBot: (userId: number) => ResultAsync<boolean, string>
+  /** Resolve a user by ID, full name, or email. Returns the Member if found. */
+  readonly resolveUser: (identifier: string | number) => ResultAsync<Member, string>
   readonly invalidateMembersCache: () => void
 }
 
@@ -142,6 +144,30 @@ export function createToolContext(config: ServerConfig): ToolContext {
     })
   }
 
+  function resolveUser(identifier: string | number): ResultAsync<Member, string> {
+    if (typeof identifier === 'number') {
+      return getMember(identifier).andThen((member) =>
+        member ? okAsync(member) : errAsync(`unknown Zulip user ID: ${identifier}`),
+      )
+    }
+    // Exact match — callers use canonical names/emails from Zulip's API
+    function findInCache(cache: Map<number, Member>): Member | undefined {
+      for (const m of cache.values()) {
+        if (m.full_name === identifier || m.email === identifier) return m
+      }
+      return undefined
+    }
+    if (membersCache) {
+      const found = findInCache(membersCache)
+      if (found) return okAsync(found)
+    }
+    return refreshMembersCache().andThen((cache) => {
+      const found = findInCache(cache)
+      if (found) return okAsync(found)
+      return errAsync(`no Zulip user found matching "${identifier}"`)
+    })
+  }
+
   let credentialsLoadedCallback: (() => void) | null = null
   let eventListenerStarted = false
 
@@ -171,6 +197,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
       return clientForTeammate(config.db, creds.site, sender).mapErr(formatError)
     },
     isBot,
+    resolveUser,
     invalidateMembersCache: () => {
       membersCache = null
     },
