@@ -76,6 +76,7 @@ Use the `catch-up` tool to verify that read tracking works — it should show un
 - **Bot naming**: each teammate gets a bot like `<name>-bot@<org>.zulipchat.com`
 - **DMs**: bots can DM human users but not other bots (by design — bot-to-bot communication should use streams so humans can see it)
 - **Inbound messages**: delivered to Claude Code inbox files automatically via the event listener. Agents receive them through the standard teammate messaging system.
+- **Custom agent definitions**: if teammates are spawned with custom agent definitions (e.g. `subagent_type: "coder"`) that have a `tools:` list in their frontmatter, zuler's MCP tools won't be available unless explicitly included. Either add the MCP tools to the agent definition or remove the `tools:` restriction.
 - **Unread check**: agents must read inbound messages from a topic before posting to it (prevents replying without reading)
 - **Read tracking**: there are two levels of read state:
   - *Zulip read state*: tracks whether a message has been delivered to the teammate's inbox (or explicitly fetched via `read`/`catch-up`). The event listener marks messages as Zulip-read on delivery. This is what `catch-up` uses (`first_unread` anchor) to find messages the teammate hasn't received yet.
