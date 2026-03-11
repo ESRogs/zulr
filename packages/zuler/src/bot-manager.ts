@@ -20,17 +20,26 @@ export function botEmail(name: string, site: string): string {
 
 type BotCredentials = { readonly apiKey: string; readonly userId: number | null }
 
-/** Find an existing bot by email or full_name, returning its API key and user ID if found. */
+/** Find an existing bot, preferring email match, falling back to full_name match for bots with a bot-pattern email on the same host. */
 function findExistingBot(
   adminClient: ZulipClient,
   email: string,
   name: string,
 ): ResultAsync<BotCredentials | undefined, BotManagerError> {
+  const host = new URL(adminClient.config.site).hostname
   return getBots(adminClient)
     .map((res) => {
-      const bot = res.bots.find((b) => b.username === email || b.full_name === name)
-      if (!bot) return undefined
-      return { apiKey: bot.api_key, userId: bot.user_id ?? null }
+      // Prefer exact email match
+      const byEmail = res.bots.find((b) => b.username === email)
+      if (byEmail) return { apiKey: byEmail.api_key, userId: byEmail.user_id ?? null }
+
+      // Fallback: full_name match, but only if the bot's email follows the -bot@ pattern on the same host
+      const byName = res.bots.find(
+        (b) => b.full_name === name && b.username.endsWith(`-bot@${host}`),
+      )
+      if (byName) return { apiKey: byName.api_key, userId: byName.user_id ?? null }
+
+      return undefined
     })
     .mapErr(wrapZulip)
 }
