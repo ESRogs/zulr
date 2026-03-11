@@ -59,7 +59,7 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const streamResult = await ctx.resolveChannel(client, channel)
+      const streamResult = await ctx.resolveChannel(channel)
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
       const result = await updateChannel(client, streamResult.value.stream_id, {
@@ -125,7 +125,7 @@ export function registerTopicsTool(server: McpServer, ctx: ToolContext): void {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const streamResult = await ctx.resolveChannel(client, channel)
+      const streamResult = await ctx.resolveChannel(channel)
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
       const result = await getTopics(client, streamResult.value.stream_id)
