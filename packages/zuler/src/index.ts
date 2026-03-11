@@ -22,7 +22,10 @@ function log(msg: string): void {
   appendFileSync(logFile, line)
 }
 
-process.on('uncaughtException', (err) => log(`UNCAUGHT EXCEPTION: ${formatError(err)}`))
+process.on('uncaughtException', (err) => {
+  log(`UNCAUGHT EXCEPTION: ${formatError(err)}`)
+  process.exit(1)
+})
 process.on('unhandledRejection', (reason) => log(`UNHANDLED REJECTION: ${formatError(reason)}`))
 
 const t1 = performance.now()
