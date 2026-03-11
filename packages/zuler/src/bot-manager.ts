@@ -96,8 +96,14 @@ export function registerBot(
       // Verify credentials against Zulip and refresh if stale
       return findExistingBot(adminClient, existing.botEmail, name).andThen((zulipBot) => {
         if (!zulipBot) {
-          // Bot exists in DB but not on Zulip — return what we have
-          return okAsync({ botEmail: existing.botEmail, apiKey: existing.apiKey })
+          return errAsync<{ botEmail: string; apiKey: string }, BotManagerError>({
+            type: 'zulip',
+            inner: {
+              type: 'api',
+              code: 'BOT_NOT_FOUND',
+              message: `bot '${name}' exists in the local DB but was not found on Zulip. It may have been deleted. Re-register the teammate.`,
+            },
+          })
         }
         // Refresh if API key changed, bot_user_id is missing, or user ID differs.
         // If Zulip returns null for userId, keep the DB value (don't downgrade from known to unknown).
@@ -122,9 +128,9 @@ export function registerBot(
       }
 
       // Not in DB — find or create on Zulip
-      return findExistingBot(adminClient, email, name).andThen((existing) => {
-        const credsResult = existing
-          ? okAsync<BotCredentials, BotManagerError>(existing)
+      return findExistingBot(adminClient, email, name).andThen((zulipCreds) => {
+        const credsResult = zulipCreds
+          ? okAsync<BotCredentials, BotManagerError>(zulipCreds)
           : createNewBot(adminClient, name)
 
         return credsResult.andThen((creds) =>

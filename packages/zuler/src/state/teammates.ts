@@ -24,9 +24,9 @@ export const wrapDbError = (e: unknown): StateError => ({
   message: e instanceof Error ? e.message : String(e),
 })
 
-/** Wrap a DB operation that returns a ResultAsync, catching unexpected promise rejections. */
+/** Wrap a DB operation, catching promise rejections as StateError. */
 function dbOp<T>(fn: () => Promise<T>): ResultAsync<T, StateError> {
-  return okAsync(undefined).andThen(() => ResultAsync.fromPromise(fn(), wrapDbError))
+  return ResultAsync.fromPromise(fn(), wrapDbError)
 }
 
 export function registerTeammate(
