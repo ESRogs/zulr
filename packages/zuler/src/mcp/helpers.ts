@@ -145,9 +145,11 @@ export function createToolContext(config: ServerConfig): ToolContext {
   }
 
   function resolveUser(identifier: string | number): ResultAsync<Member, string> {
-    if (typeof identifier === 'number') {
-      return getMember(identifier).andThen((member) =>
-        member ? okAsync(member) : errAsync(`unknown Zulip user ID: ${identifier}`),
+    // MCP transport may serialize numbers as strings
+    const asNumber = typeof identifier === 'string' ? Number(identifier) : identifier
+    if (typeof identifier === 'number' || (Number.isInteger(asNumber) && asNumber > 0)) {
+      return getMember(asNumber).andThen((member) =>
+        member ? okAsync(member) : errAsync(`unknown Zulip user ID: ${asNumber}`),
       )
     }
     // Exact match — callers use canonical names/emails from Zulip's API
