@@ -5,6 +5,23 @@ import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
 import { startEventListener } from './zulip/event-listener.ts'
 
+process.on('uncaughtException', (err) => {
+  const line = `[${new Date().toISOString()}] UNCAUGHT EXCEPTION: ${err.stack ?? err.message}\n`
+  try {
+    appendFileSync(`${stateDir(process.env.ZULER_REPO_ROOT ?? process.cwd())}/zuler.log`, line)
+  } catch {}
+  console.error(line.trimEnd())
+})
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)
+  const line = `[${new Date().toISOString()}] UNHANDLED REJECTION: ${msg}\n`
+  try {
+    appendFileSync(`${stateDir(process.env.ZULER_REPO_ROOT ?? process.cwd())}/zuler.log`, line)
+  } catch {}
+  console.error(line.trimEnd())
+})
+
 const t0 = performance.now()
 
 const teamName = process.env.ZULER_TEAM ?? 'default'
@@ -56,7 +73,17 @@ if (ctx.isConfigured()) {
   ctx.onCredentialsLoaded(bootEventListener)
 }
 
+server.server.onerror = (err) => {
+  log(`MCP server error: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+}
+
 const transport = new StdioServerTransport()
+transport.onerror = (err) => {
+  log(`MCP transport error: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+}
+transport.onclose = () => {
+  log('MCP transport closed')
+}
 await server.connect(transport)
 const tReady = performance.now()
 log(`ready in ${(tReady - t0).toFixed(0)}ms`)
