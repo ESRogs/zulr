@@ -152,7 +152,7 @@ export function removeReaction(
     {
       method: 'DELETE',
       path: `/messages/${messageId}/reactions`,
-      params: { emoji_name: emojiName },
+      body: { emoji_name: emojiName },
     },
     SuccessResponseSchema,
   )
