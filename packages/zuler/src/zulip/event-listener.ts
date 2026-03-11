@@ -1,8 +1,8 @@
 import type { Kysely } from 'kysely'
-import { okAsync } from 'neverthrow'
+import { okAsync, type ResultAsync } from 'neverthrow'
 import type { ZulipClient } from 'zulip-ts'
 import { getEvents, markAsRead, registerQueue } from 'zulip-ts'
-import { clientForTeammate } from '../bot-manager.ts'
+import { type BotManagerError, clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { routeMessage } from './routing.ts'
 
@@ -39,7 +39,7 @@ function getCachedBotClient(
   db: Kysely<ZulerDatabase>,
   site: string,
   name: string,
-) {
+): ResultAsync<ZulipClient, BotManagerError> {
   const cached = cache.get(name)
   if (cached) return okAsync(cached)
 
@@ -51,7 +51,7 @@ function getCachedBotClient(
 
 /**
  * Mark a message as read for each teammate that received it,
- * using their cached bot clients. Runs in parallel.
+ * using their cached bot clients. Fire-and-forget — errors go to onError.
  */
 function markReadForTeammates(
   cache: BotClientCache,
