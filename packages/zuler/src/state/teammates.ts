@@ -1,6 +1,9 @@
 import type { Kysely } from 'kysely'
-import { err, ok, type Result } from 'neverthrow'
+import type { ResultAsync } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
+import { AlreadyExistsError, dbOp, NotFoundError, type StateError } from './db-utils.ts'
+
+export type { StateError } from './db-utils.ts'
 
 export type Teammate = {
   readonly name: string
@@ -14,21 +17,11 @@ export type TeammateWithSubs = Teammate & {
   readonly topicSubs: readonly { readonly stream: string; readonly topic: string }[]
 }
 
-export type StateError =
-  | { readonly type: 'not_found'; readonly message: string }
-  | { readonly type: 'already_exists'; readonly message: string }
-  | { readonly type: 'db_error'; readonly message: string }
-
-export const wrapDbError = (e: unknown): StateError => ({
-  type: 'db_error',
-  message: e instanceof Error ? e.message : String(e),
-})
-
-export async function registerTeammate(
+export function registerTeammate(
   db: Kysely<ZulerDatabase>,
   teammate: Teammate,
-): Promise<Result<Teammate, StateError>> {
-  try {
+): ResultAsync<Teammate, StateError> {
+  return dbOp(async () => {
     const existing = await db
       .selectFrom('teammates')
       .where('name', '=', teammate.name)
@@ -36,10 +29,7 @@ export async function registerTeammate(
       .executeTakeFirst()
 
     if (existing) {
-      return err({
-        type: 'already_exists',
-        message: `teammate '${teammate.name}' is already registered`,
-      })
+      throw new AlreadyExistsError(`teammate '${teammate.name}' is already registered`)
     }
 
     await db
@@ -52,17 +42,15 @@ export async function registerTeammate(
       })
       .execute()
 
-    return ok(teammate)
-  } catch (e) {
-    return err(wrapDbError(e))
-  }
+    return teammate
+  })
 }
 
-export async function getTeammate(
+export function getTeammate(
   db: Kysely<ZulerDatabase>,
   name: string,
-): Promise<Result<TeammateWithSubs, StateError>> {
-  try {
+): ResultAsync<TeammateWithSubs, StateError> {
+  return dbOp(async () => {
     const row = await db
       .selectFrom('teammates')
       .where('name', '=', name)
@@ -70,7 +58,7 @@ export async function getTeammate(
       .executeTakeFirst()
 
     if (!row) {
-      return err({ type: 'not_found', message: `teammate '${name}' not found` })
+      throw new NotFoundError(`teammate '${name}' not found`)
     }
 
     const streamSubs = await db
@@ -85,34 +73,45 @@ export async function getTeammate(
       .select(['stream', 'topic'])
       .execute()
 
-    return ok({
+    return {
       name: row.name,
       botEmail: row.bot_email,
       apiKey: row.api_key,
       botUserId: row.bot_user_id,
       streamSubs: streamSubs.map((r) => r.stream),
       topicSubs: topicSubs.map((r) => ({ stream: r.stream, topic: r.topic })),
-    })
-  } catch (e) {
-    return err(wrapDbError(e))
-  }
+    }
+  })
 }
 
-export async function listTeammates(
+export function listTeammates(
   db: Kysely<ZulerDatabase>,
-): Promise<Result<readonly Teammate[], StateError>> {
-  try {
+): ResultAsync<readonly Teammate[], StateError> {
+  return dbOp(async () => {
     const rows = await db.selectFrom('teammates').selectAll().execute()
+    return rows.map((r) => ({
+      name: r.name,
+      botEmail: r.bot_email,
+      apiKey: r.api_key,
+      botUserId: r.bot_user_id,
+    }))
+  })
+}
 
-    return ok(
-      rows.map((r) => ({
-        name: r.name,
-        botEmail: r.bot_email,
-        apiKey: r.api_key,
-        botUserId: r.bot_user_id,
-      })),
-    )
-  } catch (e) {
-    return err(wrapDbError(e))
-  }
+export function updateTeammateCredentials(
+  db: Kysely<ZulerDatabase>,
+  name: string,
+  updates: { readonly apiKey: string; readonly botUserId: number | null },
+): ResultAsync<void, StateError> {
+  return dbOp(async () => {
+    const result = await db
+      .updateTable('teammates')
+      .set({ api_key: updates.apiKey, bot_user_id: updates.botUserId })
+      .where('name', '=', name)
+      .executeTakeFirst()
+
+    if (result.numUpdatedRows === 0n) {
+      throw new NotFoundError(`teammate '${name}' not found`)
+    }
+  })
 }
