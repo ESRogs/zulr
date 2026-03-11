@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
-import { getTeammate } from '../../state/teammates.ts'
 import {
   consumeUnreadDmMessages,
   consumeUnreadInboxMessages,
@@ -29,16 +28,12 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, stream, topic, user, count }) => {
-      const teammateResult = await getTeammate(ctx.config.db, sender)
-      if (teammateResult.isErr()) return errorResult(formatError(teammateResult.error))
-      const botUserId = teammateResult.value.botUserId
-
       if (user !== undefined) {
         const resolveResult = await ctx.resolveUser(user)
         if (resolveResult.isErr()) {
           return errorResult(resolveResult.error)
         }
-        return readDms(ctx, sender, resolveResult.value.user_id, count, botUserId)
+        return readDms(ctx, sender, resolveResult.value.user_id, count)
       }
       if (stream && topic) {
         return readStream(ctx, sender, stream, topic, count)
@@ -60,7 +55,7 @@ async function readStream(
     return errorResult(botClientResult.error)
   }
 
-  const botClient = botClientResult.value
+  const botClient = botClientResult.value.client
 
   const fetchResult = await fetchMessages(
     botClient,
@@ -112,19 +107,13 @@ async function readStream(
   return textResult(body)
 }
 
-async function readDms(
-  ctx: ToolContext,
-  sender: string,
-  userId: number,
-  count: number,
-  botUserId?: number | null,
-) {
+async function readDms(ctx: ToolContext, sender: string, userId: number, count: number) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)
   }
 
-  const botClient = botClientResult.value
+  const { client: botClient, botUserId } = botClientResult.value
 
   const fetchResult = await fetchMessages(
     botClient,

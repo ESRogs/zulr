@@ -48,7 +48,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       if (botClientResult.isErr()) {
         return errorResult(botClientResult.error)
       }
-      const botClient = botClientResult.value
+      const botClient = botClientResult.value.client
 
       const subs: { stream: string; topic?: string }[] = [
         ...teammate.streamSubs.map((stream) => ({ stream })),
