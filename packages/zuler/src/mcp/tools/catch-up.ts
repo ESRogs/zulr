@@ -55,20 +55,17 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         ...teammate.topicSubs.map(({ stream, topic }) => ({ stream, topic })),
       ]
 
-      if (subs.length === 0) {
-        return errorResult('no subscriptions — subscribe to streams before catching up')
-      }
-
       const cutoff = Date.now() / 1000 - maxHours * 3600
-      const perSubLimit = Math.max(10, Math.ceil(maxMessages / subs.length))
+      const fetchCount = subs.length + 1 // subscriptions + DMs
+      const perSubLimit = Math.max(10, Math.ceil(maxMessages / fetchCount))
 
       const fetchConfig = unreadOnly
         ? { anchor: 'first_unread' as const, numBefore: 0, numAfter: perSubLimit }
         : { anchor: 'newest' as const, numBefore: perSubLimit, numAfter: 0 }
 
-      // Fetch from all subscriptions in parallel (without marking read)
-      const fetchResults = await Promise.all(
-        subs.map((sub) => {
+      // Fetch from all subscriptions + DMs in parallel (without marking read)
+      const fetchResults = await Promise.all([
+        ...subs.map((sub) => {
           const narrow = [
             { operator: 'stream' as const, operand: sub.stream },
             ...(sub.topic ? [{ operator: 'topic' as const, operand: sub.topic }] : []),
@@ -79,7 +76,12 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
             { markRead: false, streamFallback: sub.stream, topicFallback: sub.topic },
           )
         }),
-      )
+        fetchMessages(
+          botClient,
+          { ...fetchConfig, narrow: [{ operator: 'is', operand: 'dm' }], applyMarkdown: false },
+          { markRead: false },
+        ),
+      ])
 
       const failedCount = fetchResults.filter((r) => r.isErr()).length
 

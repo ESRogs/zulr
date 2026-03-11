@@ -129,13 +129,16 @@ export function consumeAllUnreadDmMessages(
 /** Convert inbox messages to FormattedMessage for merging with Zulip API results. */
 export function inboxToFormattedMessages(messages: readonly InboxMessage[]): FormattedMessage[] {
   return messages.flatMap((m) => {
-    // Only convert messages with structured fields — skip legacy messages
-    if (!m.zulipStream || !m.zulipTopic || !m.zulipSender) return []
+    if (!m.zulipSender) return []
+    // Stream messages need stream+topic; DMs just need sender
+    const isStream = !!m.zulipStream && !!m.zulipTopic
+    const isDm = !m.zulipStream && m.zulipSenderId !== undefined
+    if (!isStream && !isDm) return []
     return [
       {
         id: m.zulipMessageId ?? -(Date.parse(m.timestamp) || 0),
-        stream: m.zulipStream,
-        topic: m.zulipTopic,
+        stream: m.zulipStream ?? '',
+        topic: m.zulipTopic ?? '',
         sender: m.zulipSender,
         content: m.text,
         timestamp: (Date.parse(m.timestamp) || 0) / 1000,

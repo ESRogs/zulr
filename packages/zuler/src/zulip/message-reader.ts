@@ -47,7 +47,8 @@ export function formatMessages(
   return messages
     .map((msg) => {
       const dt = new Date(msg.timestamp * 1000).toISOString()
-      const prefix = includeLocation ? `${msg.stream}/${msg.topic} — ` : ''
+      const location = msg.stream ? `${msg.stream}/${msg.topic}` : 'DM'
+      const prefix = includeLocation ? `${location} — ` : ''
       return `[${dt}] ${prefix}${msg.sender}: ${msg.content}`
     })
     .join('\n')
