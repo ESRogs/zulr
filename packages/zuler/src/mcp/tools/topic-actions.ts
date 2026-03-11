@@ -122,6 +122,9 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
+      const sourceResult = await ctx.resolveChannel(channel)
+      if (sourceResult.isErr()) return errorResult(sourceResult.error)
+
       const destResult = await ctx.resolveChannel(toChannel)
       if (destResult.isErr()) return errorResult(destResult.error)
 
