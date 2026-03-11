@@ -59,7 +59,7 @@ export function sendStreamMessage(
 
 export type NarrowFilter = {
   readonly operator: string
-  readonly operand: string | number
+  readonly operand: string | number | readonly number[]
 }
 
 export type GetMessagesParams = {
