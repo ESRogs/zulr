@@ -35,7 +35,10 @@ export type {
   Stream,
   StreamMessage,
   SubscribeResponse,
+  Topic,
   UpdateMessageFlagsResponse,
+  UpdateMessageResponse,
 } from './schemas.ts'
-export { getStreams, subscribe } from './streams.ts'
+export type { UpdateMessageParams } from './streams.ts'
+export { getStreams, getTopics, subscribe, updateMessage } from './streams.ts'
 export { getMembers } from './users.ts'

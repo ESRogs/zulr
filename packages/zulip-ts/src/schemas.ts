@@ -82,6 +82,25 @@ export const SubscribeResponseSchema = z.object({
 })
 export type SubscribeResponse = z.infer<typeof SubscribeResponseSchema>
 
+export const TopicSchema = z.object({
+  name: z.string(),
+  max_id: z.number(),
+})
+export type Topic = z.infer<typeof TopicSchema>
+
+export const GetTopicsResponseSchema = z.object({
+  result: z.literal('success'),
+  msg: z.string(),
+  topics: z.array(TopicSchema),
+})
+export type GetTopicsResponse = z.infer<typeof GetTopicsResponseSchema>
+
+export const UpdateMessageResponseSchema = z.object({
+  result: z.literal('success'),
+  msg: z.string(),
+})
+export type UpdateMessageResponse = z.infer<typeof UpdateMessageResponseSchema>
+
 // --- Users ---
 
 export const MemberSchema = z.object({
