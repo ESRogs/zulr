@@ -92,7 +92,11 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       // Merge Zulip results with inbox-only messages, deduplicate by ID
       const zulipMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
-      const merged = mergeWithInbox(zulipMessages, inboxFormatted)
+      const allFetched = mergeWithInbox(zulipMessages, inboxFormatted)
+
+      // Filter out group DMs (not supported yet)
+      const groupDmCount = allFetched.filter((m) => m.isGroupDm).length
+      const merged = allFetched.filter((m) => !m.isGroupDm)
 
       // Apply time filter and count how many were excluded
       const timeFiltered = merged.filter((msg) => msg.timestamp >= cutoff)
@@ -134,6 +138,11 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         ...(olderCount > 0
           ? [
               `${olderCount} older message${olderCount === 1 ? '' : 's'} outside ${maxHours}h window — increase maxHours to see them.`,
+            ]
+          : []),
+        ...(groupDmCount > 0
+          ? [
+              `${groupDmCount} group DM${groupDmCount === 1 ? '' : 's'} skipped (not supported yet).`,
             ]
           : []),
         ...(failedCount > 0 ? [`Warning: ${failedCount} subscription(s) failed to fetch.`] : []),
