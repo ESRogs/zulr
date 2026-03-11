@@ -30,7 +30,11 @@ type BotCredentials = {
   readonly email: string
 }
 
-/** Look up a bot's user_id from the members list (fallback when getBots doesn't return it). */
+/**
+ * Look up a bot's user_id from the members list (fallback when getBots doesn't return it).
+ * Returns null if the bot isn't found — this is best-effort, not guaranteed.
+ * Matches on `email` (not `delivery_email`) because bot emails are API emails, not real inboxes.
+ */
 function lookupBotUserId(
   adminClient: ZulipClient,
   botEmail: string,
