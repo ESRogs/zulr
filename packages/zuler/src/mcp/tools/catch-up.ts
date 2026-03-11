@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
 import { getTeammate } from '../../state/teammates.ts'
+import { markInboxMessagesByIdAsRead } from '../../zulip/inbox.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
@@ -96,15 +97,18 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       // In unreadOnly mode, mark the returned messages as read
       let markWarning = ''
+      const trimmedIds = trimmed.map((m) => m.id)
+
+      // In unreadOnly mode, mark on Zulip too
       if (unreadOnly) {
-        const markResult = await markAsRead(
-          botClient,
-          trimmed.map((m) => m.id),
-        )
+        const markResult = await markAsRead(botClient, trimmedIds)
         if (markResult.isErr()) {
           markWarning = `(warning: failed to mark messages as read: ${formatError(markResult.error)})\n`
         }
       }
+
+      // Mark matching messages as read in the Claude Code inbox
+      markInboxMessagesByIdAsRead(ctx.config.teamName, sender, trimmedIds)
 
       const skippedCount = allMessages.length - trimmed.length
       const infos = [

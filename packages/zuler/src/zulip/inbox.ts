@@ -8,6 +8,7 @@ type InboxMessage = {
   readonly summary: string
   readonly timestamp: string
   readonly read: boolean
+  readonly zulipMessageId?: number
 }
 
 /** Resolve the inbox directory for a given team name. */
@@ -38,6 +39,7 @@ export function writeToInbox(
   from: string,
   text: string,
   summary: string,
+  zulipMessageId?: number,
 ): void {
   const dir = inboxDir(teamName)
   mkdirSync(dir, { recursive: true })
@@ -59,9 +61,41 @@ export function writeToInbox(
     summary,
     timestamp: new Date().toISOString(),
     read: false,
+    ...(zulipMessageId !== undefined ? { zulipMessageId } : {}),
   })
 
   writeFileSync(path, JSON.stringify(messages, null, 2))
+}
+
+/**
+ * Mark specific inbox messages as read by their Zulip message IDs.
+ * Returns the number of messages marked.
+ */
+export function markInboxMessagesByIdAsRead(
+  teamName: string,
+  teammate: string,
+  messageIds: readonly number[],
+): number {
+  const path = inboxPath(teamName, teammate)
+  if (!existsSync(path)) return 0
+  try {
+    const messages = JSON.parse(readFileSync(path, 'utf-8')) as InboxMessage[]
+    const idSet = new Set(messageIds)
+    let marked = 0
+    const updated = messages.map((m) => {
+      if (!m.read && m.zulipMessageId !== undefined && idSet.has(m.zulipMessageId)) {
+        marked++
+        return { ...m, read: true }
+      }
+      return m
+    })
+    if (marked > 0) {
+      writeFileSync(path, JSON.stringify(updated, null, 2))
+    }
+    return marked
+  } catch {
+    return 0
+  }
 }
 
 export type { InboxMessage }
