@@ -24,11 +24,11 @@ export function countUnreadFromTopic(
 export function countUnreadDmsFromUser(
   teamName: string,
   teammate: string,
-  senderUserId: number,
+  fromUserId: number,
 ): number {
   const messages = readInbox(teamName, teammate)
   return messages.filter(
-    (msg) => !msg.read && !msg.zulipStream && msg.zulipSenderId === senderUserId,
+    (msg) => !msg.read && !msg.zulipStream && msg.zulipSenderId === fromUserId,
   ).length
 }
 
@@ -44,7 +44,7 @@ export function checkUnreadBeforePost(
 ): string | undefined {
   const unread = countUnreadFromTopic(teamName, sender, stream, topic)
   if (unread > 0) {
-    return `you have ${unread} unread message(s) from ${stream}/${topic} in your inbox. Read them before posting.`
+    return `you have ${unread} unread message(s) in ${stream}/${topic}. Use the read or catch-up tool first.`
   }
   return undefined
 }
@@ -56,11 +56,11 @@ export function checkUnreadBeforePost(
 export function checkUnreadBeforeDm(
   teamName: string,
   sender: string,
-  recipientUserId: number,
+  fromUserId: number,
 ): string | undefined {
-  const unread = countUnreadDmsFromUser(teamName, sender, recipientUserId)
+  const unread = countUnreadDmsFromUser(teamName, sender, fromUserId)
   if (unread > 0) {
-    return `you have ${unread} unread DM(s) from this user in your inbox. Read them before replying.`
+    return `you have ${unread} unread DM(s) from user ${fromUserId}. Use the read or catch-up tool first.`
   }
   return undefined
 }

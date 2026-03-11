@@ -16,16 +16,7 @@ type InboxMessage = {
   readonly zulipSender?: string
 }
 
-type InboxEntry = {
-  readonly from: string
-  readonly text: string
-  readonly summary: string
-  readonly zulipMessageId?: number
-  readonly zulipSenderId?: number
-  readonly zulipStream?: string
-  readonly zulipTopic?: string
-  readonly zulipSender?: string
-}
+type InboxEntry = Omit<InboxMessage, 'timestamp' | 'read'>
 
 /** Resolve the inbox directory for a given team name. */
 export function inboxDir(teamName: string): string {
@@ -105,11 +96,34 @@ export function consumeUnreadInboxMessages(
 }
 
 /** Consume all unread inbox messages from Zulip stream sources (not DMs). */
-export function consumeAllUnreadInboxMessages(
+export function consumeAllUnreadStreamMessages(
   teamName: string,
   teammate: string,
 ): readonly InboxMessage[] {
   return consumeMatching(inboxPath(teamName, teammate), (m) => !!m.zulipStream)
+}
+
+/** Consume unread DMs from a specific user in a teammate's inbox. */
+export function consumeUnreadDmMessages(
+  teamName: string,
+  teammate: string,
+  fromUserId: number,
+): readonly InboxMessage[] {
+  return consumeMatching(
+    inboxPath(teamName, teammate),
+    (m) => !m.zulipStream && m.zulipSenderId === fromUserId,
+  )
+}
+
+/** Consume all unread DMs in a teammate's inbox (any sender). */
+export function consumeAllUnreadDmMessages(
+  teamName: string,
+  teammate: string,
+): readonly InboxMessage[] {
+  return consumeMatching(
+    inboxPath(teamName, teammate),
+    (m) => !m.zulipStream && m.zulipSenderId !== undefined,
+  )
 }
 
 /** Convert inbox messages to FormattedMessage for merging with Zulip API results. */

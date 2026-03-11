@@ -21,10 +21,17 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, content, to, stream, topic }) => {
+      // Pre-flight unread checks before any async work
       if (stream && topic) {
         const blocked = checkUnreadBeforePost(teamName, sender, stream, topic)
         if (blocked) {
           return errorResult(blocked)
+        }
+      }
+      if (to !== undefined) {
+        const dmBlocked = checkUnreadBeforeDm(teamName, sender, to)
+        if (dmBlocked) {
+          return errorResult(dmBlocked)
         }
       }
 
@@ -35,10 +42,6 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       const senderClient = clientResult.value
 
       if (to !== undefined) {
-        const dmBlocked = checkUnreadBeforeDm(teamName, sender, to)
-        if (dmBlocked) {
-          return errorResult(dmBlocked)
-        }
         const botCheckResult = await ctx.isBot(to)
         if (botCheckResult.isErr()) {
           return errorResult(formatError(botCheckResult.error))
