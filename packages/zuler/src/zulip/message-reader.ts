@@ -17,9 +17,14 @@ export type FormattedMessage = {
 export function fetchMessages(
   client: ZulipClient,
   params: GetMessagesParams,
-  options?: { markRead?: boolean; streamFallback?: string; topicFallback?: string },
+  options?: {
+    markRead?: boolean
+    streamFallback?: string
+    topicFallback?: string
+    botUserId?: number
+  },
 ): ResultAsync<readonly FormattedMessage[], ZulipError> {
-  const { markRead = true, streamFallback, topicFallback } = options ?? {}
+  const { markRead = true, streamFallback, topicFallback, botUserId } = options ?? {}
 
   return getMessages(client, params).andThen((res) => {
     const messages: FormattedMessage[] = res.messages.map((msg) => {
@@ -33,10 +38,9 @@ export function fetchMessages(
           timestamp: msg.timestamp,
         }
       }
-      // DM — extract participants excluding the sender
-      const others = msg.display_recipient
-        .filter((r) => r.id !== msg.sender_id)
-        .map((r) => r.full_name)
+      // DM — extract the other participants (exclude the bot making the API call)
+      const excludeId = botUserId ?? msg.sender_id
+      const others = msg.display_recipient.filter((r) => r.id !== excludeId).map((r) => r.full_name)
       return {
         id: msg.id,
         stream: '',

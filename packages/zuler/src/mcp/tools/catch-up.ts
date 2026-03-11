@@ -79,7 +79,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         fetchMessages(
           botClient,
           { ...fetchConfig, narrow: [{ operator: 'is', operand: 'dm' }], applyMarkdown: false },
-          { markRead: false },
+          { markRead: false, botUserId: teammate.botUserId ?? undefined },
         ),
       ])
 

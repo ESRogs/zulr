@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { getTeammate } from '../../state/teammates.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
@@ -21,6 +22,9 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
         return errorResult('"topic" requires "channel" to be specified')
       }
 
+      const teammateResult = await getTeammate(ctx.config.db, sender)
+      if (teammateResult.isErr()) return errorResult(formatError(teammateResult.error))
+
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
@@ -39,7 +43,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
           narrow,
           applyMarkdown: false,
         },
-        { markRead: false },
+        { markRead: false, botUserId: teammateResult.value.botUserId ?? undefined },
       )
 
       if (result.isErr()) return errorResult(formatError(result.error))
