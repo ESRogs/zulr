@@ -30,7 +30,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
           .default(24)
           .describe('Maximum lookback time in hours (default: 24)'),
         unreadOnly: z
-          .boolean()
+          .union([z.boolean(), z.string().transform((s) => s === 'true')])
           .optional()
           .default(false)
           .describe('If true, fetch only unread messages and mark them as read'),

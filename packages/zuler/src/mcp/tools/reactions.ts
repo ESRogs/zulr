@@ -14,7 +14,7 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
         messageId: z.coerce.number().describe('Zulip message ID to react to'),
         emoji: z.string().describe('Emoji name (e.g. "thumbs_up", "check", "eyes")'),
         remove: z
-          .boolean()
+          .union([z.boolean(), z.string().transform((s) => s === 'true')])
           .optional()
           .default(false)
           .describe('If true, remove the reaction instead of adding it'),
