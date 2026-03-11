@@ -20,6 +20,11 @@ type RouteResult = {
 
 const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
 
+function appendMetadata(content: string, message: Message): string {
+  const ts = new Date(message.timestamp * 1000).toISOString()
+  return `${content}\n\n---\nzulip message id: ${message.id} | ${ts}`
+}
+
 /** Build a reverse map of bot_email → teammate_name. */
 async function buildEmailMap(db: Kysely<ZulerDatabase>): Promise<Map<string, string>> {
   const result = await listTeammates(db)
@@ -59,7 +64,7 @@ export async function routeDm(
       const from = `zulip:${senderName}`
       writeToInbox(teamName, name, {
         from,
-        text: content,
+        text: appendMetadata(content, message),
         summary,
         zulipMessageId: message.id,
         zulipSenderId: message.sender_id,
@@ -121,7 +126,7 @@ export async function routeStreamMessage(
     const from = `zulip:${location}:${senderName}`
     writeToInbox(teamName, name, {
       from,
-      text: content,
+      text: appendMetadata(content, message),
       summary,
       zulipMessageId: message.id,
       zulipSenderId: message.sender_id,
