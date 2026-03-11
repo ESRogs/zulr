@@ -12,8 +12,10 @@ export type {
   UpdateMessageParams,
 } from './messages.ts'
 export {
+  addReaction,
   getMessages,
   markAsRead,
+  removeReaction,
   sendDirectMessage,
   sendStreamMessage,
   updateMessage,
@@ -44,5 +46,14 @@ export type {
   UpdateMessageResponse,
 } from './schemas.ts'
 export type { CreateChannelParams, UpdateChannelParams } from './streams.ts'
-export { createChannel, getStreams, getTopics, subscribe, updateChannel } from './streams.ts'
-export { getMembers } from './users.ts'
+export {
+  archiveStream,
+  createChannel,
+  getStreams,
+  getSubscribers,
+  getTopics,
+  subscribe,
+  updateChannel,
+} from './streams.ts'
+export type { UpdateStatusParams } from './users.ts'
+export { getMembers, updateStatus } from './users.ts'
