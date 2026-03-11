@@ -50,7 +50,7 @@ export function fetchMessages(
         sender: msg.sender_full_name,
         content: msg.content,
         timestamp: msg.timestamp,
-        ...(others.length > 0 ? { dmWith: others.join(', ') } : {}),
+        dmWith: others.length > 0 ? others.join(', ') : undefined,
         isGroupDm: msg.display_recipient.length > 2,
       }
     })

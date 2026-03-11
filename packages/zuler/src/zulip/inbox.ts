@@ -143,8 +143,9 @@ export function inboxToFormattedMessages(messages: readonly InboxMessage[]): For
         content: m.text,
         timestamp: (Date.parse(m.timestamp) || 0) / 1000,
         // Inbox only contains inbound messages, so zulipSender is the other party.
-        // isGroupDm can't be determined from inbox data (no participant list).
-        ...(isDm ? { dmWith: m.zulipSender } : {}),
+        // isGroupDm can't be determined from inbox data (no participant list);
+        // group DMs are not routed to inbox by the event listener.
+        ...(isDm ? { dmWith: m.zulipSender, isGroupDm: false } : {}),
       },
     ]
   })
