@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
-import { checkUnreadBeforePost } from '../../zulip/unread-check.ts'
+import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerPostTool(server: McpServer, ctx: ToolContext): void {
@@ -35,6 +35,10 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       const senderClient = clientResult.value
 
       if (to !== undefined) {
+        const dmBlocked = checkUnreadBeforeDm(teamName, sender, to)
+        if (dmBlocked) {
+          return errorResult(dmBlocked)
+        }
         const botCheckResult = await ctx.isBot(to)
         if (botCheckResult.isErr()) {
           return errorResult(formatError(botCheckResult.error))

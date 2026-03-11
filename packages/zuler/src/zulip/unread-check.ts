@@ -18,6 +18,21 @@ export function countUnreadFromTopic(
 }
 
 /**
+ * Count unread DMs from a specific user in a teammate's inbox.
+ * Matches on the zulipSenderId field.
+ */
+export function countUnreadDmsFromUser(
+  teamName: string,
+  teammate: string,
+  senderUserId: number,
+): number {
+  const messages = readInbox(teamName, teammate)
+  return messages.filter(
+    (msg) => !msg.read && !msg.zulipStream && msg.zulipSenderId === senderUserId,
+  ).length
+}
+
+/**
  * Check whether a teammate is allowed to post to a stream/topic.
  * Returns an error message if blocked, or undefined if allowed.
  */
@@ -30,6 +45,22 @@ export function checkUnreadBeforePost(
   const unread = countUnreadFromTopic(teamName, sender, stream, topic)
   if (unread > 0) {
     return `you have ${unread} unread message(s) from ${stream}/${topic} in your inbox. Read them before posting.`
+  }
+  return undefined
+}
+
+/**
+ * Check whether a teammate is allowed to DM a user.
+ * Returns an error message if blocked, or undefined if allowed.
+ */
+export function checkUnreadBeforeDm(
+  teamName: string,
+  sender: string,
+  recipientUserId: number,
+): string | undefined {
+  const unread = countUnreadDmsFromUser(teamName, sender, recipientUserId)
+  if (unread > 0) {
+    return `you have ${unread} unread DM(s) from this user in your inbox. Read them before replying.`
   }
   return undefined
 }

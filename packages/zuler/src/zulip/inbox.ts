@@ -10,6 +10,7 @@ type InboxMessage = {
   readonly timestamp: string
   readonly read: boolean
   readonly zulipMessageId?: number
+  readonly zulipSenderId?: number
   readonly zulipStream?: string
   readonly zulipTopic?: string
   readonly zulipSender?: string
@@ -20,6 +21,7 @@ type InboxEntry = {
   readonly text: string
   readonly summary: string
   readonly zulipMessageId?: number
+  readonly zulipSenderId?: number
   readonly zulipStream?: string
   readonly zulipTopic?: string
   readonly zulipSender?: string
