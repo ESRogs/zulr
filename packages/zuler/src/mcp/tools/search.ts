@@ -17,13 +17,17 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, query, channel, topic, count }) => {
+      if (topic && !channel) {
+        return errorResult('"topic" requires "channel" to be specified')
+      }
+
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const narrow = [
         { operator: 'search', operand: query },
-        ...(channel ? [{ operator: 'stream' as const, operand: channel }] : []),
-        ...(channel && topic ? [{ operator: 'topic' as const, operand: topic }] : []),
+        ...(channel ? [{ operator: 'stream', operand: channel }] : []),
+        ...(channel && topic ? [{ operator: 'topic', operand: topic }] : []),
       ]
 
       const result = await fetchMessages(
