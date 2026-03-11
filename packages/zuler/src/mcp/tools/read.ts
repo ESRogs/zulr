@@ -31,7 +31,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
     async ({ sender, stream, topic, user, count }) => {
       const teammateResult = await getTeammate(ctx.config.db, sender)
       if (teammateResult.isErr()) return errorResult(formatError(teammateResult.error))
-      const botUserId = teammateResult.value.botUserId ?? undefined
+      const botUserId = teammateResult.value.botUserId
 
       if (user !== undefined) {
         const resolveResult = await ctx.resolveUser(user)

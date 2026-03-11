@@ -21,7 +21,7 @@ export function fetchMessages(
     markRead?: boolean
     streamFallback?: string
     topicFallback?: string
-    botUserId?: number
+    botUserId?: number | null
   },
 ): ResultAsync<readonly FormattedMessage[], ZulipError> {
   const { markRead = true, streamFallback, topicFallback, botUserId } = options ?? {}
@@ -71,14 +71,11 @@ export function formatMessages(
   return messages
     .map((msg) => {
       const dt = new Date(msg.timestamp * 1000).toISOString()
-      let location: string
-      if (msg.stream) {
-        location = `${msg.stream}/${msg.topic}`
-      } else if (msg.dmWith) {
-        location = `DM with ${msg.dmWith}`
-      } else {
-        location = 'DM'
-      }
+      const location = msg.stream
+        ? `${msg.stream}/${msg.topic}`
+        : msg.dmWith
+          ? `DM with ${msg.dmWith}`
+          : 'DM'
       const prefix = includeLocation ? `${location} — ` : ''
       return `[${dt}] ${prefix}${msg.sender}: ${msg.content}`
     })

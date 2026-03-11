@@ -43,7 +43,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
           narrow,
           applyMarkdown: false,
         },
-        { markRead: false, botUserId: teammateResult.value.botUserId ?? undefined },
+        { markRead: false, botUserId: teammateResult.value.botUserId },
       )
 
       if (result.isErr()) return errorResult(formatError(result.error))

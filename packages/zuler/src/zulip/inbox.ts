@@ -142,6 +142,8 @@ export function inboxToFormattedMessages(messages: readonly InboxMessage[]): For
         sender: m.zulipSender,
         content: m.text,
         timestamp: (Date.parse(m.timestamp) || 0) / 1000,
+        // Inbox only contains inbound messages, so zulipSender is the other party.
+        // isGroupDm can't be determined from inbox data (no participant list).
         ...(isDm ? { dmWith: m.zulipSender } : {}),
       },
     ]

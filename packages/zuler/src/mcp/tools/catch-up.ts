@@ -79,7 +79,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         fetchMessages(
           botClient,
           { ...fetchConfig, narrow: [{ operator: 'is', operand: 'dm' }], applyMarkdown: false },
-          { markRead: false, botUserId: teammate.botUserId ?? undefined },
+          { markRead: false, botUserId: teammate.botUserId },
         ),
       ])
 
@@ -125,16 +125,10 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         }
       }
 
-      const skippedCount = allMessages.length - trimmed.length
       const infos = [
         allMessages.length > maxMessages
-          ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent).`
+          ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent) — increase maxMessages to see all.`
           : `Showing all ${trimmed.length} message${trimmed.length === 1 ? '' : 's'}.`,
-        ...(skippedCount > 0
-          ? [
-              `${skippedCount} more message${skippedCount === 1 ? '' : 's'} not shown — increase maxMessages to see them.`,
-            ]
-          : []),
         ...(olderCount > 0
           ? [
               `${olderCount} older message${olderCount === 1 ? '' : 's'} outside ${maxHours}h window — increase maxHours to see them.`,
