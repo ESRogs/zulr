@@ -33,7 +33,8 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         if (resolveResult.isErr()) {
           return errorResult(resolveResult.error)
         }
-        return readDms(ctx, sender, resolveResult.value.user_id, count)
+        const member = resolveResult.value
+        return readDms(ctx, sender, member.user_id, member.email, count)
       }
       if (stream && topic) {
         return readStream(ctx, sender, stream, topic, count)
@@ -107,7 +108,13 @@ async function readStream(
   return textResult(body)
 }
 
-async function readDms(ctx: ToolContext, sender: string, userId: number, count: number) {
+async function readDms(
+  ctx: ToolContext,
+  sender: string,
+  userId: number,
+  userEmail: string,
+  count: number,
+) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)
@@ -121,7 +128,7 @@ async function readDms(ctx: ToolContext, sender: string, userId: number, count: 
       anchor: 'newest',
       numBefore: count + 1,
       numAfter: 0,
-      narrow: [{ operator: 'pm-with', operand: String(userId) }],
+      narrow: [{ operator: 'pm-with', operand: userEmail }],
       applyMarkdown: false,
     },
     { markRead: false },
