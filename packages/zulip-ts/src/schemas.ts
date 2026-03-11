@@ -113,6 +113,7 @@ export type UpdateMessageResponse = z.infer<typeof UpdateMessageResponseSchema>
 export const MemberSchema = z.object({
   user_id: z.number(),
   email: z.string(),
+  delivery_email: z.string().nullable().optional(),
   full_name: z.string(),
   is_bot: z.boolean().optional(),
 })
