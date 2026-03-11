@@ -3,7 +3,12 @@ import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import type { ZulipClient, ZulipError } from 'zulip-ts'
 import { createBot, createClient, getBots, getStreams, subscribe } from 'zulip-ts'
 import type { ZulerDatabase } from './state/db.ts'
-import { getTeammate, registerTeammate, type StateError } from './state/teammates.ts'
+import {
+  getTeammate,
+  registerTeammate,
+  type StateError,
+  updateTeammateCredentials,
+} from './state/teammates.ts'
 
 export type BotManagerError =
   | { readonly type: 'zulip'; readonly inner: ZulipError }
@@ -91,7 +96,27 @@ export function registerBot(
   ).andThen((stateResult) => {
     if (stateResult.isOk()) {
       const existing = stateResult.value
-      return okAsync({ botEmail: existing.botEmail, apiKey: existing.apiKey })
+      // Verify credentials against Zulip and refresh if stale
+      return findExistingBot(adminClient, existing.botEmail, name).andThen((zulipBot) => {
+        if (!zulipBot) {
+          // Bot exists in DB but not on Zulip — return what we have
+          return okAsync({ botEmail: existing.botEmail, apiKey: existing.apiKey })
+        }
+        const needsUpdate =
+          zulipBot.apiKey !== existing.apiKey ||
+          existing.botUserId === null ||
+          (zulipBot.userId !== null && zulipBot.userId !== existing.botUserId)
+        if (needsUpdate) {
+          return ResultAsync.fromPromise(
+            updateTeammateCredentials(db, name, {
+              apiKey: zulipBot.apiKey,
+              botUserId: zulipBot.userId,
+            }),
+            (e): BotManagerError => wrapState({ type: 'db_error', message: String(e) }),
+          ).map(() => ({ botEmail: existing.botEmail, apiKey: zulipBot.apiKey }))
+        }
+        return okAsync({ botEmail: existing.botEmail, apiKey: existing.apiKey })
+      })
     }
 
     // Not in DB — find or create on Zulip

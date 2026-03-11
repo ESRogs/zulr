@@ -116,3 +116,27 @@ export async function listTeammates(
     return err(wrapDbError(e))
   }
 }
+
+export async function updateTeammateCredentials(
+  db: Kysely<ZulerDatabase>,
+  name: string,
+  updates: {
+    readonly botEmail?: string
+    readonly apiKey?: string
+    readonly botUserId?: number | null
+  },
+): Promise<Result<void, StateError>> {
+  try {
+    const values: Record<string, unknown> = {}
+    if (updates.botEmail !== undefined) values.bot_email = updates.botEmail
+    if (updates.apiKey !== undefined) values.api_key = updates.apiKey
+    if (updates.botUserId !== undefined) values.bot_user_id = updates.botUserId
+
+    if (Object.keys(values).length > 0) {
+      await db.updateTable('teammates').set(values).where('name', '=', name).execute()
+    }
+    return ok(undefined)
+  } catch (e) {
+    return err(wrapDbError(e))
+  }
+}
