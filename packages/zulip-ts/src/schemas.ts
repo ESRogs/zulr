@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+const SuccessResponseFields = {
+  result: z.literal('success'),
+  msg: z.string(),
+}
+
 // --- Messages ---
 
 const BaseMessageFields = {
@@ -38,25 +43,25 @@ export const MessageSchema = z.discriminatedUnion('type', [StreamMessageSchema, 
 export type Message = z.infer<typeof MessageSchema>
 
 export const SendMessageResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   id: z.number(),
 })
 export type SendMessageResponse = z.infer<typeof SendMessageResponseSchema>
 
 export const GetMessagesResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   messages: z.array(MessageSchema),
 })
 export type GetMessagesResponse = z.infer<typeof GetMessagesResponseSchema>
 
 export const UpdateMessageFlagsResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   messages: z.array(z.number()),
 })
 export type UpdateMessageFlagsResponse = z.infer<typeof UpdateMessageFlagsResponseSchema>
+
+export const UpdateMessageResponseSchema = z.object(SuccessResponseFields)
+export type UpdateMessageResponse = z.infer<typeof UpdateMessageResponseSchema>
 
 // --- Streams ---
 
@@ -68,24 +73,17 @@ export const StreamSchema = z.object({
 export type Stream = z.infer<typeof StreamSchema>
 
 export const GetStreamsResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   streams: z.array(StreamSchema),
 })
 export type GetStreamsResponse = z.infer<typeof GetStreamsResponseSchema>
 
 export const SubscribeResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   subscribed: z.record(z.string(), z.array(z.string())),
   already_subscribed: z.record(z.string(), z.array(z.string())),
 })
 export type SubscribeResponse = z.infer<typeof SubscribeResponseSchema>
-
-const SuccessResponseFields = {
-  result: z.literal('success'),
-  msg: z.string(),
-}
 
 export const UpdateChannelResponseSchema = z.object(SuccessResponseFields)
 export type UpdateChannelResponse = z.infer<typeof UpdateChannelResponseSchema>
@@ -108,9 +106,6 @@ export const GetTopicsResponseSchema = z.object({
 })
 export type GetTopicsResponse = z.infer<typeof GetTopicsResponseSchema>
 
-export const UpdateMessageResponseSchema = z.object(SuccessResponseFields)
-export type UpdateMessageResponse = z.infer<typeof UpdateMessageResponseSchema>
-
 // --- Users ---
 
 export const MemberSchema = z.object({
@@ -123,8 +118,7 @@ export const MemberSchema = z.object({
 export type Member = z.infer<typeof MemberSchema>
 
 export const GetMembersResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   members: z.array(MemberSchema),
 })
 export type GetMembersResponse = z.infer<typeof GetMembersResponseSchema>
@@ -141,15 +135,13 @@ export const BotSchema = z.object({
 export type Bot = z.infer<typeof BotSchema>
 
 export const GetBotsResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   bots: z.array(BotSchema),
 })
 export type GetBotsResponse = z.infer<typeof GetBotsResponseSchema>
 
 export const CreateBotResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   user_id: z.number(),
   api_key: z.string(),
 })
@@ -158,8 +150,7 @@ export type CreateBotResponse = z.infer<typeof CreateBotResponseSchema>
 // --- Events ---
 
 export const RegisterQueueResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   queue_id: z.string(),
   last_event_id: z.number(),
 })
@@ -173,8 +164,7 @@ export const EventSchema = z.object({
 export type Event = z.infer<typeof EventSchema>
 
 export const GetEventsResponseSchema = z.object({
-  result: z.literal('success'),
-  msg: z.string(),
+  ...SuccessResponseFields,
   events: z.array(EventSchema),
 })
 export type GetEventsResponse = z.infer<typeof GetEventsResponseSchema>
