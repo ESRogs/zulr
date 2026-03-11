@@ -40,7 +40,7 @@ export function fetchMessages(
       }
       // DM — extract the other participants (exclude the bot making the API call)
       // If botUserId is unknown, skip enrichment rather than guessing wrong
-      const others = botUserId
+      const others = botUserId != null
         ? msg.display_recipient.filter((r) => r.id !== botUserId).map((r) => r.full_name)
         : []
       return {
