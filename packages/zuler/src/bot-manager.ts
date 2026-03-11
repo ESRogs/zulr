@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import type { ZulipClient, ZulipError } from 'zulip-ts'
-import { createBot, createClient, getBots, getStreams, subscribe } from 'zulip-ts'
+import { createBot, createClient, getBots, getMembers, getStreams, subscribe } from 'zulip-ts'
 import type { ZulerDatabase } from './state/db.ts'
 import {
   getTeammate,
@@ -30,6 +30,19 @@ type BotCredentials = {
   readonly email: string
 }
 
+/** Look up a bot's user_id from the members list (fallback when getBots doesn't return it). */
+function lookupBotUserId(
+  adminClient: ZulipClient,
+  botEmail: string,
+): ResultAsync<number | null, BotManagerError> {
+  return getMembers(adminClient)
+    .map((res) => {
+      const member = res.members.find((m) => m.email === botEmail)
+      return member?.user_id ?? null
+    })
+    .mapErr(wrapZulip)
+}
+
 /** Find an existing bot, preferring email match, falling back to full_name match for bots with a bot-pattern email on the same host. */
 function findExistingBot(
   adminClient: ZulipClient,
@@ -38,24 +51,27 @@ function findExistingBot(
 ): ResultAsync<BotCredentials | undefined, BotManagerError> {
   const host = new URL(adminClient.config.site).hostname
   return getBots(adminClient)
-    .map((res) => {
-      // Prefer exact email match
-      const byEmail = res.bots.find((b) => b.username === email)
-      if (byEmail) {
-        return { apiKey: byEmail.api_key, userId: byEmail.user_id ?? null, email: byEmail.username }
-      }
-
-      // Fallback: full_name match, but only if the bot's email follows the -bot@ pattern on the same host
-      const byName = res.bots.find(
-        (b) => b.full_name === name && b.username.endsWith(`-bot@${host}`),
-      )
-      if (byName) {
-        return { apiKey: byName.api_key, userId: byName.user_id ?? null, email: byName.username }
-      }
-
-      return undefined
-    })
     .mapErr(wrapZulip)
+    .andThen((res) => {
+      // Prefer exact email match, then full_name match
+      const byEmail = res.bots.find((b) => b.username === email)
+      const bot =
+        byEmail ?? res.bots.find((b) => b.full_name === name && b.username.endsWith(`-bot@${host}`))
+      if (!bot) return okAsync(undefined)
+
+      const creds: BotCredentials = {
+        apiKey: bot.api_key,
+        userId: bot.user_id ?? null,
+        email: bot.username,
+      }
+
+      // getBots may not return user_id — fall back to members list
+      if (creds.userId != null) return okAsync<BotCredentials | undefined, BotManagerError>(creds)
+      return lookupBotUserId(adminClient, creds.email).map((userId) => ({
+        ...creds,
+        userId,
+      }))
+    })
 }
 
 /** Create a new bot and return its API key and user ID. */
