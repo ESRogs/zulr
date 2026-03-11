@@ -24,7 +24,11 @@ export function botEmail(name: string, site: string): string {
   return `${name}-bot@${host}`
 }
 
-type BotCredentials = { readonly apiKey: string; readonly userId: number | null }
+type BotCredentials = {
+  readonly apiKey: string
+  readonly userId: number | null
+  readonly email: string
+}
 
 /** Find an existing bot, preferring email match, falling back to full_name match for bots with a bot-pattern email on the same host. */
 function findExistingBot(
@@ -37,13 +41,17 @@ function findExistingBot(
     .map((res) => {
       // Prefer exact email match
       const byEmail = res.bots.find((b) => b.username === email)
-      if (byEmail) return { apiKey: byEmail.api_key, userId: byEmail.user_id ?? null }
+      if (byEmail) {
+        return { apiKey: byEmail.api_key, userId: byEmail.user_id ?? null, email: byEmail.username }
+      }
 
       // Fallback: full_name match, but only if the bot's email follows the -bot@ pattern on the same host
       const byName = res.bots.find(
         (b) => b.full_name === name && b.username.endsWith(`-bot@${host}`),
       )
-      if (byName) return { apiKey: byName.api_key, userId: byName.user_id ?? null }
+      if (byName) {
+        return { apiKey: byName.api_key, userId: byName.user_id ?? null, email: byName.username }
+      }
 
       return undefined
     })
@@ -59,7 +67,11 @@ function createNewBot(
     fullName: name,
     shortName: name,
   })
-    .map((res) => ({ apiKey: res.api_key, userId: res.user_id }))
+    .map((res) => ({
+      apiKey: res.api_key,
+      userId: res.user_id,
+      email: botEmail(name, adminClient.config.site),
+    }))
     .mapErr(wrapZulip)
 }
 
@@ -106,15 +118,17 @@ export function registerBot(
         // If Zulip returns null for userId, keep the DB value (don't downgrade from known to unknown).
         const needsUpdate =
           zulipBot.apiKey !== existing.apiKey ||
+          zulipBot.email !== existing.botEmail ||
           existing.botUserId === null ||
           (zulipBot.userId !== null && zulipBot.userId !== existing.botUserId)
         if (needsUpdate) {
           return updateTeammateCredentials(db, name, {
             apiKey: zulipBot.apiKey,
             botUserId: zulipBot.userId ?? existing.botUserId,
+            botEmail: zulipBot.email,
           })
             .mapErr(wrapState)
-            .map(() => ({ botEmail: existing.botEmail, apiKey: zulipBot.apiKey }))
+            .map(() => ({ botEmail: zulipBot.email, apiKey: zulipBot.apiKey }))
         }
         return okAsync({ botEmail: existing.botEmail, apiKey: existing.apiKey })
       })
@@ -133,7 +147,7 @@ export function registerBot(
         return credsResult.andThen((creds) =>
           registerTeammate(db, {
             name,
-            botEmail: email,
+            botEmail: creds.email,
             apiKey: creds.apiKey,
             botUserId: creds.userId,
           })
@@ -141,12 +155,12 @@ export function registerBot(
             .andThen(() => {
               const botClient = createClient({
                 site: adminClient.config.site,
-                email,
+                email: creds.email,
                 apiKey: creds.apiKey,
               })
 
               return subscribeToAllStreams(botClient, adminClient).map(() => ({
-                botEmail: email,
+                botEmail: creds.email,
                 apiKey: creds.apiKey,
               }))
             }),
