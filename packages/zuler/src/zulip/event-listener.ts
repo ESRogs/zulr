@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely'
+import { okAsync } from 'neverthrow'
 import type { ZulipClient } from 'zulip-ts'
 import { getEvents, markAsRead, registerQueue } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
@@ -33,48 +34,38 @@ const RETRY_DELAY_MS = 5000
 type BotClientCache = Map<string, ZulipClient>
 
 /** Get or create a cached bot client for a teammate. */
-async function getCachedBotClient(
+function getCachedBotClient(
   cache: BotClientCache,
   db: Kysely<ZulerDatabase>,
   site: string,
   name: string,
-  onError?: (error: unknown) => void,
-): Promise<ZulipClient | undefined> {
+) {
   const cached = cache.get(name)
-  if (cached) return cached
+  if (cached) return okAsync(cached)
 
-  const result = await clientForTeammate(db, site, name)
-  if (result.isErr()) {
-    onError?.(result.error)
-    return undefined
-  }
-
-  cache.set(name, result.value.client)
-  return result.value.client
+  return clientForTeammate(db, site, name).map((tc) => {
+    cache.set(name, tc.client)
+    return tc.client
+  })
 }
 
 /**
  * Mark a message as read for each teammate that received it,
  * using their cached bot clients. Runs in parallel.
  */
-async function markReadForTeammates(
+function markReadForTeammates(
   cache: BotClientCache,
   db: Kysely<ZulerDatabase>,
   site: string,
   messageId: number,
   teammateNames: readonly string[],
   onError?: (error: unknown) => void,
-): Promise<void> {
-  await Promise.all(
-    teammateNames.map(async (name) => {
-      const botClient = await getCachedBotClient(cache, db, site, name, onError)
-      if (!botClient) return
-      const result = await markAsRead(botClient, [messageId])
-      if (result.isErr()) {
-        onError?.(result.error)
-      }
-    }),
-  )
+): void {
+  for (const name of teammateNames) {
+    getCachedBotClient(cache, db, site, name)
+      .andThen((botClient) => markAsRead(botClient, [messageId]))
+      .mapErr((err) => onError?.(err))
+  }
 }
 
 /**
@@ -139,8 +130,8 @@ export async function startEventListener(options: EventListenerOptions): Promise
             autoSubscribed: result.autoSubscribed,
           })
 
-          // Mark as read for each teammate (cache populates on miss)
-          await markReadForTeammates(
+          // Mark as read for each teammate (fire-and-forget, errors go to onError)
+          markReadForTeammates(
             botClientCache,
             db,
             client.config.site,
