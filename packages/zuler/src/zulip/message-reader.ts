@@ -79,7 +79,8 @@ export function formatMessages(
           ? `DM with ${msg.dmWith}`
           : 'DM'
       const prefix = includeLocation ? `${location} — ` : ''
-      return `[${dt}] ${prefix}${msg.sender}: ${msg.content}`
+      const idSuffix = msg.id > 0 ? ` (id: ${msg.id})` : ''
+      return `[${dt}] ${prefix}${msg.sender}${idSuffix}: ${msg.content}`
     })
     .join('\n')
 }
