@@ -1,9 +1,10 @@
 import type { Kysely } from 'kysely'
-import type { DmMessage, Message, StreamMessage } from 'zulip-ts'
+import type { DmMessage, StreamMessage } from 'zulip-ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { addTopicSubscription, shouldReceive } from '../state/subscriptions.ts'
 import { listTeammates } from '../state/teammates.ts'
 import { writeToInbox } from './inbox.ts'
+import { formatMessageFooter } from './message-reader.ts'
 
 type RouteResult = {
   readonly messageId: number
@@ -20,9 +21,8 @@ type RouteResult = {
 
 const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
 
-function appendMetadata(content: string, message: Message): string {
-  const ts = new Date(message.timestamp * 1000).toISOString()
-  return `${content}\n\n---\nzulip message id: ${message.id} | ${ts}`
+function appendFooter(content: string, messageId: number, timestamp: number): string {
+  return `${content}\n${formatMessageFooter(messageId, timestamp)}`
 }
 
 /** Build a reverse map of bot_email → teammate_name. */
@@ -64,7 +64,7 @@ export async function routeDm(
       const from = `zulip:${senderName}`
       writeToInbox(teamName, name, {
         from,
-        text: appendMetadata(content, message),
+        text: appendFooter(content, message.id, message.timestamp),
         summary,
         zulipMessageId: message.id,
         zulipSenderId: message.sender_id,
@@ -126,7 +126,7 @@ export async function routeStreamMessage(
     const from = `zulip:${location}:${senderName}`
     writeToInbox(teamName, name, {
       from,
-      text: appendMetadata(content, message),
+      text: appendFooter(content, message.id, message.timestamp),
       summary,
       zulipMessageId: message.id,
       zulipSenderId: message.sender_id,

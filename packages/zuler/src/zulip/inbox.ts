@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { FormattedMessage } from './message-reader.ts'
+import { type FormattedMessage, stripMessageFooter } from './message-reader.ts'
 
 type InboxMessage = {
   readonly from: string
@@ -140,7 +140,7 @@ export function inboxToFormattedMessages(messages: readonly InboxMessage[]): For
         stream: m.zulipStream ?? '',
         topic: m.zulipTopic ?? '',
         sender: m.zulipSender,
-        content: m.text,
+        content: stripMessageFooter(m.text),
         timestamp: (Date.parse(m.timestamp) || 0) / 1000,
         // Inbox only contains inbound messages, so zulipSender is the other party.
         // isGroupDm can't be determined from inbox data (no participant list);
