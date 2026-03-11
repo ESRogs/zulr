@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely'
-import type { DmMessage, StreamMessage } from 'zulip-ts'
+import type { DmMessage, Message, StreamMessage } from 'zulip-ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { addTopicSubscription, shouldReceive } from '../state/subscriptions.ts'
 import { listTeammates } from '../state/teammates.ts'
