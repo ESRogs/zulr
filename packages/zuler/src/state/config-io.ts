@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely'
-import { err, ok, type Result } from 'neverthrow'
+import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
-import type { StateError } from './teammates.ts'
+import { dbOp } from './db-utils.ts'
 
 /**
  * A single line in the exported JSONL config file.
@@ -18,42 +18,35 @@ type ExportedTeammate = {
 type ExportedRecord = ExportedTeammate
 
 /** Export all teammates and subscriptions as JSONL (one JSON object per line). No API keys. */
-export async function exportConfig(db: Kysely<ZulerDatabase>): Promise<Result<string, StateError>> {
-  try {
-    const teammates = await db.selectFrom('teammates').select('name').execute()
+export function exportConfig(db: Kysely<ZulerDatabase>) {
+  return dbOp(() => db.selectFrom('teammates').select('name').execute()).andThen((teammates) => {
+    const lineResults = teammates.map(({ name }) =>
+      dbOp(async () => {
+        const streamSubs = await db
+          .selectFrom('stream_subscriptions')
+          .where('teammate_name', '=', name)
+          .select('stream')
+          .execute()
 
-    const lines: string[] = []
+        const topicSubs = await db
+          .selectFrom('topic_subscriptions')
+          .where('teammate_name', '=', name)
+          .select(['stream', 'topic'])
+          .execute()
 
-    for (const { name } of teammates) {
-      const streamSubs = await db
-        .selectFrom('stream_subscriptions')
-        .where('teammate_name', '=', name)
-        .select('stream')
-        .execute()
+        const record: ExportedTeammate = {
+          type: 'teammate',
+          name,
+          streamSubs: streamSubs.map((r) => r.stream),
+          topicSubs: topicSubs.map((r) => ({ stream: r.stream, topic: r.topic })),
+        }
 
-      const topicSubs = await db
-        .selectFrom('topic_subscriptions')
-        .where('teammate_name', '=', name)
-        .select(['stream', 'topic'])
-        .execute()
+        return JSON.stringify(record)
+      }),
+    )
 
-      const record: ExportedTeammate = {
-        type: 'teammate',
-        name,
-        streamSubs: streamSubs.map((r) => r.stream),
-        topicSubs: topicSubs.map((r) => ({ stream: r.stream, topic: r.topic })),
-      }
-
-      lines.push(JSON.stringify(record))
-    }
-
-    return ok(lines.join('\n'))
-  } catch (e) {
-    return err({
-      type: 'db_error',
-      message: e instanceof Error ? e.message : String(e),
-    })
-  }
+    return ResultAsync.combine(lineResults).map((lines) => lines.join('\n'))
+  })
 }
 
 /** Parse a JSONL config string into records. */
