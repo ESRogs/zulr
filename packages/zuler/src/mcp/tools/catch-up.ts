@@ -108,7 +108,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       if (trimmed.length === 0) {
         return textResult(
           unreadOnly
-            ? '(no unread messages across your subscriptions)'
+            ? `(no unread messages in the last ${maxHours} hours across your subscriptions)`
             : `(no recent messages in the last ${maxHours} hours across your subscriptions)`,
         )
       }
