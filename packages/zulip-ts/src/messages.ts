@@ -7,6 +7,8 @@ import {
   SendMessageResponseSchema,
   type UpdateMessageFlagsResponse,
   UpdateMessageFlagsResponseSchema,
+  type UpdateMessageResponse,
+  UpdateMessageResponseSchema,
 } from './schemas.ts'
 
 export type SendDirectMessageParams = {
@@ -97,6 +99,35 @@ export function markAsRead(
   messageIds: readonly number[],
 ): ResultAsync<UpdateMessageFlagsResponse, ZulipError> {
   return updateMessageFlags(client, messageIds, 'add', 'read')
+}
+
+export type UpdateMessageParams = {
+  readonly content?: string
+  readonly topic?: string
+  readonly streamId?: number
+  readonly propagateMode?: 'change_one' | 'change_later' | 'change_all'
+  readonly sendNotificationToOldThread?: boolean
+  readonly sendNotificationToNewThread?: boolean
+}
+
+export function updateMessage(
+  client: ZulipClient,
+  messageId: number,
+  params: UpdateMessageParams,
+): ResultAsync<UpdateMessageResponse, ZulipError> {
+  const body: Record<string, unknown> = {}
+  if (params.content !== undefined) body.content = params.content
+  if (params.topic !== undefined) body.topic = params.topic
+  if (params.streamId !== undefined) body.stream_id = params.streamId
+  if (params.propagateMode !== undefined) body.propagate_mode = params.propagateMode
+  if (params.sendNotificationToOldThread !== undefined)
+    body.send_notification_to_old_thread = params.sendNotificationToOldThread
+  if (params.sendNotificationToNewThread !== undefined)
+    body.send_notification_to_new_thread = params.sendNotificationToNewThread
+  return client.request(
+    { method: 'PATCH', path: `/messages/${messageId}`, body },
+    UpdateMessageResponseSchema,
+  )
 }
 
 export function getMessages(

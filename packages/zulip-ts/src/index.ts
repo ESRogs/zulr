@@ -9,17 +9,20 @@ export type {
   NarrowFilter,
   SendDirectMessageParams,
   SendStreamMessageParams,
+  UpdateMessageParams,
 } from './messages.ts'
 export {
   getMessages,
   markAsRead,
   sendDirectMessage,
   sendStreamMessage,
+  updateMessage,
   updateMessageFlags,
 } from './messages.ts'
 export type {
   Bot,
   CreateBotResponse,
+  CreateChannelResponse,
   DmMessage,
   DmRecipient,
   Event,
@@ -35,7 +38,11 @@ export type {
   Stream,
   StreamMessage,
   SubscribeResponse,
+  Topic,
+  UpdateChannelResponse,
   UpdateMessageFlagsResponse,
+  UpdateMessageResponse,
 } from './schemas.ts'
-export { getStreams, subscribe } from './streams.ts'
+export type { CreateChannelParams, UpdateChannelParams } from './streams.ts'
+export { createChannel, getStreams, getTopics, subscribe, updateChannel } from './streams.ts'
 export { getMembers } from './users.ts'

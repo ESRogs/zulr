@@ -1,6 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { createToolContext, type ServerConfig } from './helpers.ts'
 import { registerCatchUpTool } from './tools/catch-up.ts'
+import {
+  registerChannelsTool,
+  registerCreateChannelTool,
+  registerEditChannelTool,
+  registerTopicsTool,
+} from './tools/channels.ts'
 import { registerInitTool } from './tools/init.ts'
 import { registerOnboardingPromptTool } from './tools/onboarding-prompt.ts'
 import { registerPostTool } from './tools/post.ts'
@@ -12,6 +18,11 @@ import {
   registerUnsubscribeTool,
 } from './tools/subscriptions.ts'
 import { registerTeammatesTool } from './tools/teammates.ts'
+import {
+  registerMoveTopicTool,
+  registerResolveTopicTool,
+  registerUnresolveTopicTool,
+} from './tools/topic-actions.ts'
 
 export type { ServerConfig } from './helpers.ts'
 
@@ -33,6 +44,13 @@ export function createMcpServer(config: ServerConfig) {
   registerUnsubscribeTool(server, ctx)
   registerSubscriptionsTool(server, ctx)
   registerCatchUpTool(server, ctx)
+  registerCreateChannelTool(server, ctx)
+  registerEditChannelTool(server, ctx)
+  registerChannelsTool(server, ctx)
+  registerTopicsTool(server, ctx)
+  registerResolveTopicTool(server, ctx)
+  registerUnresolveTopicTool(server, ctx)
+  registerMoveTopicTool(server, ctx)
 
   return { server, ctx }
 }

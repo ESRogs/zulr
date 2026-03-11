@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { Member, ZulipClient } from 'zulip-ts'
-import { createClient, getMembers } from 'zulip-ts'
+import type { Member, Stream, ZulipClient } from 'zulip-ts'
+import { createClient, getMembers, getStreams } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 
@@ -37,6 +37,17 @@ export type ServerConfig = {
   readonly repoRoot: string
 }
 
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+type TimedCache<T> = {
+  data: T
+  fetchedAt: number
+}
+
+function isCacheValid<T>(cache: TimedCache<T> | null): cache is TimedCache<T> {
+  return cache !== null && Date.now() - cache.fetchedAt < CACHE_TTL_MS
+}
+
 /** Shared context available to all tool handlers. */
 export type ToolContext = {
   readonly config: ServerConfig
@@ -58,7 +69,12 @@ export type ToolContext = {
   readonly isBot: (userId: number) => ResultAsync<boolean, string>
   /** Resolve a user by ID, full name, or email. Returns the Member if found. */
   readonly resolveUser: (identifier: string | number) => ResultAsync<Member, string>
+  /** Resolve a channel name to a Stream object. */
+  readonly resolveChannel: (name: string) => ResultAsync<Stream, string>
+  /** List all channels (uses cache). */
+  readonly listChannels: () => ResultAsync<readonly Stream[], string>
   readonly invalidateMembersCache: () => void
+  readonly invalidateChannelsCache: () => void
 }
 
 /**
@@ -105,7 +121,8 @@ function getZulipCredentials(): { site: string; email: string; apiKey: string } 
 
 export function createToolContext(config: ServerConfig): ToolContext {
   let adminClient: ZulipClient | undefined
-  let membersCache: Map<number, Member> | null = null
+  let membersCache: TimedCache<Map<number, Member>> | null = null
+  let channelsCache: TimedCache<readonly Stream[]> | null = null
 
   function tryGetClient(): ZulipClient | undefined {
     if (adminClient) return adminClient
@@ -120,15 +137,18 @@ export function createToolContext(config: ServerConfig): ToolContext {
     if (!client) return errAsync(NOT_CONFIGURED_MESSAGE)
     return getMembers(client)
       .map((res) => {
-        membersCache = new Map(res.members.map((m) => [m.user_id, m]))
-        return membersCache
+        const data = new Map(res.members.map((m) => [m.user_id, m]))
+        membersCache = { data, fetchedAt: Date.now() }
+        return data
       })
       .mapErr((err) => `failed to fetch Zulip members: ${JSON.stringify(err)}`)
   }
 
   function getMember(userId: number): ResultAsync<Member | undefined, string> {
-    const cached = membersCache?.get(userId)
-    if (cached) return okAsync(cached)
+    if (isCacheValid(membersCache)) {
+      const cached = membersCache.data.get(userId)
+      if (cached) return okAsync(cached)
+    }
 
     return refreshMembersCache().andThen((cache) => {
       const member = cache.get(userId)
@@ -155,18 +175,45 @@ export function createToolContext(config: ServerConfig): ToolContext {
     // Exact match — callers use canonical names/emails from Zulip's API
     function findInCache(cache: Map<number, Member>): Member | undefined {
       for (const m of cache.values()) {
-        if (m.full_name === identifier || m.email === identifier) return m
+        if (m.full_name === identifier || m.email === identifier || m.delivery_email === identifier)
+          return m
       }
       return undefined
     }
-    if (membersCache) {
-      const found = findInCache(membersCache)
+    if (isCacheValid(membersCache)) {
+      const found = findInCache(membersCache.data)
       if (found) return okAsync(found)
     }
     return refreshMembersCache().andThen((cache) => {
       const found = findInCache(cache)
       if (found) return okAsync(found)
       return errAsync(`no Zulip user found matching "${identifier}"`)
+    })
+  }
+
+  function refreshChannelsCache(): ResultAsync<readonly Stream[], string> {
+    const client = tryGetClient()
+    if (!client) return errAsync(NOT_CONFIGURED_MESSAGE)
+    return getStreams(client)
+      .map((res) => {
+        channelsCache = { data: res.streams, fetchedAt: Date.now() }
+        return res.streams
+      })
+      .mapErr((err) => `failed to fetch channels: ${JSON.stringify(err)}`)
+  }
+
+  function resolveChannel(name: string): ResultAsync<Stream, string> {
+    function findInList(streams: readonly Stream[]): Stream | undefined {
+      return streams.find((s) => s.name === name)
+    }
+    if (isCacheValid(channelsCache)) {
+      const found = findInList(channelsCache.data)
+      if (found) return okAsync(found)
+    }
+    return refreshChannelsCache().andThen((streams) => {
+      const found = findInList(streams)
+      if (found) return okAsync(found)
+      return errAsync(`channel "${name}" not found`)
     })
   }
 
@@ -184,6 +231,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
       if (loaded && getZulipCredentials()) {
         adminClient = undefined
         membersCache = null
+        channelsCache = null
         if (!wasConfigured && !eventListenerStarted && credentialsLoadedCallback) {
           eventListenerStarted = true
           credentialsLoadedCallback()
@@ -200,8 +248,16 @@ export function createToolContext(config: ServerConfig): ToolContext {
     },
     isBot,
     resolveUser,
+    resolveChannel,
+    listChannels: () => {
+      if (isCacheValid(channelsCache)) return okAsync(channelsCache.data)
+      return refreshChannelsCache()
+    },
     invalidateMembersCache: () => {
       membersCache = null
+    },
+    invalidateChannelsCache: () => {
+      channelsCache = null
     },
   }
 }
