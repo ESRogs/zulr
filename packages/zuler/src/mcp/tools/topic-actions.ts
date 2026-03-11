@@ -110,7 +110,7 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
   server.registerTool(
     'move-topic',
     {
-      description: 'Move all messages in a topic to a different channel.',
+      description: 'Move all messages in a topic to a different channel. Optionally rename the topic during the move via "toTopic".',
       inputSchema: z.object({
         channel: z.string().describe('Source channel name'),
         topic: z.string().describe('Topic name'),
