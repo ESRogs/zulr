@@ -11,7 +11,7 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
         'Add or remove an emoji reaction on a Zulip message. Use the emoji name without colons (e.g. "thumbs_up", "check", "eyes").',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name (uses their bot identity)'),
-        messageId: z.union([z.number(), z.string()]).describe('Zulip message ID to react to'),
+        messageId: z.coerce.number().describe('Zulip message ID to react to'),
         emoji: z.string().describe('Emoji name (e.g. "thumbs_up", "check", "eyes")'),
         remove: z
           .boolean()
@@ -20,12 +20,7 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
           .describe('If true, remove the reaction instead of adding it'),
       }),
     },
-    async ({ sender, messageId: rawMessageId, emoji, remove }) => {
-      const messageId = Number(rawMessageId)
-      if (!Number.isInteger(messageId) || messageId <= 0) {
-        return errorResult(`invalid message ID: ${rawMessageId}`)
-      }
-
+    async ({ sender, messageId, emoji, remove }) => {
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
