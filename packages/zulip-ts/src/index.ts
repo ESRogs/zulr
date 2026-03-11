@@ -55,5 +55,4 @@ export {
   subscribe,
   updateChannel,
 } from './streams.ts'
-export type { UpdateStatusParams } from './users.ts'
-export { getMembers, updateStatus } from './users.ts'
+export { getMembers } from './users.ts'
