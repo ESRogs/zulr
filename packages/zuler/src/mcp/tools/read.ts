@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { markAsRead } from 'zulip-ts'
+import { markInboxMessagesByIdAsRead } from '../../zulip/inbox.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
@@ -59,12 +60,13 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         ? `(showing ${count} most recent — pass a larger count to see more history)\n\n`
         : `(showing all ${displayed.length} message${displayed.length === 1 ? '' : 's'})\n\n`
 
-      // Mark only the displayed messages as read; don't fail if this errors
-      const markResult = await markAsRead(
-        botClient,
-        displayed.map((m) => m.id),
-      )
+      // Mark only the displayed messages as read on Zulip; don't fail if this errors
+      const displayedIds = displayed.map((m) => m.id)
+      const markResult = await markAsRead(botClient, displayedIds)
       const warning = markResult.isErr() ? '(warning: failed to mark messages as read)\n' : ''
+
+      // Also mark matching messages as read in the Claude Code inbox
+      markInboxMessagesByIdAsRead(ctx.config.teamName, sender, displayedIds)
 
       return textResult(`${warning}${header}${formatMessages(displayed, false)}`)
     },
