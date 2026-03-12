@@ -81,7 +81,6 @@ export const GetStreamsResponseSchema = z.object({
 })
 export type GetStreamsResponse = z.infer<typeof GetStreamsResponseSchema>
 
-
 export const SubscribeResponseSchema = z.object({
   ...SuccessResponseFields,
   subscribed: z.record(z.string(), z.array(z.string())),
@@ -163,7 +162,13 @@ export type RegisterQueueResponse = z.infer<typeof RegisterQueueResponseSchema>
 export const EventSchema = z.object({
   type: z.string(),
   id: z.number(),
+  // message events
   message: MessageSchema.optional(),
+  // reaction events
+  op: z.string().optional(),
+  message_id: z.number().optional(),
+  user_id: z.number().optional(),
+  emoji_name: z.string().optional(),
 })
 export type Event = z.infer<typeof EventSchema>
 
