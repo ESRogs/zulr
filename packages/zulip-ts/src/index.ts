@@ -4,6 +4,8 @@ export type { ZulipClient, ZulipConfig, ZulipError } from './client.ts'
 export { createClient } from './client.ts'
 export type { GetEventsParams, RegisterQueueParams } from './events.ts'
 export { getEvents, registerQueue } from './events.ts'
+export type { DownloadFileResponse, UploadFileResponse } from './files.ts'
+export { downloadFile, uploadFile } from './files.ts'
 export type {
   GetMessagesParams,
   NarrowFilter,

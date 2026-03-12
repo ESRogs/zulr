@@ -11,7 +11,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
     'post',
     {
       description:
-        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". Note: you must read any unread messages in the target topic/DM before posting (use the read or catch-up tool first).',
+        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". To @-mention a teammate, use @**full name** (e.g. @**scout**) — this auto-subscribes them to the topic. Note: you must read any unread messages in the target topic/DM before posting (use the read or catch-up tool first).',
       inputSchema: z.object({
         sender: z.string().describe('Name of the registered teammate sending the message'),
         content: z.string().describe('Message content'),
@@ -52,7 +52,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
 
         if (recipient.is_bot) {
           return errorResult(
-            'bots cannot DM other bots. Use a stream/topic for bot-to-bot communication.',
+            'bots cannot DM other bots. Use a channel/topic for bot-to-bot communication.',
           )
         }
 

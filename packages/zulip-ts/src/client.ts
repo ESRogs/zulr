@@ -19,14 +19,17 @@ type RequestOptions = {
   readonly body?: Record<string, unknown>
 }
 
-const encodeAuth = (config: ZulipConfig): string => btoa(`${config.email}:${config.apiKey}`)
+export const encodeAuth = (config: ZulipConfig): string => btoa(`${config.email}:${config.apiKey}`)
+
+export const baseUrl = (config: ZulipConfig, path: string): string =>
+  `${config.site.replace(/\/+$/, '')}${path}`
 
 const buildUrl = (
   config: ZulipConfig,
   path: string,
   params?: Record<string, string | number | boolean>,
 ): string => {
-  const base = `${config.site.replace(/\/+$/, '')}/api/v1${path}`
+  const base = baseUrl(config, `/api/v1${path}`)
   if (!params || Object.keys(params).length === 0) return base
   const search = new URLSearchParams(
     Object.entries(params).map(([k, v]): [string, string] => [k, String(v)]),
