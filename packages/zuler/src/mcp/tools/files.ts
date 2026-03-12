@@ -1,11 +1,13 @@
-import { readFileSync, writeFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
+import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
+  const { teamName } = ctx.config
+
   server.registerTool(
     'upload',
     {
@@ -28,20 +30,30 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
     async ({ sender, path, channel, topic, to, message }) => {
       if (topic && !channel) return errorResult('"topic" requires "channel"')
       if (channel && !topic) return errorResult('"channel" requires "topic"')
+      if (channel && to !== undefined) {
+        return errorResult('provide either "channel"/"topic" or "to", not both')
+      }
+
+      // Unread check before sharing
+      if (channel && topic) {
+        const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)
+        if (blocked) return errorResult(blocked)
+      }
+      if (to !== undefined) {
+        const resolveResult = await ctx.resolveUser(to)
+        if (resolveResult.isErr()) return errorResult(resolveResult.error)
+        const dmBlocked = checkUnreadBeforeDm(teamName, sender, resolveResult.value.user_id)
+        if (dmBlocked) return errorResult(dmBlocked)
+      }
 
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const { client } = clientResult.value
 
-      let content: Buffer
-      try {
-        content = readFileSync(path)
-      } catch (err) {
-        return errorResult(
-          `failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-        )
-      }
+      const file = Bun.file(path)
+      if (!(await file.exists())) return errorResult(`file not found: ${path}`)
+      const content = new Uint8Array(await file.arrayBuffer())
 
       const filename = basename(path)
       const uploadResult = await uploadFile(client, filename, content)
@@ -51,7 +63,6 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       const fileLink = `[${filename}](${url})`
       const body = message ? `${message}\n\n${fileLink}` : fileLink
 
-      // Optionally share in a channel or DM
       if (channel && topic) {
         const postResult = await sendStreamMessage(client, { to: channel, topic, content: body })
         return postResult.match(
@@ -106,13 +117,7 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
       const result = await downloadFile(clientResult.value.client, url)
       if (result.isErr()) return errorResult(formatError(result.error))
 
-      try {
-        writeFileSync(saveTo, result.value.content)
-      } catch (err) {
-        return errorResult(
-          `failed to save file: ${err instanceof Error ? err.message : String(err)}`,
-        )
-      }
+      await Bun.write(saveTo, result.value.content)
 
       return textResult(
         `downloaded to ${saveTo} (${result.value.content.length} bytes, ${result.value.contentType})`,
