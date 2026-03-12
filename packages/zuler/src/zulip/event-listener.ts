@@ -113,8 +113,8 @@ async function handleReaction(
 
   // Build the notification text
   const preview = msg.content.length > 40 ? `${msg.content.slice(0, 40)}...` : msg.content
-  const text = `:${emojiName}: reacted to "${preview}"\n[msg:${messageId}]`
-  const summary = `:${emojiName}: from ${reactorName}`
+  const summary = `:${emojiName}: on "${preview}"`
+  const text = `${summary}\n[msg:${messageId}]`
 
   // Find teammates who sent this message (check if sender is a registered bot)
   const { listTeammates } = await import('../state/teammates.ts')
