@@ -1,4 +1,4 @@
-import { errAsync, ResultAsync } from 'neverthrow'
+import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import type { z } from 'zod'
 
 export type ZulipConfig = {
@@ -19,10 +19,40 @@ type RequestOptions = {
   readonly body?: Record<string, unknown>
 }
 
+export const networkError = (e: unknown): ZulipError => ({
+  type: 'network',
+  message: e instanceof Error ? e.message : String(e),
+})
+
 export const encodeAuth = (config: ZulipConfig): string => btoa(`${config.email}:${config.apiKey}`)
 
 export const baseUrl = (config: ZulipConfig, path: string): string =>
   `${config.site.replace(/\/+$/, '')}${path}`
+
+export function authHeaders(config: ZulipConfig): Readonly<Record<string, string>> {
+  return { Authorization: `Basic ${encodeAuth(config)}` }
+}
+
+export function httpError(res: Response): ZulipError {
+  return { type: 'api', code: 'HTTP_ERROR', message: `HTTP ${res.status}: ${res.statusText}` }
+}
+
+/** Check for Zulip API-level errors and validate against a zod schema. */
+export function parseApiResponse<T>(json: unknown, schema: z.ZodType<T>): Result<T, ZulipError> {
+  const obj = json as Record<string, unknown>
+  if (obj.result === 'error') {
+    return err({
+      type: 'api',
+      code: String(obj.code ?? 'UNKNOWN'),
+      message: String(obj.msg ?? 'Unknown error'),
+    })
+  }
+  const parsed = schema.safeParse(json)
+  if (!parsed.success) {
+    return err({ type: 'validation', message: parsed.error.message })
+  }
+  return ok(parsed.data)
+}
 
 const buildUrl = (
   config: ZulipConfig,
@@ -62,36 +92,14 @@ const request = <T>(
         : undefined
 
   const headers: Readonly<Record<string, string>> = {
-    Authorization: `Basic ${encodeAuth(config)}`,
+    ...authHeaders(config),
     ...(fetchBody ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
   }
 
   return ResultAsync.fromPromise(
     fetch(url, { method, headers, body: fetchBody }).then((res) => res.json()),
-    (e): ZulipError => ({
-      type: 'network',
-      message: e instanceof Error ? e.message : String(e),
-    }),
-  ).andThen((json: unknown) => {
-    // Check for Zulip-level errors before schema validation
-    const obj = json as Record<string, unknown>
-    if (obj.result === 'error') {
-      return errAsync<T, ZulipError>({
-        type: 'api',
-        code: String(obj.code ?? 'UNKNOWN'),
-        message: String(obj.msg ?? 'Unknown error'),
-      })
-    }
-
-    const parsed = schema.safeParse(json)
-    if (!parsed.success) {
-      return errAsync<T, ZulipError>({
-        type: 'validation',
-        message: parsed.error.message,
-      })
-    }
-    return ResultAsync.fromSafePromise(Promise.resolve(parsed.data))
-  })
+    networkError,
+  ).andThen((json: unknown) => parseApiResponse(json, schema))
 }
 
 export type ZulipClient = {
