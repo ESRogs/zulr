@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   authHeaders,
   baseUrl,
+  httpError,
   networkError,
   parseApiResponse,
   type ZulipClient,
@@ -25,11 +26,7 @@ export function downloadFile(
     networkError,
   ).andThen((res) => {
     if (!res.ok) {
-      return errAsync<DownloadFileResponse, ZulipError>({
-        type: 'api',
-        code: 'HTTP_ERROR',
-        message: `HTTP ${res.status}: ${res.statusText}`,
-      })
+      return errAsync<DownloadFileResponse, ZulipError>(httpError(res))
     }
     return ResultAsync.fromPromise(
       res.arrayBuffer().then((buf) => ({
@@ -68,12 +65,7 @@ export function uploadFile(
     networkError,
   )
     .andThen((res) => {
-      if (!res.ok)
-        return errAsync<unknown, ZulipError>({
-          type: 'api',
-          code: 'HTTP_ERROR',
-          message: `HTTP ${res.status}: ${res.statusText}`,
-        })
+      if (!res.ok) return errAsync<unknown, ZulipError>(httpError(res))
       return ResultAsync.fromPromise(res.json(), networkError)
     })
     .andThen((json) => parseApiResponse(json, UploadFileResponseSchema))

@@ -1,4 +1,4 @@
-import { errAsync, okAsync, ResultAsync } from 'neverthrow'
+import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import type { z } from 'zod'
 
 export type ZulipConfig = {
@@ -33,14 +33,15 @@ export function authHeaders(config: ZulipConfig): Readonly<Record<string, string
   return { Authorization: `Basic ${encodeAuth(config)}` }
 }
 
+export function httpError(res: Response): ZulipError {
+  return { type: 'api', code: 'HTTP_ERROR', message: `HTTP ${res.status}: ${res.statusText}` }
+}
+
 /** Check for Zulip API-level errors and validate against a zod schema. */
-export function parseApiResponse<T>(
-  json: unknown,
-  schema: z.ZodType<T>,
-): ResultAsync<T, ZulipError> {
+export function parseApiResponse<T>(json: unknown, schema: z.ZodType<T>): Result<T, ZulipError> {
   const obj = json as Record<string, unknown>
   if (obj.result === 'error') {
-    return errAsync({
+    return err({
       type: 'api',
       code: String(obj.code ?? 'UNKNOWN'),
       message: String(obj.msg ?? 'Unknown error'),
@@ -48,9 +49,9 @@ export function parseApiResponse<T>(
   }
   const parsed = schema.safeParse(json)
   if (!parsed.success) {
-    return errAsync({ type: 'validation', message: parsed.error.message })
+    return err({ type: 'validation', message: parsed.error.message })
   }
-  return okAsync(parsed.data)
+  return ok(parsed.data)
 }
 
 const buildUrl = (
