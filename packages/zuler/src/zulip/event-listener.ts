@@ -128,7 +128,7 @@ async function handleReaction(
       ? `zulip:${msg.display_recipient}/${msg.subject}:${reactorName}`
       : `zulip:${reactorName}`
 
-  const summary = `:${emojiName}: on '${preview}'`
+  const summary = `:${emojiName}: on \u201c${preview}\u201d`
   const text = `${summary}\n[msg:${messageId}]`
 
   writeToInbox(teamName, senderBot.name, {
