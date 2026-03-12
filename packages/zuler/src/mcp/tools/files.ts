@@ -65,7 +65,12 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
 
       const file = Bun.file(path)
       if (!(await file.exists())) return errorResult(`file not found: ${path}`)
-      const content = new Uint8Array(await file.arrayBuffer())
+      const readResult = await ResultAsync.fromPromise(
+        file.arrayBuffer().then((buf) => new Uint8Array(buf)),
+        (err) => (err instanceof Error ? err.message : String(err)),
+      )
+      if (readResult.isErr()) return errorResult(`failed to read file: ${readResult.error}`)
+      const content = readResult.value
 
       const filename = basename(path)
       const uploadResult = await uploadFile(client, filename, content)
