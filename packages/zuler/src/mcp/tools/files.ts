@@ -34,15 +34,26 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
         return errorResult('provide either "channel"/"topic" or "to", not both')
       }
 
+      // Resolve DM recipient once (used for unread check + send)
+      let recipient: { user_id: number; full_name: string; is_bot?: boolean } | undefined
+      if (to !== undefined) {
+        const resolveResult = await ctx.resolveUser(to)
+        if (resolveResult.isErr()) return errorResult(resolveResult.error)
+        recipient = resolveResult.value
+        if (recipient.is_bot) {
+          return errorResult(
+            'bots cannot DM other bots. Use a channel/topic for bot-to-bot communication.',
+          )
+        }
+      }
+
       // Unread check before sharing
       if (channel && topic) {
         const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)
         if (blocked) return errorResult(blocked)
       }
-      if (to !== undefined) {
-        const resolveResult = await ctx.resolveUser(to)
-        if (resolveResult.isErr()) return errorResult(resolveResult.error)
-        const dmBlocked = checkUnreadBeforeDm(teamName, sender, resolveResult.value.user_id)
+      if (recipient) {
+        const dmBlocked = checkUnreadBeforeDm(teamName, sender, recipient.user_id)
         if (dmBlocked) return errorResult(dmBlocked)
       }
 
@@ -71,19 +82,14 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
         )
       }
 
-      if (to !== undefined) {
-        const resolveResult = await ctx.resolveUser(to)
-        if (resolveResult.isErr()) return errorResult(resolveResult.error)
-
+      if (recipient) {
         const dmResult = await sendDirectMessage(client, {
-          to: [resolveResult.value.user_id],
+          to: [recipient.user_id],
           content: body,
         })
         return dmResult.match(
           (res) =>
-            textResult(
-              `uploaded and DM'd to ${resolveResult.value.full_name} (id: ${res.id})\n${url}`,
-            ),
+            textResult(`uploaded and DM'd to ${recipient.full_name} (id: ${res.id})\n${url}`),
           (err) => errorResult(formatError(err)),
         )
       }
@@ -117,7 +123,13 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
       const result = await downloadFile(clientResult.value.client, url)
       if (result.isErr()) return errorResult(formatError(result.error))
 
-      await Bun.write(saveTo, result.value.content)
+      try {
+        await Bun.write(saveTo, result.value.content)
+      } catch (err) {
+        return errorResult(
+          `failed to save file: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
 
       return textResult(
         `downloaded to ${saveTo} (${result.value.content.length} bytes, ${result.value.contentType})`,

@@ -19,7 +19,7 @@ const httpError = (res: Response): ZulipError => ({
   message: `HTTP ${res.status}: ${res.statusText}`,
 })
 
-function authHeaders(client: ZulipClient): Record<string, string> {
+function authHeaders(client: ZulipClient): Readonly<Record<string, string>> {
   return { Authorization: `Basic ${encodeAuth(client.config)}` }
 }
 
@@ -58,7 +58,7 @@ export type UploadFileResponse = {
 export function uploadFile(
   client: ZulipClient,
   filename: string,
-  content: Uint8Array | Buffer,
+  content: Uint8Array,
 ): ResultAsync<UploadFileResponse, ZulipError> {
   const formData = new FormData()
   const blob = new Blob([content], { type: 'application/octet-stream' })
