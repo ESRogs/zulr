@@ -5,7 +5,6 @@ import { getEvents, getMembers, getMessages, markAsRead, registerQueue } from 'z
 import { type BotManagerError, clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { writeToInbox } from './inbox.ts'
-import { formatMessageFooter } from './message-reader.ts'
 import { routeMessage } from './routing.ts'
 
 type EventListenerOptions = {
@@ -113,9 +112,8 @@ async function handleReaction(
   const reactorName = await resolveUserName(reactorUserId)
 
   // Build the notification text
-  const location = msg.type === 'stream' ? `${msg.display_recipient}/${msg.subject}` : 'DM'
-  const preview = msg.content.length > 60 ? `${msg.content.slice(0, 60)}...` : msg.content
-  const text = `:${emojiName}: reaction from ${reactorName} on your message in ${location}: "${preview}"\n${formatMessageFooter(messageId, msg.timestamp)}`
+  const preview = msg.content.length > 40 ? `${msg.content.slice(0, 40)}...` : msg.content
+  const text = `:${emojiName}: reacted to "${preview}"\n[msg:${messageId}]`
   const summary = `:${emojiName}: from ${reactorName}`
 
   // Find teammates who sent this message (check if sender is a registered bot)
