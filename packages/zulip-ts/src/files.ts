@@ -67,7 +67,10 @@ export function uploadFile(
       method: 'POST',
       headers: { Authorization: `Basic ${btoa(`${config.email}:${config.apiKey}`)}` },
       body: formData,
-    }).then((res) => res.json()),
+    }).then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+      return res.json()
+    }),
     (e): ZulipError => ({
       type: 'network',
       message: e instanceof Error ? e.message : String(e),

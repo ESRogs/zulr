@@ -1,29 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { basename, extname } from 'node:path'
+import { basename } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
-
-const MIME_TYPES: Record<string, string> = {
-  '.txt': 'text/plain',
-  '.md': 'text/markdown',
-  '.json': 'application/json',
-  '.csv': 'text/csv',
-  '.html': 'text/html',
-  '.xml': 'application/xml',
-  '.pdf': 'application/pdf',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-  '.zip': 'application/zip',
-  '.log': 'text/plain',
-  '.ts': 'text/plain',
-  '.js': 'text/plain',
-  '.py': 'text/plain',
-}
 
 export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -33,7 +13,9 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
         'Upload a file to Zulip and optionally share it in a channel or DM. Returns the file URL.',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
-        path: z.string().describe('Local file path to upload (relative paths resolve from repo root)'),
+        path: z
+          .string()
+          .describe('Local file path to upload (relative paths resolve from repo root)'),
         channel: z.string().optional().describe('Channel to share the file in'),
         topic: z.string().optional().describe('Topic to share the file in (requires channel)'),
         to: z
@@ -44,6 +26,9 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, path, channel, topic, to, message }) => {
+      if (topic && !channel) return errorResult('"topic" requires "channel"')
+      if (channel && !topic) return errorResult('"channel" requires "topic"')
+
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
@@ -51,7 +36,7 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
 
       let content: Buffer
       try {
-        content = readFileSync(path) as Buffer
+        content = readFileSync(path)
       } catch (err) {
         return errorResult(
           `failed to read file: ${err instanceof Error ? err.message : String(err)}`,
@@ -59,9 +44,7 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       }
 
       const filename = basename(path)
-      const contentType = MIME_TYPES[extname(path).toLowerCase()]
-
-      const uploadResult = await uploadFile(client, filename, content, contentType)
+      const uploadResult = await uploadFile(client, filename, content)
       if (uploadResult.isErr()) return errorResult(formatError(uploadResult.error))
 
       const { url } = uploadResult.value
@@ -108,10 +91,15 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
         url: z.string().describe('Zulip file URL path (e.g. /user_uploads/...)'),
-        saveTo: z.string().describe('Local path to save the file to (relative paths resolve from repo root)'),
+        saveTo: z
+          .string()
+          .describe('Local path to save the file to (relative paths resolve from repo root)'),
       }),
     },
-    async ({ sender, url, saveTo }) => {
+    async ({ sender, url: rawUrl, saveTo }) => {
+      // Extract path if a full URL was passed
+      const url = rawUrl.startsWith('http') ? new URL(rawUrl).pathname : rawUrl
+
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
