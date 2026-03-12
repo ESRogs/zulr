@@ -8,8 +8,8 @@
         "packages/zuler/src/index.ts"
       ],
       "env": {
-        "ZULER_TEAM": "zuler",
-        "ZULER_REPO_ROOT": "/Users/rogs/code/ESRogs/zuler"
+        "ZULER_TEAM": "<team-name>",
+        "ZULER_REPO_ROOT": "<path-to-repo>"
       }
     }
   }
