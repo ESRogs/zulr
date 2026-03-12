@@ -49,10 +49,7 @@ const UploadFileResponseSchema = z.object({
   filename: z.string(),
 })
 
-export type UploadFileResponse = {
-  readonly url: string
-  readonly filename: string
-}
+export type UploadFileResponse = Pick<z.infer<typeof UploadFileResponseSchema>, 'url' | 'filename'>
 
 /** Upload a file to Zulip. Returns the URL and filename for use in messages. */
 export function uploadFile(
@@ -77,6 +74,14 @@ export function uploadFile(
       return ResultAsync.fromPromise(res.json(), networkError)
     })
     .andThen((json: unknown) => {
+      const obj = json as Record<string, unknown>
+      if (obj.result === 'error') {
+        return errAsync<UploadFileResponse, ZulipError>({
+          type: 'api',
+          code: String(obj.code ?? 'UNKNOWN'),
+          message: String(obj.msg ?? 'Unknown error'),
+        })
+      }
       const parsed = UploadFileResponseSchema.safeParse(json)
       if (!parsed.success) {
         return errAsync<UploadFileResponse, ZulipError>({

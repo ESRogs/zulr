@@ -52,7 +52,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
 
         if (recipient.is_bot) {
           return errorResult(
-            'bots cannot DM other bots. Use a stream/topic for bot-to-bot communication.',
+            'bots cannot DM other bots. Use a channel/topic for bot-to-bot communication.',
           )
         }
 
