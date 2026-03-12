@@ -33,7 +33,7 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
         'Upload a file to Zulip and optionally share it in a channel or DM. Returns the file URL.',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
-        path: z.string().describe('Local file path to upload'),
+        path: z.string().describe('Local file path to upload (relative paths resolve from repo root)'),
         channel: z.string().optional().describe('Channel to share the file in'),
         topic: z.string().optional().describe('Topic to share the file in (requires channel)'),
         to: z
@@ -108,7 +108,7 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
       inputSchema: z.object({
         sender: z.string().describe('Teammate name'),
         url: z.string().describe('Zulip file URL path (e.g. /user_uploads/...)'),
-        saveTo: z.string().describe('Local path to save the file to'),
+        saveTo: z.string().describe('Local path to save the file to (relative paths resolve from repo root)'),
       }),
     },
     async ({ sender, url, saveTo }) => {
