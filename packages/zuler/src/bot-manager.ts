@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import type { ZulipClient, ZulipError } from 'zulip-ts'
-import { createBot, createClient, getBots, getMembers, getStreams, subscribe } from 'zulip-ts'
+import { createBot, createClient, getBots, getMembers } from 'zulip-ts'
 import type { ZulerDatabase } from './state/db.ts'
 import {
   getTeammate,
@@ -95,25 +95,9 @@ function createNewBot(
     .mapErr(wrapZulip)
 }
 
-/** Subscribe a bot to all streams so it can receive events. */
-function subscribeToAllStreams(
-  botClient: ZulipClient,
-  adminClient: ZulipClient,
-): ResultAsync<void, BotManagerError> {
-  return getStreams(adminClient)
-    .mapErr(wrapZulip)
-    .andThen((res) => {
-      const streams = res.streams.map((s) => ({ name: s.name }))
-      if (streams.length === 0) return okAsync(undefined)
-      return subscribe(botClient, streams)
-        .map(() => undefined)
-        .mapErr(wrapZulip)
-    })
-}
-
 /**
  * Register a teammate: find or create their Zulip bot, store credentials
- * in the database, and subscribe the bot to all streams.
+ * in the database.
  */
 export function registerBot(
   adminClient: ZulipClient,
@@ -172,18 +156,10 @@ export function registerBot(
             botUserId: creds.userId,
           })
             .mapErr(wrapState)
-            .andThen(() => {
-              const botClient = createClient({
-                site: adminClient.config.site,
-                email: creds.email,
-                apiKey: creds.apiKey,
-              })
-
-              return subscribeToAllStreams(botClient, adminClient).map(() => ({
-                botEmail: creds.email,
-                apiKey: creds.apiKey,
-              }))
-            }),
+            .map(() => ({
+              botEmail: creds.email,
+              apiKey: creds.apiKey,
+            })),
         )
       })
     })
