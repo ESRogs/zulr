@@ -1,10 +1,12 @@
 import type { Kysely } from 'kysely'
 import { okAsync, type ResultAsync } from 'neverthrow'
 import type { ZulipClient } from 'zulip-ts'
-import { getEvents, markAsRead, registerQueue } from 'zulip-ts'
+import { getEvents, getMembers, getMessages, markAsRead, registerQueue } from 'zulip-ts'
 import { type BotManagerError, clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
-import { routeMessage } from './routing.ts'
+import { listTeammates } from '../state/teammates.ts'
+import { writeToInbox } from './inbox.ts'
+import { routeMessage, sanitizeSummary, truncate } from './routing.ts'
 
 type EventListenerOptions = {
   readonly client: ZulipClient
@@ -21,6 +23,14 @@ type EventListenerOptions = {
       readonly stream: string
       readonly topic: string
     }[]
+  }) => void
+  /** Called on reaction events for logging. */
+  readonly onReaction?: (info: {
+    readonly emoji: string
+    readonly op: 'add' | 'remove'
+    readonly reactorName: string
+    readonly messageId: number
+    readonly deliveredTo: readonly string[]
   }) => void
   /** Called on errors for logging. Listener continues after errors. */
   readonly onError?: (error: unknown) => void
@@ -69,6 +79,80 @@ function markReadForTeammates(
 }
 
 /**
+ * Handle a reaction event: fetch the reacted-to message to find its location,
+ * then notify subscribed teammates via their inbox.
+ */
+async function handleReaction(
+  client: ZulipClient,
+  db: Kysely<ZulerDatabase>,
+  teamName: string,
+  messageId: number,
+  reactorUserId: number,
+  emojiName: string,
+  resolveUserName: (userId: number) => Promise<string>,
+  onReaction?: EventListenerOptions['onReaction'],
+  onError?: (error: unknown) => void,
+): Promise<void> {
+  // Fetch the message to find location and sender
+  const msgResult = await getMessages(client, {
+    anchor: messageId,
+    numBefore: 0,
+    numAfter: 0,
+    narrow: [{ operator: 'id', operand: messageId }],
+    applyMarkdown: false,
+  })
+
+  if (msgResult.isErr()) {
+    onError?.(msgResult.error)
+    return
+  }
+
+  const msg = msgResult.value.messages[0]
+  if (!msg) return
+
+  const reactorName = await resolveUserName(reactorUserId)
+
+  // Build the notification text
+  const preview = sanitizeSummary(truncate(msg.content, 40))
+
+  // Find teammates who sent this message (check if sender is a registered bot)
+  const teammatesResult = await listTeammates(db)
+  if (teammatesResult.isErr()) return
+
+  const senderBot = teammatesResult.value.find((t) => t.botEmail === msg.sender_email)
+
+  if (!senderBot) return // Reaction to a non-teammate message — ignore
+
+  const from =
+    msg.type === 'stream'
+      ? `zulip:${msg.display_recipient}/${msg.subject}:${reactorName}`
+      : `zulip:${reactorName}`
+
+  const summary = `:${emojiName}: on \u201c${preview}\u201d`
+  const text = `${summary}\n[msg:${messageId}]`
+
+  writeToInbox(teamName, senderBot.name, {
+    from,
+    text,
+    summary,
+    zulipMessageId: messageId,
+    zulipSenderId: reactorUserId,
+    ...(msg.type === 'stream'
+      ? { zulipStream: msg.display_recipient, zulipTopic: msg.subject }
+      : {}),
+    zulipSender: reactorName,
+  })
+
+  onReaction?.({
+    emoji: emojiName,
+    op: 'add',
+    reactorName,
+    messageId,
+    deliveredTo: [senderBot.name],
+  })
+}
+
+/**
  * Start listening for Zulip events and route inbound messages to
  * Claude Code teammate inbox files.
  *
@@ -81,12 +165,26 @@ function markReadForTeammates(
  * "first_unread" anchor works correctly after restart.
  */
 export async function startEventListener(options: EventListenerOptions): Promise<void> {
-  const { client, db, teamName, onRoute, onError, signal } = options
+  const { client, db, teamName, onRoute, onReaction, onError, signal } = options
   const botClientCache: BotClientCache = new Map()
+  let membersMap: Map<number, string> | null = null
+
+  async function resolveUserName(userId: number): Promise<string> {
+    if (membersMap) {
+      const name = membersMap.get(userId)
+      if (name) return name
+    }
+    const result = await getMembers(client)
+    if (result.isOk()) {
+      membersMap = new Map(result.value.members.map((m) => [m.user_id, m.full_name]))
+      return membersMap.get(userId) ?? `user ${userId}`
+    }
+    return `user ${userId}`
+  }
 
   while (!signal?.aborted) {
     // Register a new event queue
-    const regResult = await registerQueue(client, { eventTypes: ['message'] })
+    const regResult = await registerQueue(client, { eventTypes: ['message', 'reaction'] })
 
     if (regResult.isErr()) {
       onError?.(regResult.error)
@@ -114,6 +212,28 @@ export async function startEventListener(options: EventListenerOptions): Promise
 
       for (const event of eventsResult.value.events) {
         lastEventId = event.id
+
+        // Handle reaction events
+        if (
+          event.type === 'reaction' &&
+          event.op === 'add' &&
+          event.message_id != null &&
+          event.user_id != null &&
+          event.emoji_name
+        ) {
+          await handleReaction(
+            client,
+            db,
+            teamName,
+            event.message_id,
+            event.user_id,
+            event.emoji_name,
+            resolveUserName,
+            onReaction,
+            onError,
+          )
+          continue
+        }
 
         if (event.type !== 'message' || !event.message) continue
 

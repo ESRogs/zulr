@@ -52,6 +52,11 @@ function bootEventListener(): void {
       const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
       log(`${location} from ${info.sender} → ${info.deliveredTo.join(', ')}`)
     },
+    onReaction: (info) => {
+      log(
+        `:${info.emoji}: from ${info.reactorName} on msg ${info.messageId} → ${info.deliveredTo.join(', ')}`,
+      )
+    },
     onError: (err) => log(`event listener error: ${formatError(err)}`),
   })
   log('event listener started')

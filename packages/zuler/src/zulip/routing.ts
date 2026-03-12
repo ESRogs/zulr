@@ -19,7 +19,17 @@ type RouteResult = {
   }[]
 }
 
-const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
+export const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
+
+/** Replace straight double quotes with curly quotes (straight quotes break Claude Code UI display). */
+export function sanitizeSummary(s: string): string {
+  let open = true
+  return s.replaceAll('"', () => {
+    const q = open ? '\u201c' : '\u201d'
+    open = !open
+    return q
+  })
+}
 
 function appendFooter(content: string, messageId: number, timestamp: number): string {
   return `${content}\n${formatMessageFooter(messageId, timestamp)}`
@@ -55,7 +65,7 @@ export async function routeDm(
   const emailMap = await buildEmailMap(db)
   const senderName = message.sender_full_name
   const content = message.content
-  const summary = truncate(content, 60)
+  const summary = sanitizeSummary(truncate(content, 60))
   const recipientEmails = new Set(message.display_recipient.map((r) => r.email))
 
   const delivered = [...emailMap]
@@ -87,7 +97,7 @@ export async function routeStreamMessage(
   const content = message.content
   const senderName = message.sender_full_name
   const location = `${stream}/${topic}`
-  const summary = truncate(content, 60)
+  const summary = sanitizeSummary(truncate(content, 60))
 
   const teammatesResult = await listTeammates(db)
   if (teammatesResult.isErr()) {
