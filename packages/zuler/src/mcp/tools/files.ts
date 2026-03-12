@@ -1,5 +1,6 @@
 import { basename } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
@@ -123,13 +124,11 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
       const result = await downloadFile(clientResult.value.client, url)
       if (result.isErr()) return errorResult(formatError(result.error))
 
-      try {
-        await Bun.write(saveTo, result.value.content)
-      } catch (err) {
-        return errorResult(
-          `failed to save file: ${err instanceof Error ? err.message : String(err)}`,
-        )
-      }
+      const writeResult = await ResultAsync.fromPromise(
+        Bun.write(saveTo, result.value.content),
+        (err) => (err instanceof Error ? err.message : String(err)),
+      )
+      if (writeResult.isErr()) return errorResult(`failed to save file: ${writeResult.error}`)
 
       return textResult(
         `downloaded to ${saveTo} (${result.value.content.length} bytes, ${result.value.contentType})`,
