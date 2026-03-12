@@ -22,7 +22,15 @@ type RouteResult = {
 const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
 
 /** Replace straight double quotes with curly quotes (straight quotes break Claude Code UI display). */
-const sanitizeSummary = (s: string): string => s.replaceAll('"', '\u201c')
+/** Replace straight double quotes with curly quotes (straight quotes break Claude Code UI display). */
+function sanitizeSummary(s: string): string {
+  let open = true
+  return s.replaceAll('"', () => {
+    const q = open ? '\u201c' : '\u201d'
+    open = !open
+    return q
+  })
+}
 
 function appendFooter(content: string, messageId: number, timestamp: number): string {
   return `${content}\n${formatMessageFooter(messageId, timestamp)}`
