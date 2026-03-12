@@ -67,15 +67,27 @@ export function uploadFile(
       method: 'POST',
       headers: { Authorization: `Basic ${btoa(`${config.email}:${config.apiKey}`)}` },
       body: formData,
-    }).then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-      return res.json()
     }),
     (e): ZulipError => ({
       type: 'network',
       message: e instanceof Error ? e.message : String(e),
     }),
-  ).andThen((json: unknown) => {
+  ).andThen((res) => {
+    if (!res.ok) {
+      return errAsync<UploadFileResponse, ZulipError>({
+        type: 'api',
+        code: 'HTTP_ERROR',
+        message: `HTTP ${res.status}: ${res.statusText}`,
+      })
+    }
+    return ResultAsync.fromPromise(
+      res.json(),
+      (e): ZulipError => ({
+        type: 'network',
+        message: e instanceof Error ? e.message : String(e),
+      }),
+    )
+  }).andThen((json: unknown) => {
     const obj = json as Record<string, unknown>
     if (obj.result === 'error') {
       return errAsync<UploadFileResponse, ZulipError>({
