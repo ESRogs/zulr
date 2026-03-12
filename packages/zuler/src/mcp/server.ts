@@ -27,7 +27,7 @@ import {
   registerResolveTopicTool,
   registerUnresolveTopicTool,
 } from './tools/topic-actions.ts'
-import { registerUploadTool } from './tools/upload.ts'
+import { registerDownloadTool, registerUploadTool } from './tools/upload.ts'
 
 export type { ServerConfig } from './helpers.ts'
 
@@ -61,6 +61,7 @@ export function createMcpServer(config: ServerConfig) {
   registerUnresolveTopicTool(server, ctx)
   registerMoveTopicTool(server, ctx)
   registerUploadTool(server, ctx)
+  registerDownloadTool(server, ctx)
 
   return { server, ctx }
 }

@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { basename, extname } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
+import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 const MIME_TYPES: Record<string, string> = {
@@ -95,6 +95,40 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       }
 
       return textResult(`uploaded: ${url}`)
+    },
+  )
+}
+
+export function registerDownloadTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'download',
+    {
+      description:
+        'Download a file from Zulip by its URL path (e.g. /user_uploads/...) and save it locally.',
+      inputSchema: z.object({
+        sender: z.string().describe('Teammate name'),
+        url: z.string().describe('Zulip file URL path (e.g. /user_uploads/...)'),
+        saveTo: z.string().describe('Local path to save the file to'),
+      }),
+    },
+    async ({ sender, url, saveTo }) => {
+      const clientResult = await ctx.getTeammateClient(sender)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+
+      const result = await downloadFile(clientResult.value.client, url)
+      if (result.isErr()) return errorResult(formatError(result.error))
+
+      try {
+        writeFileSync(saveTo, result.value.content)
+      } catch (err) {
+        return errorResult(
+          `failed to save file: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+
+      return textResult(
+        `downloaded to ${saveTo} (${result.value.content.length} bytes, ${result.value.contentType})`,
+      )
     },
   )
 }
