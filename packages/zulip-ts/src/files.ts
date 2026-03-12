@@ -1,9 +1,26 @@
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
-import type { ZulipClient, ZulipError } from './client.ts'
+import { z } from 'zod'
+import { baseUrl, encodeAuth, type ZulipClient, type ZulipError } from './client.ts'
+import { SuccessResponseFields } from './schemas.ts'
 
 export type DownloadFileResponse = {
   readonly content: Uint8Array
   readonly contentType: string
+}
+
+const networkError = (e: unknown): ZulipError => ({
+  type: 'network',
+  message: e instanceof Error ? e.message : String(e),
+})
+
+const httpError = (res: Response): ZulipError => ({
+  type: 'api',
+  code: 'HTTP_ERROR',
+  message: `HTTP ${res.status}: ${res.statusText}`,
+})
+
+function authHeaders(client: ZulipClient): Record<string, string> {
+  return { Authorization: `Basic ${encodeAuth(client.config)}` }
 }
 
 /** Download a file from Zulip by its URL path (e.g. /user_uploads/...). */
@@ -11,37 +28,26 @@ export function downloadFile(
   client: ZulipClient,
   urlPath: string,
 ): ResultAsync<DownloadFileResponse, ZulipError> {
-  const { config } = client
-  const fullUrl = `${config.site.replace(/\/+$/, '')}${urlPath}`
-
   return ResultAsync.fromPromise(
-    fetch(fullUrl, {
-      headers: { Authorization: `Basic ${btoa(`${config.email}:${config.apiKey}`)}` },
-    }),
-    (e): ZulipError => ({
-      type: 'network',
-      message: e instanceof Error ? e.message : String(e),
-    }),
+    fetch(baseUrl(client.config, urlPath), { headers: authHeaders(client) }),
+    networkError,
   ).andThen((res) => {
-    if (!res.ok) {
-      return errAsync<DownloadFileResponse, ZulipError>({
-        type: 'api',
-        code: 'HTTP_ERROR',
-        message: `HTTP ${res.status}: ${res.statusText}`,
-      })
-    }
+    if (!res.ok) return errAsync<DownloadFileResponse, ZulipError>(httpError(res))
     return ResultAsync.fromPromise(
       res.arrayBuffer().then((buf) => ({
         content: new Uint8Array(buf),
         contentType: res.headers.get('content-type') ?? 'application/octet-stream',
       })),
-      (e): ZulipError => ({
-        type: 'network',
-        message: e instanceof Error ? e.message : String(e),
-      }),
+      networkError,
     )
   })
 }
+
+const UploadFileResponseSchema = z.object({
+  ...SuccessResponseFields,
+  url: z.string(),
+  filename: z.string(),
+})
 
 export type UploadFileResponse = {
   readonly url: string
@@ -53,52 +59,31 @@ export function uploadFile(
   client: ZulipClient,
   filename: string,
   content: Uint8Array | Buffer,
-  contentType?: string,
 ): ResultAsync<UploadFileResponse, ZulipError> {
-  const { config } = client
-  const url = `${config.site.replace(/\/+$/, '')}/api/v1/user_uploads`
-
   const formData = new FormData()
-  const blob = new Blob([content], { type: contentType ?? 'application/octet-stream' })
+  const blob = new Blob([content], { type: 'application/octet-stream' })
   formData.append('file', blob, filename)
 
   return ResultAsync.fromPromise(
-    fetch(url, {
+    fetch(baseUrl(client.config, '/api/v1/user_uploads'), {
       method: 'POST',
-      headers: { Authorization: `Basic ${btoa(`${config.email}:${config.apiKey}`)}` },
+      headers: authHeaders(client),
       body: formData,
     }),
-    (e): ZulipError => ({
-      type: 'network',
-      message: e instanceof Error ? e.message : String(e),
-    }),
-  ).andThen((res) => {
-    if (!res.ok) {
-      return errAsync<UploadFileResponse, ZulipError>({
-        type: 'api',
-        code: 'HTTP_ERROR',
-        message: `HTTP ${res.status}: ${res.statusText}`,
-      })
-    }
-    return ResultAsync.fromPromise(
-      res.json(),
-      (e): ZulipError => ({
-        type: 'network',
-        message: e instanceof Error ? e.message : String(e),
-      }),
-    )
-  }).andThen((json: unknown) => {
-    const obj = json as Record<string, unknown>
-    if (obj.result === 'error') {
-      return errAsync<UploadFileResponse, ZulipError>({
-        type: 'api',
-        code: String(obj.code ?? 'UNKNOWN'),
-        message: String(obj.msg ?? 'Unknown error'),
-      })
-    }
-    return okAsync({
-      url: String(obj.url),
-      filename: String(obj.filename ?? filename),
+    networkError,
+  )
+    .andThen((res) => {
+      if (!res.ok) return errAsync<unknown, ZulipError>(httpError(res))
+      return ResultAsync.fromPromise(res.json(), networkError)
     })
-  })
+    .andThen((json: unknown) => {
+      const parsed = UploadFileResponseSchema.safeParse(json)
+      if (!parsed.success) {
+        return errAsync<UploadFileResponse, ZulipError>({
+          type: 'validation',
+          message: parsed.error.message,
+        })
+      }
+      return okAsync({ url: parsed.data.url, filename: parsed.data.filename })
+    })
 }

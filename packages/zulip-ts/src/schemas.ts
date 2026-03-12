@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const SuccessResponseFields = {
+export const SuccessResponseFields = {
   result: z.literal('success'),
   msg: z.string(),
 }
