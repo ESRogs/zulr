@@ -81,11 +81,6 @@ export const GetStreamsResponseSchema = z.object({
 })
 export type GetStreamsResponse = z.infer<typeof GetStreamsResponseSchema>
 
-export const GetSubscribersResponseSchema = z.object({
-  ...SuccessResponseFields,
-  subscribers: z.array(z.number()),
-})
-export type GetSubscribersResponse = z.infer<typeof GetSubscribersResponseSchema>
 
 export const SubscribeResponseSchema = z.object({
   ...SuccessResponseFields,
