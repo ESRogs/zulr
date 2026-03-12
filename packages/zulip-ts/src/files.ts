@@ -1,6 +1,48 @@
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import type { ZulipClient, ZulipError } from './client.ts'
 
+export type DownloadFileResponse = {
+  readonly content: Uint8Array
+  readonly contentType: string
+}
+
+/** Download a file from Zulip by its URL path (e.g. /user_uploads/...). */
+export function downloadFile(
+  client: ZulipClient,
+  urlPath: string,
+): ResultAsync<DownloadFileResponse, ZulipError> {
+  const { config } = client
+  const fullUrl = `${config.site.replace(/\/+$/, '')}${urlPath}`
+
+  return ResultAsync.fromPromise(
+    fetch(fullUrl, {
+      headers: { Authorization: `Basic ${btoa(`${config.email}:${config.apiKey}`)}` },
+    }),
+    (e): ZulipError => ({
+      type: 'network',
+      message: e instanceof Error ? e.message : String(e),
+    }),
+  ).andThen((res) => {
+    if (!res.ok) {
+      return errAsync<DownloadFileResponse, ZulipError>({
+        type: 'api',
+        code: 'HTTP_ERROR',
+        message: `HTTP ${res.status}: ${res.statusText}`,
+      })
+    }
+    return ResultAsync.fromPromise(
+      res.arrayBuffer().then((buf) => ({
+        content: new Uint8Array(buf),
+        contentType: res.headers.get('content-type') ?? 'application/octet-stream',
+      })),
+      (e): ZulipError => ({
+        type: 'network',
+        message: e instanceof Error ? e.message : String(e),
+      }),
+    )
+  })
+}
+
 export type UploadFileResponse = {
   readonly url: string
   readonly filename: string
