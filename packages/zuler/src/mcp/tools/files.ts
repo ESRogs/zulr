@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
+import type { Member } from 'zulip-ts'
 import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
@@ -36,7 +37,7 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       }
 
       // Resolve DM recipient once (used for unread check + send)
-      let recipient: { user_id: number; full_name: string; is_bot?: boolean } | undefined
+      let recipient: Member | undefined
       if (to !== undefined) {
         const resolveResult = await ctx.resolveUser(to)
         if (resolveResult.isErr()) return errorResult(resolveResult.error)
