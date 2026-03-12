@@ -27,7 +27,7 @@ import {
   registerResolveTopicTool,
   registerUnresolveTopicTool,
 } from './tools/topic-actions.ts'
-import { registerDownloadTool, registerUploadTool } from './tools/upload.ts'
+import { registerDownloadTool, registerUploadTool } from './tools/files.ts'
 
 export type { ServerConfig } from './helpers.ts'
 
