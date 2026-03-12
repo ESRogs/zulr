@@ -19,11 +19,10 @@ type RouteResult = {
   }[]
 }
 
-const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
+export const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
 
 /** Replace straight double quotes with curly quotes (straight quotes break Claude Code UI display). */
-/** Replace straight double quotes with curly quotes (straight quotes break Claude Code UI display). */
-function sanitizeSummary(s: string): string {
+export function sanitizeSummary(s: string): string {
   let open = true
   return s.replaceAll('"', () => {
     const q = open ? '\u201c' : '\u201d'

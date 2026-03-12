@@ -4,8 +4,9 @@ import type { ZulipClient } from 'zulip-ts'
 import { getEvents, getMembers, getMessages, markAsRead, registerQueue } from 'zulip-ts'
 import { type BotManagerError, clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
+import { listTeammates } from '../state/teammates.ts'
 import { writeToInbox } from './inbox.ts'
-import { routeMessage } from './routing.ts'
+import { routeMessage, sanitizeSummary, truncate } from './routing.ts'
 
 type EventListenerOptions = {
   readonly client: ZulipClient
@@ -112,10 +113,9 @@ async function handleReaction(
   const reactorName = await resolveUserName(reactorUserId)
 
   // Build the notification text
-  const preview = msg.content.length > 40 ? `${msg.content.slice(0, 40)}...` : msg.content
+  const preview = sanitizeSummary(truncate(msg.content, 40))
 
   // Find teammates who sent this message (check if sender is a registered bot)
-  const { listTeammates } = await import('../state/teammates.ts')
   const teammatesResult = await listTeammates(db)
   if (teammatesResult.isErr()) return
 
