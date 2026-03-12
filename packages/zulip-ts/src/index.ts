@@ -52,7 +52,6 @@ export {
   archiveStream,
   createChannel,
   getStreams,
-  getSubscribers,
   getTopics,
   subscribe,
   updateChannel,

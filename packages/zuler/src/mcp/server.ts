@@ -6,9 +6,9 @@ import {
   registerChannelsTool,
   registerCreateChannelTool,
   registerEditChannelTool,
-  registerSubscribersTool,
   registerTopicsTool,
 } from './tools/channels.ts'
+import { registerDownloadTool, registerUploadTool } from './tools/files.ts'
 import { registerInitTool } from './tools/init.ts'
 import { registerOnboardingPromptTool } from './tools/onboarding-prompt.ts'
 import { registerPostTool } from './tools/post.ts'
@@ -27,7 +27,6 @@ import {
   registerResolveTopicTool,
   registerUnresolveTopicTool,
 } from './tools/topic-actions.ts'
-import { registerDownloadTool, registerUploadTool } from './tools/files.ts'
 
 export type { ServerConfig } from './helpers.ts'
 
@@ -55,7 +54,6 @@ export function createMcpServer(config: ServerConfig) {
   registerEditChannelTool(server, ctx)
   registerArchiveChannelTool(server, ctx)
   registerChannelsTool(server, ctx)
-  registerSubscribersTool(server, ctx)
   registerTopicsTool(server, ctx)
   registerResolveTopicTool(server, ctx)
   registerUnresolveTopicTool(server, ctx)

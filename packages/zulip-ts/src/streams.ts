@@ -5,8 +5,6 @@ import {
   CreateChannelResponseSchema,
   type GetStreamsResponse,
   GetStreamsResponseSchema,
-  type GetSubscribersResponse,
-  GetSubscribersResponseSchema,
   type GetTopicsResponse,
   GetTopicsResponseSchema,
   type SubscribeResponse,
@@ -71,16 +69,6 @@ export function updateChannel(
   return client.request(
     { method: 'PATCH', path: `/streams/${streamId}`, body },
     UpdateChannelResponseSchema,
-  )
-}
-
-export function getSubscribers(
-  client: ZulipClient,
-  streamId: number,
-): ResultAsync<GetSubscribersResponse, ZulipError> {
-  return client.request(
-    { method: 'GET', path: `/streams/${streamId}/members` },
-    GetSubscribersResponseSchema,
   )
 }
 
