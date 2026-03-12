@@ -84,7 +84,8 @@ test('stream message delivered to subscribed teammate', async () => {
   const inbox = readInbox(teamName, 'alice')
   expect(inbox).toHaveLength(1)
   expect(inbox[0]!.from).toBe('zulip:general/greetings:Human User')
-  expect(inbox[0]!.text).toBe('hello everyone')
+  expect(inbox[0]!.text).toContain('hello everyone')
+  expect(inbox[0]!.text).toMatch(/\[msg:\d+ ts:/)
   expect(inbox[0]!.read).toBe(false)
 })
 
@@ -203,7 +204,8 @@ test('DM routed to recipient teammate', async () => {
   const inbox = readInbox(teamName, 'alice')
   expect(inbox).toHaveLength(1)
   expect(inbox[0]!.from).toBe('zulip:Human User')
-  expect(inbox[0]!.text).toBe('hey alice')
+  expect(inbox[0]!.text).toContain('hey alice')
+  expect(inbox[0]!.text).toMatch(/\[msg:\d+ ts:/)
 })
 
 test('DM not delivered back to sender bot', async () => {

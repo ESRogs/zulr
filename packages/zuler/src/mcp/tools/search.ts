@@ -7,7 +7,8 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'search',
     {
-      description: 'Search Zulip messages by keyword. Optionally scope to a channel and/or topic.',
+      description:
+        'Search Zulip messages by keyword. Optionally scope to a channel and/or topic. Consider searching before asking questions that might already be answered in the history.',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name (uses their bot for search)'),
         query: z.string().describe('Search query'),

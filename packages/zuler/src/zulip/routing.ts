@@ -4,6 +4,7 @@ import type { ZulerDatabase } from '../state/db.ts'
 import { addTopicSubscription, shouldReceive } from '../state/subscriptions.ts'
 import { listTeammates } from '../state/teammates.ts'
 import { writeToInbox } from './inbox.ts'
+import { formatMessageFooter } from './message-reader.ts'
 
 type RouteResult = {
   readonly messageId: number
@@ -19,6 +20,10 @@ type RouteResult = {
 }
 
 const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}...` : s)
+
+function appendFooter(content: string, messageId: number, timestamp: number): string {
+  return `${content}\n${formatMessageFooter(messageId, timestamp)}`
+}
 
 /** Build a reverse map of bot_email → teammate_name. */
 async function buildEmailMap(db: Kysely<ZulerDatabase>): Promise<Map<string, string>> {
@@ -59,7 +64,7 @@ export async function routeDm(
       const from = `zulip:${senderName}`
       writeToInbox(teamName, name, {
         from,
-        text: content,
+        text: appendFooter(content, message.id, message.timestamp),
         summary,
         zulipMessageId: message.id,
         zulipSenderId: message.sender_id,
@@ -121,7 +126,7 @@ export async function routeStreamMessage(
     const from = `zulip:${location}:${senderName}`
     writeToInbox(teamName, name, {
       from,
-      text: content,
+      text: appendFooter(content, message.id, message.timestamp),
       summary,
       zulipMessageId: message.id,
       zulipSenderId: message.sender_id,

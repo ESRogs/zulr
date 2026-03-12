@@ -11,7 +11,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
     'post',
     {
       description:
-        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For stream messages, provide "stream" and "topic".',
+        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". Note: you must read any unread messages in the target topic/DM before posting (use the read or catch-up tool first).',
       inputSchema: z.object({
         sender: z.string().describe('Name of the registered teammate sending the message'),
         content: z.string().describe('Message content'),
@@ -19,14 +19,14 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
           .union([z.number(), z.string()])
           .optional()
           .describe('User ID, full name, or email for DMs'),
-        stream: z.string().optional().describe('Stream name for stream messages'),
-        topic: z.string().optional().describe('Topic for stream messages'),
+        channel: z.string().optional().describe('Channel name'),
+        topic: z.string().optional().describe('Topic name'),
       }),
     },
-    async ({ sender, content, to, stream, topic }) => {
+    async ({ sender, content, to, channel, topic }) => {
       // Pre-flight unread checks before any async work
-      if (stream && topic) {
-        const blocked = checkUnreadBeforePost(teamName, sender, stream, topic)
+      if (channel && topic) {
+        const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)
         if (blocked) {
           return errorResult(blocked)
         }
@@ -66,23 +66,23 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         )
       }
 
-      if (stream && topic) {
+      if (channel && topic) {
         const clientResult = await ctx.getTeammateClient(sender)
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
         }
         const result = await sendStreamMessage(clientResult.value.client, {
-          to: stream,
+          to: channel,
           topic,
           content,
         })
         return result.match(
-          (res) => textResult(`posted to ${stream}/${topic} (id: ${res.id})`),
+          (res) => textResult(`posted to ${channel}/${topic} (id: ${res.id})`),
           (err) => errorResult(formatError(err)),
         )
       }
 
-      return errorResult('provide either "to" (for DMs) or "stream" and "topic"')
+      return errorResult('provide either "to" (for DMs) or "channel" and "topic"')
     },
   )
 }

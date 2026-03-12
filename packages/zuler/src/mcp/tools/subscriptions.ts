@@ -16,20 +16,20 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
   server.registerTool(
     'subscribe',
     {
-      description: 'Subscribe a teammate to a stream or a specific stream/topic.',
+      description: 'Subscribe a teammate to a channel or a specific channel/topic.',
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
-        stream: z.string().describe('Stream name'),
-        topic: z.string().optional().describe('Topic name (omit for whole-stream subscription)'),
+        channel: z.string().describe('Channel name'),
+        topic: z.string().optional().describe('Topic name (omit for whole-channel subscription)'),
       }),
     },
-    async ({ teammate, stream, topic }) => {
+    async ({ teammate, channel, topic }) => {
       const result = topic
-        ? await addTopicSubscription(db, teammate, stream, topic)
-        : await addStreamSubscription(db, teammate, stream)
+        ? await addTopicSubscription(db, teammate, channel, topic)
+        : await addStreamSubscription(db, teammate, channel)
 
       return result.match(
-        () => textResult(`subscribed to ${topic ? `${stream}/${topic}` : stream}`),
+        () => textResult(`subscribed to ${topic ? `${channel}/${topic}` : channel}`),
         (err) => errorResult(formatError(err)),
       )
     },
@@ -43,26 +43,26 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
     'unsubscribe',
     {
       description:
-        'Unsubscribe a teammate from a stream, a specific topic, or all subscriptions in a stream.',
+        'Unsubscribe a teammate from a channel, a specific topic, or all subscriptions in a channel.',
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
-        stream: z.string().describe('Stream name'),
-        topic: z.string().optional().describe('Topic name (omit for stream-level unsubscribe)'),
+        channel: z.string().describe('Channel name'),
+        topic: z.string().optional().describe('Topic name (omit for channel-level unsubscribe)'),
         all: z
-          .boolean()
+          .union([z.boolean(), z.string().transform((s) => s === 'true')])
           .optional()
           .default(false)
-          .describe('Remove stream and all topic subscriptions'),
+          .describe('Remove channel and all topic subscriptions'),
       }),
     },
-    async ({ teammate, stream, topic, all }) => {
+    async ({ teammate, channel, topic, all }) => {
       const result = all
-        ? await removeAllStreamSubscriptions(db, teammate, stream)
+        ? await removeAllStreamSubscriptions(db, teammate, channel)
         : topic
-          ? await removeTopicSubscription(db, teammate, stream, topic)
-          : await removeStreamSubscription(db, teammate, stream)
+          ? await removeTopicSubscription(db, teammate, channel, topic)
+          : await removeStreamSubscription(db, teammate, channel)
 
-      const target = all ? `${stream} (all)` : topic ? `${stream}/${topic}` : stream
+      const target = all ? `${channel} (all)` : topic ? `${channel}/${topic}` : channel
       return result.match(
         () => textResult(`unsubscribed from ${target}`),
         (err) => errorResult(formatError(err)),
@@ -77,7 +77,7 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
   server.registerTool(
     'subscriptions',
     {
-      description: "List a teammate's current stream and topic subscriptions.",
+      description: "List a teammate's current channel and topic subscriptions.",
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
       }),
@@ -87,7 +87,7 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
       return result.match(
         (t) => {
           const lines = [
-            ...(t.streamSubs.length > 0 ? ['streams:', ...t.streamSubs.map((s) => `  ${s}`)] : []),
+            ...(t.streamSubs.length > 0 ? ['channels:', ...t.streamSubs.map((s) => `  ${s}`)] : []),
             ...(t.topicSubs.length > 0
               ? ['topics:', ...t.topicSubs.map((sub) => `  ${sub.stream}/${sub.topic}`)]
               : []),

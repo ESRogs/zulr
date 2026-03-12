@@ -13,7 +13,7 @@ export function registerRegisterTool(server: McpServer, ctx: ToolContext): void 
   server.registerTool(
     'register',
     {
-      description: 'Register a teammate: create or look up a Zulip bot and store credentials.',
+      description: 'Register a teammate: create or look up a Zulip bot and store credentials. Idempotent — safe to call again if already registered.',
       inputSchema: z.object({
         name: z.string().describe('Teammate name'),
       }),

@@ -40,9 +40,10 @@ export function fetchMessages(
       }
       // DM — extract the other participants (exclude the bot making the API call)
       // If botUserId is unknown, skip enrichment rather than guessing wrong
-      const others = botUserId != null
-        ? msg.display_recipient.filter((r) => r.id !== botUserId).map((r) => r.full_name)
-        : []
+      const others =
+        botUserId != null
+          ? msg.display_recipient.filter((r) => r.id !== botUserId).map((r) => r.full_name)
+          : []
       return {
         id: msg.id,
         stream: '',
@@ -66,6 +67,17 @@ export function fetchMessages(
   })
 }
 
+const MSG_FOOTER_RE = /\n\[msg:\d+ ts:[^\]]+\]$/
+
+export function formatMessageFooter(id: number, timestamp: number): string {
+  const ts = new Date(timestamp * 1000).toISOString()
+  return `[msg:${id} ts:${ts}]`
+}
+
+export function stripMessageFooter(text: string): string {
+  return text.replace(MSG_FOOTER_RE, '')
+}
+
 export function formatMessages(
   messages: readonly FormattedMessage[],
   includeLocation: boolean,
@@ -79,7 +91,8 @@ export function formatMessages(
           ? `DM with ${msg.dmWith}`
           : 'DM'
       const prefix = includeLocation ? `${location} — ` : ''
-      return `[${dt}] ${prefix}${msg.sender}: ${msg.content}`
+      const footer = msg.id > 0 ? `\n${formatMessageFooter(msg.id, msg.timestamp)}` : ''
+      return `[${dt}] ${prefix}${msg.sender}: ${msg.content}${footer}`
     })
     .join('\n')
 }
