@@ -56,12 +56,10 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       ]
 
       const cutoff = Date.now() / 1000 - maxHours * 3600
-      const fetchCount = subs.length + 1 // subscriptions + DMs
-      const perSubLimit = Math.max(10, Math.ceil(maxMessages / fetchCount))
 
       const fetchConfig = unreadOnly
-        ? { anchor: 'first_unread' as const, numBefore: 0, numAfter: perSubLimit }
-        : { anchor: 'newest' as const, numBefore: perSubLimit, numAfter: 0 }
+        ? { anchor: 'first_unread' as const, numBefore: 0, numAfter: maxMessages }
+        : { anchor: 'newest' as const, numBefore: maxMessages, numAfter: 0 }
 
       // Fetch from all subscriptions + DMs in parallel (without marking read)
       const fetchResults = await Promise.all([
