@@ -78,13 +78,14 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       if (uploadResult.isErr()) return errorResult(formatError(uploadResult.error))
 
       const { url } = uploadResult.value
-      const fileLink = `[${filename}](${url})`
+      const fullUrl = `${client.config.site.replace(/\/+$/, '')}${url}`
+      const fileLink = `[${filename}](${fullUrl})`
       const body = message ? `${message}\n\n${fileLink}` : fileLink
 
       if (channel && topic) {
         const postResult = await sendStreamMessage(client, { to: channel, topic, content: body })
         return postResult.match(
-          (res) => textResult(`uploaded and shared in ${channel}/${topic} (id: ${res.id})\n${url}`),
+          (res) => textResult(`uploaded and shared in ${channel}/${topic} (id: ${res.id})\n${fullUrl}`),
           (err) => errorResult(formatError(err)),
         )
       }
@@ -96,12 +97,12 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
         })
         return dmResult.match(
           (res) =>
-            textResult(`uploaded and DM'd to ${recipient.full_name} (id: ${res.id})\n${url}`),
+            textResult(`uploaded and DM'd to ${recipient.full_name} (id: ${res.id})\n${fullUrl}`),
           (err) => errorResult(formatError(err)),
         )
       }
 
-      return textResult(`uploaded: ${url}`)
+      return textResult(`uploaded: ${fullUrl}`)
     },
   )
 }
