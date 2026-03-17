@@ -107,7 +107,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         return textResult(
           unreadOnly
             ? `(no unread messages in the last ${maxHours} hours across your subscriptions)`
-            : `(no recent messages in the last ${maxHours} hours across your subscriptions)`,
+            : `(no messages in the last ${maxHours} hours across your subscriptions)`,
         )
       }
 
@@ -123,10 +123,11 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         }
       }
 
+      const additionalInWindow = allMessages.length - trimmed.length
       const infos = [
-        allMessages.length > maxMessages
-          ? `Showing ${trimmed.length} of ${allMessages.length} messages (most recent) — increase maxMessages to see all.`
-          : `Showing all ${trimmed.length} message${trimmed.length === 1 ? '' : 's'}.`,
+        additionalInWindow > 0
+          ? `Showing the ${trimmed.length} most recent messages. There are ${additionalInWindow} more within the last ${maxHours}h — increase maxMessages to see more.`
+          : `Showing all ${trimmed.length} message${trimmed.length === 1 ? '' : 's'} from the last ${maxHours}h.`,
         ...(olderCount > 0
           ? [
               `${olderCount} older message${olderCount === 1 ? '' : 's'} outside ${maxHours}h window — increase maxHours to see them.`,
