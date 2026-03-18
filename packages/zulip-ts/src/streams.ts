@@ -5,12 +5,16 @@ import {
   CreateChannelResponseSchema,
   type GetStreamsResponse,
   GetStreamsResponseSchema,
+  type GetSubscriptionsResponse,
+  GetSubscriptionsResponseSchema,
   type GetTopicsResponse,
   GetTopicsResponseSchema,
   type SubscribeResponse,
   SubscribeResponseSchema,
   type SuccessResponse,
   SuccessResponseSchema,
+  type UnsubscribeResponse,
+  UnsubscribeResponseSchema,
   type UpdateChannelResponse,
   UpdateChannelResponseSchema,
 } from './schemas.ts'
@@ -90,5 +94,58 @@ export function subscribe(
       body: { subscriptions: streams },
     },
     SubscribeResponseSchema,
+  )
+}
+
+export function unsubscribe(
+  client: ZulipClient,
+  streams: readonly string[],
+): ResultAsync<UnsubscribeResponse, ZulipError> {
+  return client.request(
+    {
+      method: 'DELETE',
+      path: '/users/me/subscriptions',
+      body: { subscriptions: streams },
+    },
+    UnsubscribeResponseSchema,
+  )
+}
+
+export function getSubscriptions(
+  client: ZulipClient,
+): ResultAsync<GetSubscriptionsResponse, ZulipError> {
+  return client.request(
+    { method: 'GET', path: '/users/me/subscriptions' },
+    GetSubscriptionsResponseSchema,
+  )
+}
+
+export type UserTopicVisibility = 0 | 1 | 2 | 3
+
+/** Named constants for UserTopicVisibility values. */
+export const TopicVisibility = {
+  /** Inherit channel-level notification settings. */
+  INHERIT: 0,
+  /** Mute this topic. */
+  MUTED: 1,
+  /** Unmute this topic (overrides channel mute). */
+  UNMUTED: 2,
+  /** Follow this topic (get notifications for all messages). */
+  FOLLOWED: 3,
+} as const satisfies Record<string, UserTopicVisibility>
+
+export function setUserTopic(
+  client: ZulipClient,
+  streamId: number,
+  topic: string,
+  visibilityPolicy: UserTopicVisibility,
+): ResultAsync<SuccessResponse, ZulipError> {
+  return client.request(
+    {
+      method: 'POST',
+      path: '/user_topics',
+      body: { stream_id: streamId, topic, visibility_policy: visibilityPolicy },
+    },
+    SuccessResponseSchema,
   )
 }

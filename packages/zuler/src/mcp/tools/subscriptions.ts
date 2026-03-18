@@ -1,35 +1,49 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import {
-  addStreamSubscription,
-  addTopicSubscription,
-  removeAllStreamSubscriptions,
-  removeStreamSubscription,
-  removeTopicSubscription,
-} from '../../state/subscriptions.ts'
-import { getTeammate } from '../../state/teammates.ts'
+import { getSubscriptions, setUserTopic, subscribe, TopicVisibility, unsubscribe } from 'zulip-ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void {
-  const { db } = ctx.config
-
   server.registerTool(
     'subscribe',
     {
-      description: 'Subscribe a teammate to a channel or a specific channel/topic.',
+      description:
+        'Subscribe a teammate to a channel, or follow a specific topic within a channel the teammate is already subscribed to.',
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
         channel: z.string().describe('Channel name'),
-        topic: z.string().optional().describe('Topic name (omit for whole-channel subscription)'),
+        topic: z
+          .string()
+          .optional()
+          .describe('Topic name (follow this topic — requires channel subscription)'),
       }),
     },
     async ({ teammate, channel, topic }) => {
-      const result = topic
-        ? await addTopicSubscription(db, teammate, channel, topic)
-        : await addStreamSubscription(db, teammate, channel)
+      const clientResult = await ctx.getTeammateClient(teammate)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+      const { client } = clientResult.value
 
+      if (topic) {
+        // Follow a specific topic — bot must already be subscribed to the channel.
+        // Resolve channel to stream_id first.
+        const channelResult = await ctx.resolveChannel(channel)
+        if (channelResult.isErr()) return errorResult(channelResult.error)
+
+        const result = await setUserTopic(
+          client,
+          channelResult.value.stream_id,
+          topic,
+          TopicVisibility.FOLLOWED,
+        )
+        return result.match(
+          () => textResult(`following ${channel}/${topic}`),
+          (err) => errorResult(formatError(err)),
+        )
+      }
+
+      const result = await subscribe(client, [{ name: channel }])
       return result.match(
-        () => textResult(`subscribed to ${topic ? `${channel}/${topic}` : channel}`),
+        () => textResult(`subscribed to ${channel}`),
         (err) => errorResult(formatError(err)),
       )
     },
@@ -37,34 +51,44 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
 }
 
 export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): void {
-  const { db } = ctx.config
-
   server.registerTool(
     'unsubscribe',
     {
       description:
-        'Unsubscribe a teammate from a channel, a specific topic, or all subscriptions in a channel.',
+        'Unsubscribe a teammate from a channel, or unfollow a specific topic within a channel.',
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
         channel: z.string().describe('Channel name'),
-        topic: z.string().optional().describe('Topic name (omit for channel-level unsubscribe)'),
-        all: z
-          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+        topic: z
+          .string()
           .optional()
-          .default(false)
-          .describe('Remove channel and all topic subscriptions'),
+          .describe('Topic name (unfollow this topic — keeps channel subscription)'),
       }),
     },
-    async ({ teammate, channel, topic, all }) => {
-      const result = all
-        ? await removeAllStreamSubscriptions(db, teammate, channel)
-        : topic
-          ? await removeTopicSubscription(db, teammate, channel, topic)
-          : await removeStreamSubscription(db, teammate, channel)
+    async ({ teammate, channel, topic }) => {
+      const clientResult = await ctx.getTeammateClient(teammate)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+      const { client } = clientResult.value
 
-      const target = all ? `${channel} (all)` : topic ? `${channel}/${topic}` : channel
+      if (topic) {
+        const channelResult = await ctx.resolveChannel(channel)
+        if (channelResult.isErr()) return errorResult(channelResult.error)
+
+        const result = await setUserTopic(
+          client,
+          channelResult.value.stream_id,
+          topic,
+          TopicVisibility.INHERIT,
+        )
+        return result.match(
+          () => textResult(`unfollowed ${channel}/${topic}`),
+          (err) => errorResult(formatError(err)),
+        )
+      }
+
+      const result = await unsubscribe(client, [channel])
       return result.match(
-        () => textResult(`unsubscribed from ${target}`),
+        () => textResult(`unsubscribed from ${channel}`),
         (err) => errorResult(formatError(err)),
       )
     },
@@ -72,27 +96,26 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
 }
 
 export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): void {
-  const { db } = ctx.config
-
   server.registerTool(
     'subscriptions',
     {
-      description: "List a teammate's current channel and topic subscriptions.",
+      description: "List a teammate's current channel subscriptions on Zulip.",
       inputSchema: z.object({
         teammate: z.string().describe('Teammate name'),
       }),
     },
     async ({ teammate }) => {
-      const result = await getTeammate(db, teammate)
+      const clientResult = await ctx.getTeammateClient(teammate)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+
+      const result = await getSubscriptions(clientResult.value.client)
       return result.match(
-        (t) => {
-          const lines = [
-            ...(t.streamSubs.length > 0 ? ['channels:', ...t.streamSubs.map((s) => `  ${s}`)] : []),
-            ...(t.topicSubs.length > 0
-              ? ['topics:', ...t.topicSubs.map((sub) => `  ${sub.stream}/${sub.topic}`)]
-              : []),
-          ]
-          return textResult(lines.length === 0 ? '(no subscriptions)' : lines.join('\n'))
+        (res) => {
+          if (res.subscriptions.length === 0) return textResult('(no subscriptions)')
+          const lines = res.subscriptions
+            .toSorted((a, b) => a.name.localeCompare(b.name))
+            .map((s) => `  ${s.name}`)
+          return textResult(`channels:\n${lines.join('\n')}`)
         },
         (err) => errorResult(formatError(err)),
       )

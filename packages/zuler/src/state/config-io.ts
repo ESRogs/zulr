@@ -1,52 +1,24 @@
 import type { Kysely } from 'kysely'
-import { err, ok, type Result, ResultAsync } from 'neverthrow'
+import { err, ok, type Result, type ResultAsync } from 'neverthrow'
 import type { ZulerDatabase } from './db.ts'
 import { dbOp, type StateError } from './db-utils.ts'
 
 /**
  * A single line in the exported JSONL config file.
- * Each line is either a teammate (with subscriptions) or could be
- * extended with other record types in the future.
+ * Each line is a teammate record. Subscriptions are managed on Zulip directly.
  */
 type ExportedTeammate = {
   readonly type: 'teammate'
   readonly name: string
-  readonly streamSubs: readonly string[]
-  readonly topicSubs: readonly { readonly stream: string; readonly topic: string }[]
 }
 
 type ExportedRecord = ExportedTeammate
 
-/** Export all teammates and subscriptions as JSONL (one JSON object per line). No API keys. */
+/** Export all teammates as JSONL (one JSON object per line). No API keys. */
 export function exportConfig(db: Kysely<ZulerDatabase>): ResultAsync<string, StateError> {
-  return dbOp(() => db.selectFrom('teammates').select('name').execute()).andThen((teammates) => {
-    const lineResults = teammates.map(({ name }) =>
-      dbOp(async () => {
-        const streamSubs = await db
-          .selectFrom('stream_subscriptions')
-          .where('teammate_name', '=', name)
-          .select('stream')
-          .execute()
-
-        const topicSubs = await db
-          .selectFrom('topic_subscriptions')
-          .where('teammate_name', '=', name)
-          .select(['stream', 'topic'])
-          .execute()
-
-        const record: ExportedTeammate = {
-          type: 'teammate',
-          name,
-          streamSubs: streamSubs.map((r) => r.stream),
-          topicSubs: topicSubs.map((r) => ({ stream: r.stream, topic: r.topic })),
-        }
-
-        return JSON.stringify(record)
-      }),
-    )
-
-    return ResultAsync.combine(lineResults).map((lines) => lines.join('\n'))
-  })
+  return dbOp(() => db.selectFrom('teammates').select('name').execute()).map((teammates) =>
+    teammates.map(({ name }) => JSON.stringify({ type: 'teammate', name })).join('\n'),
+  )
 }
 
 /** Parse a JSONL config string into records. */

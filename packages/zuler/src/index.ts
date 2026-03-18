@@ -1,9 +1,8 @@
 import { appendFileSync } from 'node:fs'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { createClient } from 'zulip-ts'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
-import { startEventListener } from './zulip/event-listener.ts'
+import { createEventListenerManager } from './zulip/event-listener.ts'
 
 const t0 = performance.now()
 
@@ -37,20 +36,19 @@ const { server, ctx } = createMcpServer({ db, teamName, repoRoot })
 const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
-function bootEventListener(): void {
+function bootEventListeners(): void {
   const creds = ctx.getCredentials()
   if (!creds) return
 
-  log(`connecting to ${creds.site} as ${creds.email}`)
-  const adminClient = createClient(creds)
-  startEventListener({
-    client: adminClient,
+  log(`connecting to ${creds.site}`)
+  const manager = createEventListenerManager({
     db,
     teamName,
+    site: creds.site,
     signal: new AbortController().signal,
     onRoute: (info) => {
       const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
-      log(`${location} from ${info.sender} → ${info.deliveredTo.join(', ')}`)
+      log(`[${info.botName}] ${location} from ${info.sender}`)
     },
     onReaction: (info) => {
       log(
@@ -59,15 +57,20 @@ function bootEventListener(): void {
     },
     onError: (err) => log(`event listener error: ${formatError(err)}`),
   })
-  log('event listener started')
+
+  // Expose manager on ctx so register tool can start listeners for new bots
+  ctx.setEventListenerManager(manager)
+
+  manager.startAll()
+  log('per-bot event listeners started')
 }
 
-// Start event listener now if credentials are available, or later when they're loaded
+// Start event listeners now if credentials are available, or later when they're loaded
 if (ctx.isConfigured()) {
-  bootEventListener()
+  bootEventListeners()
 } else {
   log('Zulip credentials not configured — waiting for init tool to load them.')
-  ctx.onCredentialsLoaded(bootEventListener)
+  ctx.onCredentialsLoaded(bootEventListeners)
 }
 
 server.server.onerror = (err) => log(`MCP server error: ${formatError(err)}`)
