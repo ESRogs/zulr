@@ -95,6 +95,26 @@ export const SubscribeResponseSchema = z.object({
 })
 export type SubscribeResponse = z.infer<typeof SubscribeResponseSchema>
 
+export const UnsubscribeResponseSchema = z.object({
+  ...SuccessResponseFields,
+  removed: z.array(z.string()),
+  not_removed: z.array(z.string()),
+})
+export type UnsubscribeResponse = z.infer<typeof UnsubscribeResponseSchema>
+
+export const SubscriptionSchema = z.object({
+  stream_id: z.number(),
+  name: z.string(),
+  description: z.string().optional(),
+})
+export type Subscription = z.infer<typeof SubscriptionSchema>
+
+export const GetSubscriptionsResponseSchema = z.object({
+  ...SuccessResponseFields,
+  subscriptions: z.array(SubscriptionSchema),
+})
+export type GetSubscriptionsResponse = z.infer<typeof GetSubscriptionsResponseSchema>
+
 export const UpdateChannelResponseSchema = z.object(SuccessResponseFields)
 export type UpdateChannelResponse = z.infer<typeof UpdateChannelResponseSchema>
 

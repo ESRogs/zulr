@@ -85,7 +85,8 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       if (channel && topic) {
         const postResult = await sendStreamMessage(client, { to: channel, topic, content: body })
         return postResult.match(
-          (res) => textResult(`uploaded and shared in ${channel}/${topic} (id: ${res.id})\n${fullUrl}`),
+          (res) =>
+            textResult(`uploaded and shared in ${channel}/${topic} (id: ${res.id})\n${fullUrl}`),
           (err) => errorResult(formatError(err)),
         )
       }

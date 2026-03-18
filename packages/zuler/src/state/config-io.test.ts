@@ -2,7 +2,6 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Kysely } from 'kysely'
 import { exportConfig, parseConfig } from './config-io.ts'
 import { createDatabase, type ZulerDatabase } from './db.ts'
-import { addStreamSubscription, addTopicSubscription } from './subscriptions.ts'
 import { registerTeammate } from './teammates.ts'
 
 let db: Kysely<ZulerDatabase>
@@ -22,8 +21,6 @@ test('export and parse round-trip', async () => {
     apiKey: 'secret-key-alice',
     botUserId: null,
   })
-  await addStreamSubscription(db, 'alice', 'general')
-  await addTopicSubscription(db, 'alice', 'dev', 'frontend')
 
   await registerTeammate(db, {
     name: 'bob',
@@ -49,13 +46,11 @@ test('export and parse round-trip', async () => {
 
   const alice = records.find((r) => r.name === 'alice')
   expect(alice).toBeDefined()
-  expect(alice!.streamSubs).toEqual(['general'])
-  expect(alice!.topicSubs).toEqual([{ stream: 'dev', topic: 'frontend' }])
+  expect(alice!.type).toBe('teammate')
 
   const bob = records.find((r) => r.name === 'bob')
   expect(bob).toBeDefined()
-  expect(bob!.streamSubs).toEqual([])
-  expect(bob!.topicSubs).toEqual([])
+  expect(bob!.type).toBe('teammate')
 })
 
 test('parseConfig rejects invalid JSON', () => {

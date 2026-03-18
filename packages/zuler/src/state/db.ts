@@ -12,21 +12,8 @@ type TeammatesTable = {
   bot_user_id: number | null
 }
 
-type StreamSubscriptionsTable = {
-  teammate_name: string
-  stream: string
-}
-
-type TopicSubscriptionsTable = {
-  teammate_name: string
-  stream: string
-  topic: string
-}
-
 type ZulerDatabase = {
   teammates: TeammatesTable
-  stream_subscriptions: StreamSubscriptionsTable
-  topic_subscriptions: TopicSubscriptionsTable
 }
 
 const SCHEMA_SQL = `
@@ -35,19 +22,6 @@ const SCHEMA_SQL = `
     bot_email TEXT NOT NULL,
     api_key TEXT NOT NULL,
     bot_user_id INTEGER
-  );
-
-  CREATE TABLE IF NOT EXISTS stream_subscriptions (
-    teammate_name TEXT NOT NULL REFERENCES teammates(name),
-    stream TEXT NOT NULL,
-    PRIMARY KEY (teammate_name, stream)
-  );
-
-  CREATE TABLE IF NOT EXISTS topic_subscriptions (
-    teammate_name TEXT NOT NULL REFERENCES teammates(name),
-    stream TEXT NOT NULL,
-    topic TEXT NOT NULL,
-    PRIMARY KEY (teammate_name, stream, topic)
   );
 `
 
@@ -70,10 +44,11 @@ export function openDatabase(repoRoot: string): Kysely<ZulerDatabase> {
   return createDatabase(join(dir, 'state.db'))
 }
 
-const CURRENT_SCHEMA_VERSION = 1
+const CURRENT_SCHEMA_VERSION = 2
 
 const MIGRATIONS: Record<number, string> = {
   1: 'ALTER TABLE teammates ADD COLUMN bot_user_id INTEGER;',
+  2: 'DROP TABLE IF EXISTS topic_subscriptions; DROP TABLE IF EXISTS stream_subscriptions;',
 }
 
 function runMigrations(db: Database): void {

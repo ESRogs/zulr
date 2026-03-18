@@ -6,6 +6,7 @@ import type { Member, Stream, ZulipClient } from 'zulip-ts'
 import { createClient, getMembers, getStreams } from 'zulip-ts'
 import { clientForTeammate, type TeammateClient } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
+import type { EventListenerManager } from '../zulip/event-listener.ts'
 
 /** MCP tool response helpers */
 export function textResult(text: string) {
@@ -87,6 +88,10 @@ export type ToolContext = {
   readonly getMembersMap: () => ResultAsync<ReadonlyMap<number, Member>, string>
   readonly invalidateMembersCache: () => void
   readonly invalidateChannelsCache: () => void
+  /** Set the event listener manager (called from index.ts after boot). */
+  readonly setEventListenerManager: (manager: EventListenerManager) => void
+  /** Get the event listener manager, if set. */
+  readonly getEventListenerManager: () => EventListenerManager | undefined
 }
 
 /**
@@ -135,6 +140,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
   let adminClient: ZulipClient | undefined
   let membersCache: TimedCache<Map<number, Member>> | null = null
   let channelsCache: TimedCache<readonly Stream[]> | null = null
+  let eventListenerManager: EventListenerManager | undefined
 
   function tryGetClient(): ZulipClient | undefined {
     if (adminClient) return adminClient
@@ -276,5 +282,9 @@ export function createToolContext(config: ServerConfig): ToolContext {
     invalidateChannelsCache: () => {
       channelsCache = null
     },
+    setEventListenerManager: (manager: EventListenerManager) => {
+      eventListenerManager = manager
+    },
+    getEventListenerManager: () => eventListenerManager,
   }
 }

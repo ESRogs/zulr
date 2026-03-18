@@ -12,11 +12,6 @@ export type Teammate = {
   readonly botUserId: number | null
 }
 
-export type TeammateWithSubs = Teammate & {
-  readonly streamSubs: readonly string[]
-  readonly topicSubs: readonly { readonly stream: string; readonly topic: string }[]
-}
-
 export function registerTeammate(
   db: Kysely<ZulerDatabase>,
   teammate: Teammate,
@@ -49,7 +44,7 @@ export function registerTeammate(
 export function getTeammate(
   db: Kysely<ZulerDatabase>,
   name: string,
-): ResultAsync<TeammateWithSubs, StateError> {
+): ResultAsync<Teammate, StateError> {
   return dbOp(async () => {
     const row = await db
       .selectFrom('teammates')
@@ -61,25 +56,11 @@ export function getTeammate(
       throw new NotFoundError(`teammate '${name}' not found`)
     }
 
-    const streamSubs = await db
-      .selectFrom('stream_subscriptions')
-      .where('teammate_name', '=', name)
-      .select('stream')
-      .execute()
-
-    const topicSubs = await db
-      .selectFrom('topic_subscriptions')
-      .where('teammate_name', '=', name)
-      .select(['stream', 'topic'])
-      .execute()
-
     return {
       name: row.name,
       botEmail: row.bot_email,
       apiKey: row.api_key,
       botUserId: row.bot_user_id,
-      streamSubs: streamSubs.map((r) => r.stream),
-      topicSubs: topicSubs.map((r) => ({ stream: r.stream, topic: r.topic })),
     }
   })
 }

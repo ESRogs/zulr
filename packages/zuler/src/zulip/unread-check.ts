@@ -27,9 +27,8 @@ export function countUnreadDmsFromUser(
   fromUserId: number,
 ): number {
   const messages = readInbox(teamName, teammate)
-  return messages.filter(
-    (msg) => !msg.read && !msg.zulipStream && msg.zulipSenderId === fromUserId,
-  ).length
+  return messages.filter((msg) => !msg.read && !msg.zulipStream && msg.zulipSenderId === fromUserId)
+    .length
 }
 
 /**

@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { markAsRead } from 'zulip-ts'
-import { getTeammate } from '../../state/teammates.ts'
+import { getSubscriptions, markAsRead } from 'zulip-ts'
 import {
   consumeAllUnreadDmMessages,
   consumeAllUnreadStreamMessages,
@@ -43,23 +42,18 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, maxMessages, maxHours, unreadOnly }) => {
-      const teammateResult = await getTeammate(ctx.config.db, sender)
-      if (teammateResult.isErr()) {
-        return errorResult(formatError(teammateResult.error))
-      }
-
-      const teammate = teammateResult.value
-
       const botClientResult = await ctx.getTeammateClient(sender)
       if (botClientResult.isErr()) {
         return errorResult(botClientResult.error)
       }
-      const botClient = botClientResult.value.client
+      const { client: botClient, botUserId } = botClientResult.value
 
-      const subs: { stream: string; topic?: string }[] = [
-        ...teammate.streamSubs.map((stream) => ({ stream })),
-        ...teammate.topicSubs.map(({ stream, topic }) => ({ stream, topic })),
-      ]
+      // Get the bot's channel subscriptions from Zulip
+      const subsResult = await getSubscriptions(botClient)
+      if (subsResult.isErr()) {
+        return errorResult(formatError(subsResult.error))
+      }
+      const channels = subsResult.value.subscriptions.map((s) => s.name)
 
       const cutoff = Date.now() / 1000 - maxHours * 3600
 
@@ -69,28 +63,20 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
         ? { anchor: 'first_unread' as const, numBefore: 0, numAfter: maxMessages }
         : { anchor: 'newest' as const, numBefore: maxMessages, numAfter: 0 }
 
-      // Fetch from all subscriptions + DMs in parallel (without marking read)
+      // Fetch from all subscribed channels + DMs in parallel (without marking read)
       const fetchResults = await Promise.all([
-        ...subs.map((sub) => {
-          const narrow = [
-            { operator: 'stream' as const, operand: sub.stream },
-            ...(sub.topic ? [{ operator: 'topic' as const, operand: sub.topic }] : []),
-          ]
+        ...channels.map((channel) => {
+          const narrow = [{ operator: 'stream' as const, operand: channel }]
           return fetchMessages(
             botClient,
             { ...fetchConfig, narrow, applyMarkdown: false },
-            {
-              markRead: false,
-              streamFallback: sub.stream,
-              topicFallback: sub.topic,
-              resolveUserId,
-            },
+            { markRead: false, streamFallback: channel, resolveUserId },
           )
         }),
         fetchMessages(
           botClient,
           { ...fetchConfig, narrow: [{ operator: 'is', operand: 'dm' }], applyMarkdown: false },
-          { markRead: false, botUserId: teammate.botUserId, resolveUserId },
+          { markRead: false, botUserId, resolveUserId },
         ),
       ])
 
