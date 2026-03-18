@@ -26,7 +26,7 @@ function aggregateReactions(
 ): FormattedReaction[] {
   const byEmoji = new Map<string, string[]>()
   for (const r of raw) {
-    const name = resolveUserId?.(r.user_id) ?? r.user?.full_name ?? `user ${r.user_id}`
+    const name = resolveUserId?.(r.user_id) ?? `user ${r.user_id}`
     const existing = byEmoji.get(r.emoji_name)
     if (existing) {
       existing.push(name)
@@ -42,8 +42,8 @@ function formatReactionsField(
   msg: Message,
   resolveUserId?: (id: number) => string | undefined,
 ): FormattedReaction[] | undefined {
-  const reactions = msg.reactions ?? []
-  if (reactions.length === 0) return undefined
+  if (msg.reactions.length === 0) return undefined
+  const reactions = msg.reactions
   return aggregateReactions(reactions, resolveUserId)
 }
 
@@ -59,8 +59,7 @@ export function fetchMessages(
     resolveUserId?: (id: number) => string | undefined
   },
 ): ResultAsync<readonly FormattedMessage[], ZulipError> {
-  const { markRead = true, streamFallback, topicFallback, botUserId, resolveUserId } =
-    options ?? {}
+  const { markRead = true, streamFallback, topicFallback, botUserId, resolveUserId } = options ?? {}
 
   return getMessages(client, params).andThen((res) => {
     const messages: FormattedMessage[] = res.messages.map((msg) => {
@@ -129,10 +128,9 @@ export function formatMessages(
           ? `DM with ${msg.dmWith}`
           : 'DM'
       const prefix = includeLocation ? `${location} — ` : ''
-      const reactionsLine =
-        msg.reactions && msg.reactions.length > 0
-          ? `\n  reactions: ${msg.reactions.map((r) => `:${r.emoji}: ${r.users.join(', ')}`).join('  ')}`
-          : ''
+      const reactionsLine = msg.reactions
+        ? `\n  reactions: ${msg.reactions.map((r) => `:${r.emoji}: ${r.users.join(', ')}`).join('  ')}`
+        : ''
       const footer = msg.id > 0 ? `\n${formatMessageFooter(msg.id, msg.timestamp)}` : ''
       return `[${dt}] ${prefix}${msg.sender}: ${msg.content}${reactionsLine}${footer}`
     })

@@ -63,8 +63,7 @@ async function readStream(
 
   const botClient = botClientResult.value.client
 
-  const resolverResult = await buildUserIdResolver(ctx)
-  const resolveUserId = resolverResult.isOk() ? resolverResult.value : undefined
+  const resolveUserId = await buildUserIdResolver(ctx)
 
   const fetchResult = await fetchMessages(
     botClient,
@@ -124,8 +123,7 @@ async function readDms(ctx: ToolContext, sender: string, userId: number, count: 
 
   const { client: botClient, botUserId } = botClientResult.value
 
-  const resolverResult = await buildUserIdResolver(ctx)
-  const resolveUserId = resolverResult.isOk() ? resolverResult.value : undefined
+  const resolveUserId = await buildUserIdResolver(ctx)
 
   const fetchResult = await fetchMessages(
     botClient,

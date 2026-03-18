@@ -31,11 +31,14 @@ export function formatError(err: unknown): string {
   return JSON.stringify(err)
 }
 
-/** Build a synchronous user ID → full_name resolver from the members cache. */
-export function buildUserIdResolver(
+/** Build a synchronous user ID → full_name resolver from the members cache. Best-effort — returns a no-op resolver on failure. */
+export async function buildUserIdResolver(
   ctx: ToolContext,
-): ResultAsync<(id: number) => string | undefined, string> {
-  return ctx.getMembersMap().map((members) => (id: number) => members.get(id)?.full_name)
+): Promise<(id: number) => string | undefined> {
+  const result = await ctx.getMembersMap()
+  if (result.isErr()) return () => undefined
+  const members = result.value
+  return (id: number) => members.get(id)?.full_name
 }
 
 export type ServerConfig = {

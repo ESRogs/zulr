@@ -13,7 +13,6 @@ export type SuccessResponse = z.infer<typeof SuccessResponseSchema>
 const ReactionSchema = z.object({
   emoji_name: z.string(),
   user_id: z.number(),
-  user: z.object({ full_name: z.string() }).optional(),
 })
 export type Reaction = z.infer<typeof ReactionSchema>
 
