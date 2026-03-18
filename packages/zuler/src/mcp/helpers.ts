@@ -31,6 +31,16 @@ export function formatError(err: unknown): string {
   return JSON.stringify(err)
 }
 
+/** Build a synchronous user ID → full_name resolver from the members cache. Best-effort — returns a no-op resolver on failure. */
+export async function buildUserIdResolver(
+  ctx: ToolContext,
+): Promise<(id: number) => string | undefined> {
+  const result = await ctx.getMembersMap()
+  if (result.isErr()) return () => undefined
+  const members = result.value
+  return (id: number) => members.get(id)?.full_name
+}
+
 export type ServerConfig = {
   readonly db: Kysely<ZulerDatabase>
   readonly teamName: string
@@ -73,6 +83,8 @@ export type ToolContext = {
   readonly resolveChannel: (name: string) => ResultAsync<Stream, string>
   /** List all channels (uses cache). */
   readonly listChannels: () => ResultAsync<readonly Stream[], string>
+  /** Get the members map (user_id → Member), refreshing the cache if needed. */
+  readonly getMembersMap: () => ResultAsync<ReadonlyMap<number, Member>, string>
   readonly invalidateMembersCache: () => void
   readonly invalidateChannelsCache: () => void
 }
@@ -249,6 +261,11 @@ export function createToolContext(config: ServerConfig): ToolContext {
     isBot,
     resolveUser,
     resolveChannel,
+    getMembersMap: () => {
+      if (isCacheValid(membersCache))
+        return okAsync(membersCache.data as ReadonlyMap<number, Member>)
+      return refreshMembersCache().map((data) => data as ReadonlyMap<number, Member>)
+    },
     listChannels: () => {
       if (isCacheValid(channelsCache)) return okAsync(channelsCache.data)
       return refreshChannelsCache()

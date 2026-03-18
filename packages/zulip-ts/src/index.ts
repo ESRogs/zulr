@@ -37,6 +37,7 @@ export type {
   GetStreamsResponse,
   Member,
   Message,
+  Reaction,
   RegisterQueueResponse,
   SendMessageResponse,
   Stream,

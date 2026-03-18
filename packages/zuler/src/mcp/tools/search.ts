@@ -1,7 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  buildUserIdResolver,
+  errorResult,
+  formatError,
+  type ToolContext,
+  textResult,
+} from '../helpers.ts'
 
 export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -27,6 +33,8 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
 
       const { client, botUserId } = clientResult.value
 
+      const resolveUserId = await buildUserIdResolver(ctx)
+
       const narrow = [
         { operator: 'search', operand: query },
         ...(channel ? [{ operator: 'stream', operand: channel }] : []),
@@ -42,7 +50,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
           narrow,
           applyMarkdown: false,
         },
-        { markRead: false, botUserId },
+        { markRead: false, botUserId, resolveUserId },
       )
 
       if (result.isErr()) return errorResult(formatError(result.error))

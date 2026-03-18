@@ -39,6 +39,7 @@ const makeStreamMessage = (overrides: Partial<StreamMessage> = {}): StreamMessag
   subject: 'greetings',
   content: 'hello everyone',
   timestamp: Date.now() / 1000,
+  reactions: [],
   ...overrides,
 })
 
@@ -54,6 +55,7 @@ const makeDmMessage = (overrides: Partial<DmMessage> = {}): DmMessage => ({
   ],
   content: 'hey alice',
   timestamp: Date.now() / 1000,
+  reactions: [],
   ...overrides,
 })
 

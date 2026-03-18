@@ -9,7 +9,13 @@ import {
   mergeWithInbox,
 } from '../../zulip/inbox.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  buildUserIdResolver,
+  errorResult,
+  formatError,
+  type ToolContext,
+  textResult,
+} from '../helpers.ts'
 
 export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -57,6 +63,8 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       const cutoff = Date.now() / 1000 - maxHours * 3600
 
+      const resolveUserId = await buildUserIdResolver(ctx)
+
       const fetchConfig = unreadOnly
         ? { anchor: 'first_unread' as const, numBefore: 0, numAfter: maxMessages }
         : { anchor: 'newest' as const, numBefore: maxMessages, numAfter: 0 }
@@ -71,13 +79,18 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
           return fetchMessages(
             botClient,
             { ...fetchConfig, narrow, applyMarkdown: false },
-            { markRead: false, streamFallback: sub.stream, topicFallback: sub.topic },
+            {
+              markRead: false,
+              streamFallback: sub.stream,
+              topicFallback: sub.topic,
+              resolveUserId,
+            },
           )
         }),
         fetchMessages(
           botClient,
           { ...fetchConfig, narrow: [{ operator: 'is', operand: 'dm' }], applyMarkdown: false },
-          { markRead: false, botUserId: teammate.botUserId },
+          { markRead: false, botUserId: teammate.botUserId, resolveUserId },
         ),
       ])
 

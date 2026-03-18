@@ -8,7 +8,13 @@ import {
   mergeWithInbox,
 } from '../../zulip/inbox.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  buildUserIdResolver,
+  errorResult,
+  formatError,
+  type ToolContext,
+  textResult,
+} from '../helpers.ts'
 
 export function registerReadTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -57,6 +63,8 @@ async function readStream(
 
   const botClient = botClientResult.value.client
 
+  const resolveUserId = await buildUserIdResolver(ctx)
+
   const fetchResult = await fetchMessages(
     botClient,
     {
@@ -69,7 +77,7 @@ async function readStream(
       ],
       applyMarkdown: false,
     },
-    { markRead: false },
+    { markRead: false, resolveUserId },
   )
 
   if (fetchResult.isErr()) {
@@ -115,6 +123,8 @@ async function readDms(ctx: ToolContext, sender: string, userId: number, count: 
 
   const { client: botClient, botUserId } = botClientResult.value
 
+  const resolveUserId = await buildUserIdResolver(ctx)
+
   const fetchResult = await fetchMessages(
     botClient,
     {
@@ -124,7 +134,7 @@ async function readDms(ctx: ToolContext, sender: string, userId: number, count: 
       narrow: [{ operator: 'pm-with', operand: [userId] }],
       applyMarkdown: false,
     },
-    { markRead: false, botUserId },
+    { markRead: false, botUserId, resolveUserId },
   )
 
   if (fetchResult.isErr()) {

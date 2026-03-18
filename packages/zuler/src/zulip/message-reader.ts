@@ -1,6 +1,11 @@
 import { okAsync, type ResultAsync } from 'neverthrow'
-import type { GetMessagesParams, ZulipClient, ZulipError } from 'zulip-ts'
+import type { GetMessagesParams, Message, Reaction, ZulipClient, ZulipError } from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
+
+export type FormattedReaction = {
+  readonly emoji: string
+  readonly users: readonly string[]
+}
 
 export type FormattedMessage = {
   readonly id: number
@@ -11,6 +16,35 @@ export type FormattedMessage = {
   readonly timestamp: number
   readonly dmWith?: string
   readonly isGroupDm?: boolean
+  readonly reactions?: readonly FormattedReaction[]
+}
+
+/** Group raw reactions by emoji name, resolving user IDs to names. */
+function aggregateReactions(
+  raw: readonly Reaction[],
+  resolveUserId?: (id: number) => string | undefined,
+): FormattedReaction[] {
+  const byEmoji = new Map<string, string[]>()
+  for (const r of raw) {
+    const name = resolveUserId?.(r.user_id) ?? `user ${r.user_id}`
+    const existing = byEmoji.get(r.emoji_name)
+    if (existing) {
+      existing.push(name)
+    } else {
+      byEmoji.set(r.emoji_name, [name])
+    }
+  }
+  return [...byEmoji].map(([emoji, users]) => ({ emoji, users }))
+}
+
+/** Build the reactions field for a FormattedMessage, returning undefined when empty. */
+function formatReactionsField(
+  msg: Message,
+  resolveUserId?: (id: number) => string | undefined,
+): FormattedReaction[] | undefined {
+  if (msg.reactions.length === 0) return undefined
+  const reactions = msg.reactions
+  return aggregateReactions(reactions, resolveUserId)
 }
 
 /** Fetch messages, optionally marking them as read. Shared by `read` and `catch-up` tools. */
@@ -22,9 +56,10 @@ export function fetchMessages(
     streamFallback?: string
     topicFallback?: string
     botUserId?: number | null
+    resolveUserId?: (id: number) => string | undefined
   },
 ): ResultAsync<readonly FormattedMessage[], ZulipError> {
-  const { markRead = true, streamFallback, topicFallback, botUserId } = options ?? {}
+  const { markRead = true, streamFallback, topicFallback, botUserId, resolveUserId } = options ?? {}
 
   return getMessages(client, params).andThen((res) => {
     const messages: FormattedMessage[] = res.messages.map((msg) => {
@@ -36,6 +71,7 @@ export function fetchMessages(
           sender: msg.sender_full_name,
           content: msg.content,
           timestamp: msg.timestamp,
+          reactions: formatReactionsField(msg, resolveUserId),
         }
       }
       // DM — extract the other participants (exclude the bot making the API call)
@@ -53,6 +89,7 @@ export function fetchMessages(
         timestamp: msg.timestamp,
         dmWith: others.length > 0 ? others.join(', ') : undefined,
         isGroupDm: msg.display_recipient.length > 2,
+        reactions: formatReactionsField(msg, resolveUserId),
       }
     })
 
@@ -91,8 +128,11 @@ export function formatMessages(
           ? `DM with ${msg.dmWith}`
           : 'DM'
       const prefix = includeLocation ? `${location} — ` : ''
+      const reactionsLine = msg.reactions
+        ? `\n  reactions: ${msg.reactions.map((r) => `:${r.emoji}: ${r.users.join(', ')}`).join('  ')}`
+        : ''
       const footer = msg.id > 0 ? `\n${formatMessageFooter(msg.id, msg.timestamp)}` : ''
-      return `[${dt}] ${prefix}${msg.sender}: ${msg.content}${footer}`
+      return `[${dt}] ${prefix}${msg.sender}: ${msg.content}${reactionsLine}${footer}`
     })
     .join('\n')
 }

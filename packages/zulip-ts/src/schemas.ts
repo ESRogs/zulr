@@ -10,6 +10,12 @@ export type SuccessResponse = z.infer<typeof SuccessResponseSchema>
 
 // --- Messages ---
 
+const ReactionSchema = z.object({
+  emoji_name: z.string(),
+  user_id: z.number(),
+})
+export type Reaction = z.infer<typeof ReactionSchema>
+
 const BaseMessageFields = {
   id: z.number(),
   sender_id: z.number(),
@@ -17,6 +23,7 @@ const BaseMessageFields = {
   sender_full_name: z.string(),
   content: z.string(),
   timestamp: z.number(),
+  reactions: z.array(ReactionSchema).optional().default([]),
 }
 
 export const DmRecipientSchema = z.object({
