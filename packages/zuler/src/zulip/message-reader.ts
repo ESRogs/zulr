@@ -20,17 +20,27 @@ export type FormattedReaction = {
   readonly users: readonly string[]
 }
 
-export type FormattedMessage = {
+type SharedMessageFields = {
   readonly id: MessageId
-  readonly stream: ChannelName
-  readonly topic: TopicName
   readonly sender: DisplayName
   readonly content: string
   readonly timestamp: UnixEpochSeconds
-  readonly dmWith?: string
-  readonly isGroupDm?: boolean
   readonly reactions?: readonly FormattedReaction[]
 }
+
+export type FormattedStreamMessage = SharedMessageFields & {
+  readonly type: 'stream'
+  readonly stream: ChannelName
+  readonly topic: TopicName
+}
+
+export type FormattedDmMessage = SharedMessageFields & {
+  readonly type: 'dm'
+  readonly dmWith: string
+  readonly isGroupDm: boolean
+}
+
+export type FormattedMessage = FormattedStreamMessage | FormattedDmMessage
 
 /** Group raw reactions by emoji name, resolving user IDs to names. */
 function aggregateReactions(
@@ -78,6 +88,7 @@ export function fetchMessages(
     const messages: FormattedMessage[] = res.messages.map((msg) => {
       if (msg.type === 'stream') {
         return {
+          type: 'stream' as const,
           id: msg.id,
           stream: msg.display_recipient || (streamFallback ?? ('' as ChannelName)),
           topic: msg.subject || (topicFallback ?? ('' as TopicName)),
@@ -94,13 +105,12 @@ export function fetchMessages(
           ? msg.display_recipient.filter((r) => r.id !== botUserId).map((r) => r.full_name)
           : []
       return {
+        type: 'dm' as const,
         id: msg.id,
-        stream: '' as ChannelName,
-        topic: '' as TopicName,
         sender: msg.sender_full_name,
         content: msg.content,
         timestamp: msg.timestamp,
-        dmWith: others.length > 0 ? (others.join(', ') as string) : undefined,
+        dmWith: others.length > 0 ? others.join(', ') : 'unknown',
         isGroupDm: msg.display_recipient.length > 2,
         reactions: formatReactionsField(msg, resolveUserId),
       }
@@ -135,11 +145,8 @@ export function formatMessages(
   return messages
     .map((msg) => {
       const dt = new Date(msg.timestamp * 1000).toISOString()
-      const location = msg.stream
-        ? `${msg.stream}/${msg.topic}`
-        : msg.dmWith
-          ? `DM with ${msg.dmWith}`
-          : 'DM'
+      const location =
+        msg.type === 'stream' ? `${msg.stream}/${msg.topic}` : `DM with ${msg.dmWith}`
       const prefix = includeLocation ? `${location} — ` : ''
       const reactionsLine = msg.reactions
         ? `\n  reactions: ${msg.reactions.map((r) => `:${r.emoji}: ${r.users.join(', ')}`).join('  ')}`

@@ -137,26 +137,27 @@ export function consumeAllUnreadDmMessages(
 
 /** Convert inbox messages to FormattedMessage for merging with Zulip API results. */
 export function inboxToFormattedMessages(messages: readonly InboxMessage[]): FormattedMessage[] {
-  return messages.flatMap((m) => {
+  return messages.flatMap((m): FormattedMessage[] => {
     if (!m.zulipSender) return []
-    // Stream messages need stream+topic; DMs just need sender
-    const isStream = !!m.zulipStream && !!m.zulipTopic
-    const isDm = !m.zulipStream && m.zulipSenderId !== undefined
-    if (!isStream && !isDm) return []
-    return [
-      {
-        id: (m.zulipMessageId ?? -(Date.parse(m.timestamp) || 0)) as MessageId,
-        stream: m.zulipStream ?? ('' as ChannelName),
-        topic: m.zulipTopic ?? ('' as TopicName),
-        sender: m.zulipSender,
-        content: stripMessageFooter(m.text),
-        timestamp: ((Date.parse(m.timestamp) || 0) / 1000) as UnixEpochSeconds,
-        // Inbox only contains inbound messages, so zulipSender is the other party.
-        // isGroupDm can't be determined from inbox data (no participant list);
-        // group DMs are not routed to inbox by the event listener.
-        ...(isDm ? { dmWith: m.zulipSender as string, isGroupDm: false } : {}),
-      },
-    ]
+    const id = (m.zulipMessageId ?? -(Date.parse(m.timestamp) || 0)) as MessageId
+    const timestamp = ((Date.parse(m.timestamp) || 0) / 1000) as UnixEpochSeconds
+    const shared = {
+      id,
+      sender: m.zulipSender,
+      content: stripMessageFooter(m.text),
+      timestamp,
+    }
+
+    if (m.zulipStream && m.zulipTopic) {
+      return [{ ...shared, type: 'stream' as const, stream: m.zulipStream, topic: m.zulipTopic }]
+    }
+    if (m.zulipSenderId !== undefined) {
+      // Inbox only contains inbound messages, so zulipSender is the other party.
+      // isGroupDm can't be determined from inbox data (no participant list);
+      // group DMs are not routed to inbox by the event listener.
+      return [{ ...shared, type: 'dm' as const, dmWith: m.zulipSender as string, isGroupDm: false }]
+    }
+    return []
   })
 }
 

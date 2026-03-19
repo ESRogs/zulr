@@ -93,8 +93,8 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       const allFetched = mergeWithInbox(zulipMessages, inboxFormatted)
 
       // Filter out group DMs (not supported yet)
-      const groupDmCount = allFetched.filter((m) => m.isGroupDm).length
-      const merged = allFetched.filter((m) => !m.isGroupDm)
+      const groupDmCount = allFetched.filter((m) => m.type === 'dm' && m.isGroupDm).length
+      const merged = allFetched.filter((m) => !(m.type === 'dm' && m.isGroupDm))
 
       // Apply time filter and count how many were excluded
       const timeFiltered = merged.filter((msg) => msg.timestamp >= cutoff)
