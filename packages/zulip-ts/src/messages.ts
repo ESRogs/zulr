@@ -12,7 +12,7 @@ import {
   type UpdateMessageResponse,
   UpdateMessageResponseSchema,
 } from './schemas.ts'
-import type { MessageId, StreamId, UserId } from './tagged-types.ts'
+import type { ChannelName, MessageId, StreamId, TopicName, UserId } from './tagged-types.ts'
 
 export type SendDirectMessageParams = {
   readonly to: readonly UserId[]
@@ -20,8 +20,8 @@ export type SendDirectMessageParams = {
 }
 
 export type SendStreamMessageParams = {
-  readonly to: string
-  readonly topic: string
+  readonly to: ChannelName
+  readonly topic: TopicName
   readonly content: string
 }
 
@@ -106,7 +106,7 @@ export function markAsRead(
 
 export type UpdateMessageParams = {
   readonly content?: string
-  readonly topic?: string
+  readonly topic?: TopicName
   readonly streamId?: StreamId
   readonly propagateMode?: 'change_one' | 'change_later' | 'change_all'
   readonly sendNotificationToOldThread?: boolean

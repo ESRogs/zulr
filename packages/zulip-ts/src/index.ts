@@ -64,5 +64,15 @@ export {
   unsubscribe,
   updateChannel,
 } from './streams.ts'
-export type { EventId, MessageId, StreamId, UnixEpochSeconds, UserId } from './tagged-types.ts'
+export type {
+  ChannelName,
+  DisplayName,
+  Email,
+  EventId,
+  MessageId,
+  StreamId,
+  TopicName,
+  UnixEpochSeconds,
+  UserId,
+} from './tagged-types.ts'
 export { getMembers, updateSettings } from './users.ts'

@@ -18,7 +18,7 @@ import {
   type UpdateChannelResponse,
   UpdateChannelResponseSchema,
 } from './schemas.ts'
-import type { StreamId, UserId } from './tagged-types.ts'
+import type { ChannelName, StreamId, TopicName, UserId } from './tagged-types.ts'
 
 export function getStreams(client: ZulipClient): ResultAsync<GetStreamsResponse, ZulipError> {
   return client.request({ method: 'GET', path: '/streams' }, GetStreamsResponseSchema)
@@ -35,7 +35,7 @@ export function getTopics(
 }
 
 export type CreateChannelParams = {
-  readonly name: string
+  readonly name: ChannelName
   readonly description?: string
   readonly subscribers: readonly UserId[]
 }
@@ -59,7 +59,7 @@ export function createChannel(
 }
 
 export type UpdateChannelParams = {
-  readonly newName?: string
+  readonly newName?: ChannelName
   readonly description?: string
 }
 
@@ -86,7 +86,7 @@ export function archiveStream(
 
 export function subscribe(
   client: ZulipClient,
-  streams: readonly { readonly name: string }[],
+  streams: readonly { readonly name: ChannelName }[],
 ): ResultAsync<SubscribeResponse, ZulipError> {
   return client.request(
     {
@@ -100,7 +100,7 @@ export function subscribe(
 
 export function unsubscribe(
   client: ZulipClient,
-  streams: readonly string[],
+  streams: readonly ChannelName[],
 ): ResultAsync<UnsubscribeResponse, ZulipError> {
   return client.request(
     {
@@ -138,7 +138,7 @@ export const TopicVisibility = {
 export function setUserTopic(
   client: ZulipClient,
   streamId: StreamId,
-  topic: string,
+  topic: TopicName,
   visibilityPolicy: UserTopicVisibility,
 ): ResultAsync<SuccessResponse, ZulipError> {
   return client.request(

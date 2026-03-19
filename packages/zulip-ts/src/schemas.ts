@@ -1,13 +1,37 @@
 import { z } from 'zod'
-import type { EventId, MessageId, StreamId, UnixEpochSeconds, UserId } from './tagged-types.ts'
+import type {
+  ChannelName,
+  DisplayName,
+  Email,
+  EventId,
+  MessageId,
+  StreamId,
+  TopicName,
+  UnixEpochSeconds,
+  UserId,
+} from './tagged-types.ts'
 
-export type { EventId, MessageId, StreamId, UnixEpochSeconds, UserId } from './tagged-types.ts'
+export type {
+  ChannelName,
+  DisplayName,
+  Email,
+  EventId,
+  MessageId,
+  StreamId,
+  TopicName,
+  UnixEpochSeconds,
+  UserId,
+} from './tagged-types.ts'
 
 const userId = z.number().transform((n): UserId => n as UserId)
 const messageId = z.number().transform((n): MessageId => n as MessageId)
 const streamId = z.number().transform((n): StreamId => n as StreamId)
 const eventId = z.number().transform((n): EventId => n as EventId)
 const unixEpochSeconds = z.number().transform((n): UnixEpochSeconds => n as UnixEpochSeconds)
+const channelName = z.string().transform((s): ChannelName => s as ChannelName)
+const topicName = z.string().transform((s): TopicName => s as TopicName)
+const email = z.string().transform((s): Email => s as Email)
+const displayName = z.string().transform((s): DisplayName => s as DisplayName)
 
 export const SuccessResponseFields = {
   result: z.literal('success'),
@@ -28,8 +52,8 @@ export type Reaction = z.infer<typeof ReactionSchema>
 const BaseMessageFields = {
   id: messageId,
   sender_id: userId,
-  sender_email: z.string(),
-  sender_full_name: z.string(),
+  sender_email: email,
+  sender_full_name: displayName,
   content: z.string(),
   timestamp: unixEpochSeconds,
   reactions: z.array(ReactionSchema).optional().default([]),
@@ -37,16 +61,16 @@ const BaseMessageFields = {
 
 export const DmRecipientSchema = z.object({
   id: userId,
-  email: z.string(),
-  full_name: z.string(),
+  email: email,
+  full_name: displayName,
 })
 export type DmRecipient = z.infer<typeof DmRecipientSchema>
 
 export const StreamMessageSchema = z.object({
   ...BaseMessageFields,
   type: z.literal('stream'),
-  display_recipient: z.string(),
-  subject: z.string(),
+  display_recipient: channelName,
+  subject: topicName,
 })
 export type StreamMessage = z.infer<typeof StreamMessageSchema>
 
@@ -54,7 +78,7 @@ export const DmMessageSchema = z.object({
   ...BaseMessageFields,
   type: z.literal('private'),
   display_recipient: z.array(DmRecipientSchema),
-  subject: z.string().optional(),
+  subject: topicName.optional(),
 })
 export type DmMessage = z.infer<typeof DmMessageSchema>
 
@@ -86,7 +110,7 @@ export type UpdateMessageResponse = z.infer<typeof UpdateMessageResponseSchema>
 
 export const StreamSchema = z.object({
   stream_id: streamId,
-  name: z.string(),
+  name: channelName,
   description: z.string().optional(),
 })
 export type Stream = z.infer<typeof StreamSchema>
@@ -113,7 +137,7 @@ export type UnsubscribeResponse = z.infer<typeof UnsubscribeResponseSchema>
 
 export const SubscriptionSchema = z.object({
   stream_id: streamId,
-  name: z.string(),
+  name: channelName,
   description: z.string().optional(),
 })
 export type Subscription = z.infer<typeof SubscriptionSchema>
@@ -134,7 +158,7 @@ export const CreateChannelResponseSchema = z.object({
 export type CreateChannelResponse = z.infer<typeof CreateChannelResponseSchema>
 
 export const TopicSchema = z.object({
-  name: z.string(),
+  name: topicName,
   max_id: messageId,
 })
 export type Topic = z.infer<typeof TopicSchema>
@@ -149,9 +173,9 @@ export type GetTopicsResponse = z.infer<typeof GetTopicsResponseSchema>
 
 export const MemberSchema = z.object({
   user_id: userId,
-  email: z.string(),
-  delivery_email: z.string().nullable().optional(),
-  full_name: z.string(),
+  email: email,
+  delivery_email: email.nullable().optional(),
+  full_name: displayName,
   is_bot: z.boolean().optional(),
 })
 export type Member = z.infer<typeof MemberSchema>
@@ -166,8 +190,8 @@ export type GetMembersResponse = z.infer<typeof GetMembersResponseSchema>
 
 export const BotSchema = z.object({
   user_id: userId.optional(),
-  username: z.string(),
-  full_name: z.string(),
+  username: email,
+  full_name: displayName,
   api_key: z.string(),
   bot_type: z.number().optional(),
 })
