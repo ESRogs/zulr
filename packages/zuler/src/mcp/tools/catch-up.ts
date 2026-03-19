@@ -1,8 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import type { ChannelName } from 'zulip-ts'
 import { getSubscriptions, markAsRead } from 'zulip-ts'
-import type { TeammateName } from '../../tagged-types.ts'
 import {
   consumeAllUnreadDmMessages,
   consumeAllUnreadStreamMessages,
@@ -16,6 +14,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zTeammateName,
 } from '../helpers.ts'
 
 export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
@@ -25,7 +24,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       description:
         "Fetch recent messages from all subscribed streams/topics and DMs. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart). Consider reacting to important messages after catching up to signal you've read them.",
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        sender: zTeammateName.describe('Teammate name'),
         maxMessages: z.coerce
           .number()
           .optional()
@@ -43,8 +42,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
           .describe('If true, fetch only unread messages and mark them as read'),
       }),
     },
-    async ({ sender: rawSender, maxMessages, maxHours, unreadOnly }) => {
-      const sender = rawSender as TeammateName
+    async ({ sender, maxMessages, maxHours, unreadOnly }) => {
       const botClientResult = await ctx.getTeammateClient(sender)
       if (botClientResult.isErr()) {
         return errorResult(botClientResult.error)

@@ -9,6 +9,8 @@ import {
   notConfiguredResult,
   type ToolContext,
   textResult,
+  zChannelName,
+  zTopicName,
 } from '../helpers.ts'
 
 const RESOLVED_PREFIX = '✔ '
@@ -43,13 +45,11 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
     {
       description: 'Mark a Zulip topic as resolved (adds ✔ prefix). Use unresolve-topic to undo.',
       inputSchema: z.object({
-        channel: z.string().describe('Channel name'),
-        topic: z.string().describe('Topic name'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName.describe('Topic name'),
       }),
     },
-    async ({ channel: rawChannel, topic: rawTopic }) => {
-      const channel = rawChannel as ChannelName
-      const topic = rawTopic as TopicName
+    async ({ channel, topic }) => {
       if (topic.startsWith(RESOLVED_PREFIX)) {
         return errorResult('topic is already resolved')
       }
@@ -79,13 +79,11 @@ export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext):
     {
       description: 'Remove the resolved (✔) prefix from a Zulip topic.',
       inputSchema: z.object({
-        channel: z.string().describe('Channel name'),
-        topic: z.string().describe('Topic name (with or without ✔ prefix)'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName.describe('Topic name (with or without ✔ prefix)'),
       }),
     },
-    async ({ channel: rawChannel, topic: rawTopic }) => {
-      const channel = rawChannel as ChannelName
-      const topic = rawTopic as TopicName
+    async ({ channel, topic }) => {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
@@ -119,15 +117,13 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       description:
         'Move all messages in a topic to a different channel. Optionally rename the topic during the move via "toTopic".',
       inputSchema: z.object({
-        channel: z.string().describe('Source channel name'),
-        topic: z.string().describe('Topic name'),
+        channel: zChannelName.describe('Source channel name'),
+        topic: zTopicName.describe('Topic name'),
         toChannel: z.string().describe('Destination channel name'),
-        toTopic: z.string().optional().describe('New topic name (defaults to keeping the same)'),
+        toTopic: zTopicName.optional().describe('New topic name (defaults to keeping the same)'),
       }),
     },
-    async ({ channel: rawChannel, topic: rawTopic, toChannel, toTopic: rawToTopic }) => {
-      const channel = rawChannel as ChannelName
-      const topic = rawTopic as TopicName
+    async ({ channel, topic, toChannel, toTopic: rawToTopic }) => {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
@@ -137,7 +133,7 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       const found = await findMessageIdInTopic(client, channel, topic)
       if (found.isErr()) return errorResult(found.error)
 
-      const destTopic = (rawToTopic ?? topic) as TopicName
+      const destTopic = rawToTopic ?? topic
       const result = await updateMessage(client, found.value, {
         streamId: destResult.value.stream_id,
         topic: destTopic,

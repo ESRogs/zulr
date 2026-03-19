@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import type { TeammateName } from '../../tagged-types.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import {
   buildUserIdResolver,
@@ -8,6 +7,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zTeammateName,
 } from '../helpers.ts'
 
 export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
@@ -17,19 +17,19 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
       description:
         'Search Zulip messages by keyword. Optionally scope to a channel and/or topic. Consider searching before asking questions that might already be answered in the history.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name (uses their bot for search)'),
+        sender: zTeammateName.describe('Teammate name (uses their bot for search)'),
         query: z.string().describe('Search query'),
         channel: z.string().optional().describe('Limit search to this channel'),
         topic: z.string().optional().describe('Limit search to this topic (requires channel)'),
         count: z.coerce.number().optional().default(20).describe('Max results (default: 20)'),
       }),
     },
-    async ({ sender: rawSender, query, channel, topic, count }) => {
+    async ({ sender, query, channel, topic, count }) => {
       if (topic && !channel) {
         return errorResult('"topic" requires "channel" to be specified')
       }
 
-      const clientResult = await ctx.getTeammateClient(rawSender as TeammateName)
+      const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const { client, botUserId } = clientResult.value

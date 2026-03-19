@@ -2,11 +2,18 @@ import { basename } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
-import type { ChannelName, Member, TopicName } from 'zulip-ts'
+import type { Member } from 'zulip-ts'
 import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
-import type { TeammateName } from '../../tagged-types.ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  type ToolContext,
+  textResult,
+  zChannelName,
+  zTeammateName,
+  zTopicName,
+} from '../helpers.ts'
 
 export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
   const { teamName } = ctx.config
@@ -17,12 +24,12 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       description:
         'Upload a file to Zulip and optionally share it in a channel or DM. Returns the file URL.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        sender: zTeammateName.describe('Teammate name'),
         path: z
           .string()
           .describe('Local file path to upload (relative paths resolve from repo root)'),
-        channel: z.string().optional().describe('Channel to share the file in'),
-        topic: z.string().optional().describe('Topic to share the file in (requires channel)'),
+        channel: zChannelName.optional().describe('Channel to share the file in'),
+        topic: zTopicName.optional().describe('Topic to share the file in (requires channel)'),
         to: z
           .union([z.number(), z.string()])
           .optional()
@@ -30,10 +37,7 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
         message: z.string().optional().describe('Optional message to include with the file'),
       }),
     },
-    async ({ sender: rawSender, path, channel: rawChannel, topic: rawTopic, to, message }) => {
-      const sender = rawSender as TeammateName
-      const channel = rawChannel as ChannelName | undefined
-      const topic = rawTopic as TopicName | undefined
+    async ({ sender, path, channel, topic, to, message }) => {
       if (topic && !channel) return errorResult('"topic" requires "channel"')
       if (channel && !topic) return errorResult('"channel" requires "topic"')
       if (channel && to !== undefined) {
@@ -119,18 +123,18 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
       description:
         'Download a file from Zulip by its URL path (e.g. /user_uploads/...) and save it locally.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        sender: zTeammateName.describe('Teammate name'),
         url: z.string().describe('Zulip file URL path (e.g. /user_uploads/...)'),
         saveTo: z
           .string()
           .describe('Local path to save the file to (relative paths resolve from repo root)'),
       }),
     },
-    async ({ sender: rawSender, url: rawUrl, saveTo }) => {
+    async ({ sender, url: rawUrl, saveTo }) => {
       // Extract path if a full URL was passed
       const url = rawUrl.startsWith('http') ? new URL(rawUrl).pathname : rawUrl
 
-      const clientResult = await ctx.getTeammateClient(rawSender as TeammateName)
+      const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await downloadFile(clientResult.value.client, url)

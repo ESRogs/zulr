@@ -2,13 +2,13 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { updateSettings } from 'zulip-ts'
 import { registerBot } from '../../bot-manager.ts'
-import type { TeammateName } from '../../tagged-types.ts'
 import {
   errorResult,
   formatError,
   notConfiguredResult,
   type ToolContext,
   textResult,
+  zTeammateName,
 } from '../helpers.ts'
 
 export function registerRegisterTool(server: McpServer, ctx: ToolContext): void {
@@ -18,11 +18,10 @@ export function registerRegisterTool(server: McpServer, ctx: ToolContext): void 
       description:
         'Register a teammate: create or look up a Zulip bot and store credentials. Idempotent — safe to call again if already registered.',
       inputSchema: z.object({
-        name: z.string().describe('Teammate name'),
+        name: zTeammateName.describe('Teammate name'),
       }),
     },
-    async ({ name: rawName }) => {
-      const name = rawName as TeammateName
+    async ({ name }) => {
       const adminClient = ctx.getAdminClient()
       if (!adminClient) {
         return notConfiguredResult()

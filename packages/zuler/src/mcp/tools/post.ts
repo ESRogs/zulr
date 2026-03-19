@@ -1,10 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import type { ChannelName, TopicName } from 'zulip-ts'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
-import type { TeammateName } from '../../tagged-types.ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  type ToolContext,
+  textResult,
+  zChannelName,
+  zTeammateName,
+  zTopicName,
+} from '../helpers.ts'
 
 export function registerPostTool(server: McpServer, ctx: ToolContext): void {
   const { teamName } = ctx.config
@@ -15,21 +21,17 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       description:
         'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". To @-mention a teammate, use @**full name** (e.g. @**scout**) — this auto-subscribes them to the topic. Note: you must read any unread messages in the target topic/DM before posting (use the read or catch-up tool first).',
       inputSchema: z.object({
-        sender: z.string().describe('Name of the registered teammate sending the message'),
+        sender: zTeammateName.describe('Name of the registered teammate sending the message'),
         content: z.string().describe('Message content'),
         to: z
           .union([z.number(), z.string()])
           .optional()
           .describe('User ID, full name, or email for DMs'),
-        channel: z.string().optional().describe('Channel name'),
-        topic: z.string().optional().describe('Topic name'),
+        channel: zChannelName.optional().describe('Channel name'),
+        topic: zTopicName.optional().describe('Topic name'),
       }),
     },
-    async ({ sender: rawSender, content, to, channel: rawChannel, topic: rawTopic }) => {
-      const sender = rawSender as TeammateName
-      const channel = rawChannel as ChannelName | undefined
-      const topic = rawTopic as TopicName | undefined
-
+    async ({ sender, content, to, channel, topic }) => {
       // Pre-flight unread checks before any async work
       if (channel && topic) {
         const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)

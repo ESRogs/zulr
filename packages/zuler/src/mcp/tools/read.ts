@@ -15,6 +15,9 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zChannelName,
+  zTeammateName,
+  zTopicName,
 } from '../helpers.ts'
 
 export function registerReadTool(server: McpServer, ctx: ToolContext): void {
@@ -24,9 +27,9 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       description:
         'Fetch recent messages from a Zulip channel/topic or DM conversation. For channel messages, provide "channel" and "topic". For DMs, provide "user" (ID, name, or email). Uses the sender bot API key and marks fetched messages as read.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name (uses their bot for read tracking)'),
-        channel: z.string().optional().describe('Channel name'),
-        topic: z.string().optional().describe('Topic name'),
+        sender: zTeammateName.describe('Teammate name (uses their bot for read tracking)'),
+        channel: zChannelName.optional().describe('Channel name'),
+        topic: zTopicName.optional().describe('Topic name'),
         user: z
           .union([z.number(), z.string()])
           .optional()
@@ -34,8 +37,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         count: z.coerce.number().optional().default(10).describe('Number of messages to fetch'),
       }),
     },
-    async ({ sender: rawSender, channel: rawChannel, topic: rawTopic, user, count }) => {
-      const sender = rawSender as TeammateName
+    async ({ sender, channel, topic, user, count }) => {
       if (user !== undefined) {
         const resolveResult = await ctx.resolveUser(user)
         if (resolveResult.isErr()) {
@@ -43,8 +45,6 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         }
         return readDms(ctx, sender, resolveResult.value.user_id, count)
       }
-      const channel = rawChannel as ChannelName | undefined
-      const topic = rawTopic as TopicName | undefined
       if (channel && topic) {
         return readStream(ctx, sender, channel, topic, count)
       }

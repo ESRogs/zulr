@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import type { ChannelName } from 'zulip-ts'
 import { archiveStream, createChannel, getTopics, updateChannel } from 'zulip-ts'
 import {
   errorResult,
@@ -8,6 +7,7 @@ import {
   notConfiguredResult,
   type ToolContext,
   textResult,
+  zChannelName,
 } from '../helpers.ts'
 
 export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): void {
@@ -16,12 +16,11 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
     {
       description: 'Create a new Zulip channel.',
       inputSchema: z.object({
-        name: z.string().describe('Channel name'),
+        name: zChannelName.describe('Channel name'),
         description: z.string().optional().describe('Channel description'),
       }),
     },
-    async ({ name: rawName, description }) => {
-      const name = rawName as ChannelName
+    async ({ name, description }) => {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
@@ -53,12 +52,11 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
       description: 'Rename a Zulip channel or update its description.',
       inputSchema: z.object({
         channel: z.string().describe('Current channel name'),
-        name: z.string().optional().describe('New channel name'),
+        name: zChannelName.optional().describe('New channel name'),
         description: z.string().optional().describe('New channel description'),
       }),
     },
-    async ({ channel, name: rawName, description }) => {
-      const newName = rawName as ChannelName | undefined
+    async ({ channel, name: newName, description }) => {
       if (newName === undefined && description === undefined) {
         return errorResult('provide "name" and/or "description" to update')
       }

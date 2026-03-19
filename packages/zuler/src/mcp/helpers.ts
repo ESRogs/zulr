@@ -2,12 +2,29 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { ApiKey, Email, Member, Stream, UserId, ZulipClient } from 'zulip-ts'
+import { z } from 'zod'
+import type {
+  ApiKey,
+  ChannelName,
+  Email,
+  EmojiName,
+  Member,
+  Stream,
+  TopicName,
+  UserId,
+  ZulipClient,
+} from 'zulip-ts'
 import { createClient, getMembers, getStreams } from 'zulip-ts'
 import { clientForTeammate, type TeammateClient } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import type { EventListenerManager } from '../zulip/event-listener.ts'
+
+/** Zod schema transforms that produce tagged types from MCP tool string inputs. */
+export const zTeammateName = z.string().transform((s): TeammateName => s as TeammateName)
+export const zChannelName = z.string().transform((s): ChannelName => s as ChannelName)
+export const zTopicName = z.string().transform((s): TopicName => s as TopicName)
+export const zEmojiName = z.string().transform((s): EmojiName => s as EmojiName)
 
 /** MCP tool response helpers */
 export function textResult(text: string) {
