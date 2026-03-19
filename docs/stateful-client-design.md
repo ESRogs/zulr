@@ -12,6 +12,17 @@ Zuler currently treats the Zulip API as a request-response service: each MCP too
 
 4. **No notification intelligence**: The system can't distinguish between "you were @-mentioned" and "someone posted in a channel you happen to be subscribed to."
 
+## Conventions
+
+`zulip-client-ts` follows the same conventions as the rest of the monorepo:
+
+- **`neverthrow`** Result/ResultAsync for error handling — errors are values, not exceptions
+- **`zod`** for schema validation at external boundaries (Zulip API responses, event payloads)
+- **`type-fest` Tagged** for opaque ID types — `MessageId`, `StreamId`, `UserId` are branded numbers to prevent accidental mixing
+- **Functional style** with standalone functions, not classes. Imperative loops when clearer (e.g. event processing with side effects)
+- **No database** — `zulip-client-ts` is pure in-memory state, no Kysely or SQLite
+- **No web server** — it's a library consumed by `zuler`, not a standalone service
+
 ## Proposed Architecture
 
 ### Three-layer package structure
@@ -30,11 +41,13 @@ Each registered bot gets one `ZulipSession` instance that manages:
 - Registers with `message`, `update_message_flags`, `update_message`, `reaction`, and `user_topic` event types
 - Initial state from `register` includes `unread_msgs` (message IDs grouped by stream/topic)
 - Long-polls for events and updates local state
+- On queue expiration (BAD_EVENT_QUEUE_ID), re-registers and fully resets local state from the new initial state. Events during the re-register gap are recovered via the fresh `unread_msgs` snapshot.
 
 **Local state**
-- **Unread map**: `Map<"streamId:topic", Set<messageId>>` — updated on `message` events (add) and `update_message_flags` events (remove when read flag added)
+- **Unread map (streams)**: `Map<"streamId:topic", Set<MessageId>>` — updated on `message` events (add) and `update_message_flags` events (remove when read flag added)
+- **Unread map (DMs)**: `Map<UserId, Set<MessageId>>` — same update pattern, from the `pms` section of `unread_msgs`
 - **Topic visibility**: `Map<"streamId:topic", VisibilityPolicy>` — updated from `user_topic` events. Values: 0=inherit, 1=muted, 2=unmuted, 3=followed
-- **Members cache**: `Map<userId, Member>` — populated from initial state, updated on `realm_user` events
+- **Members cache**: `Map<UserId, Member>` — populated from initial state, updated on `realm_user` events
 - **Subscriptions**: channel list from initial state, updated on `subscription` events
 
 **Notification trigger evaluation**
@@ -49,20 +62,24 @@ For each incoming message event, determine if it's notification-worthy:
 
 ```ts
 type ZulipSession = {
-  // Unread state
-  getUnreadCount(streamId: number, topic: string): number
-  getUnreadMessageIds(streamId: number, topic: string): readonly number[]
-  hasUnreads(streamId: number, topic: string): boolean
+  // Unread state (streams)
+  getUnreadCount(streamId: StreamId, topic: string): number
+  getUnreadMessageIds(streamId: StreamId, topic: string): readonly MessageId[]
+  hasUnreads(streamId: StreamId, topic: string): boolean
+
+  // Unread state (DMs)
+  getUnreadDmCount(userId: UserId): number
+  hasUnreadDms(userId: UserId): boolean
 
   // Topic state
-  getTopicVisibility(streamId: number, topic: string): VisibilityPolicy
-  isFollowed(streamId: number, topic: string): boolean
+  getTopicVisibility(streamId: StreamId, topic: string): VisibilityPolicy
+  isFollowed(streamId: StreamId, topic: string): boolean
 
   // Notification check
   shouldNotify(message: Message): boolean
 
   // Members
-  resolveUserId(id: number): string | undefined
+  resolveUserId(id: UserId): string | undefined
   resolveName(name: string): Member | undefined
 
   // Lifecycle
@@ -71,15 +88,19 @@ type ZulipSession = {
 }
 ```
 
+`ZulipSession.start()` owns the event loop — it replaces the current `runBotListener` function in zuler's event-listener.ts. The `EventListenerManager` in zuler becomes a session manager: it creates and starts `ZulipSession` instances instead of running event loops directly.
+
 ### Changes to `zuler`
 
-**Inbox delivery**: The event listener uses `session.shouldNotify(message)` to decide whether to write to the Claude Code inbox. Non-notification messages still update the session's unread state silently.
+**Inbox delivery**: The session calls a `zuler`-provided callback when a notification-worthy message arrives. `zuler` writes it to the Claude Code inbox. Non-notification messages update the session's unread state silently — no inbox write.
 
-**`reply` tool** (new): Posts to a channel/topic, but first checks `session.hasUnreads(streamId, topic)`. If unreads exist, returns an error with context:
+**`reply` tool** (new): Posts to a channel/topic or DM, but first checks `session.hasUnreads(streamId, topic)` (or `session.hasUnreadDms(userId)` for DMs). If unreads exist, returns an error with context:
 ```
 You have 5 unread messages in general/project-update (oldest: 2h ago).
 Use `read` to catch up, or use `post` to skip this check.
 ```
+
+The check covers ALL unreads in the topic. Agents use `post` when they want to skip the check (e.g. the "days later" case where accumulated unreads aren't relevant).
 
 **`post` tool** (modified): Posts without any unread check. For new threads or when the agent has context and doesn't need to catch up.
 
@@ -100,15 +121,16 @@ general/project-update
 ### Step 1: `zulip-client-ts` package with unread tracking
 
 Create the new package with `ZulipSession`:
-- Event queue lifecycle (register, long-poll, reconnect)
-- `unread_msgs` from initial state
+- Event queue lifecycle (register, long-poll, reconnect with full state reset)
+- `unread_msgs` from initial state (streams + DMs + mentions)
 - Update unreads on `message` and `update_message_flags` events
-- `getUnreadCount`, `hasUnreads`, `getUnreadMessageIds` query methods
+- `getUnreadCount`, `hasUnreads`, `getUnreadMessageIds`, `getUnreadDmCount`, `hasUnreadDms` query methods
 - Tests with mock event streams
 
 New zulip-ts API additions:
 - Update `registerQueue` to accept `fetch_event_types` and return `unread_msgs` in initial state
 - Parse the `unread_msgs` structure (streams, DMs, mentions)
+- Tagged ID types: `MessageId`, `StreamId`, `UserId`
 
 ### Step 2: Topic visibility tracking + notification logic
 
@@ -121,16 +143,16 @@ Add to `ZulipSession`:
 ### Step 3: Integrate with zuler event listener
 
 Replace the current "deliver everything to inbox" with:
-- Create `ZulipSession` per bot in `EventListenerManager`
-- Use `shouldNotify` to filter inbox delivery
+- `EventListenerManager` creates `ZulipSession` per bot (replaces `runBotListener`)
+- Session calls zuler-provided callback on notification-worthy messages
 - Non-notification messages update session state silently
 - Remove `automatically_follow_topics_where_mentioned` default from registration
 
 ### Step 4: `reply` and `topic-state` tools
 
-- `reply` tool: checks `session.hasUnreads()` before posting
+- `reply` tool: checks `session.hasUnreads()` before posting, covers all unreads in topic
 - `topic-state` tool: queries session for unread count, visibility, last activity
-- Rename or update `post` tool description to clarify it skips unread checks
+- Update `post` tool description to clarify it skips unread checks
 
 ### Step 5: Local read optimization (optional)
 
@@ -146,4 +168,10 @@ Replace the current "deliver everything to inbox" with:
 
 **`reply` vs `post` instead of `force` param**: Separate tools with clear semantics are more discoverable than a boolean flag. Agents naturally reach for `reply` in conversation and `post` for announcements.
 
+**`reply` checks all unreads, not just recent**: Simpler and more transparent. The error message tells agents the count and age, and `post` provides the escape hatch. Avoids the complexity of tracking "last activity per topic" with fuzzy semantics.
+
 **Unread state is Zulip-native**: Tracked via Zulip's own unread_msgs + event updates. No custom SQLite tables or inbox-based approximations.
+
+**Tagged ID types**: `MessageId`, `StreamId`, `UserId` are branded numbers (via type-fest Tagged) to prevent accidental mixing at function boundaries.
+
+**Full state reset on reconnection**: When the event queue expires, the session re-registers and replaces all local state from the fresh initial snapshot. Simple and correct — avoids incremental patching of potentially stale state.
