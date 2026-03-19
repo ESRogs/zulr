@@ -14,6 +14,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zTeammateName,
 } from '../helpers.ts'
 
 export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
@@ -23,7 +24,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       description:
         "Fetch recent messages from all subscribed streams/topics and DMs. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart). Consider reacting to important messages after catching up to signal you've read them.",
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        sender: zTeammateName.describe('Teammate name'),
         maxMessages: z.coerce
           .number()
           .optional()
@@ -92,8 +93,8 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       const allFetched = mergeWithInbox(zulipMessages, inboxFormatted)
 
       // Filter out group DMs (not supported yet)
-      const groupDmCount = allFetched.filter((m) => m.isGroupDm).length
-      const merged = allFetched.filter((m) => !m.isGroupDm)
+      const groupDmCount = allFetched.filter((m) => m.type === 'dm' && m.isGroupDm).length
+      const merged = allFetched.filter((m) => !(m.type === 'dm' && m.isGroupDm))
 
       // Apply time filter and count how many were excluded
       const timeFiltered = merged.filter((msg) => msg.timestamp >= cutoff)

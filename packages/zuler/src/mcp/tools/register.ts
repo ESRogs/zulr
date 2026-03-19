@@ -8,6 +8,7 @@ import {
   notConfiguredResult,
   type ToolContext,
   textResult,
+  zTeammateName,
 } from '../helpers.ts'
 
 export function registerRegisterTool(server: McpServer, ctx: ToolContext): void {
@@ -17,7 +18,7 @@ export function registerRegisterTool(server: McpServer, ctx: ToolContext): void 
       description:
         'Register a teammate: create or look up a Zulip bot and store credentials. Idempotent — safe to call again if already registered.',
       inputSchema: z.object({
-        name: z.string().describe('Teammate name'),
+        name: zTeammateName.describe('Teammate name'),
       }),
     },
     async ({ name }) => {

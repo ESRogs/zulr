@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Kysely } from 'kysely'
+import type { ApiKey, Email } from 'zulip-ts'
+import type { TeammateName } from '../tagged-types.ts'
 import { createDatabase, type ZulerDatabase } from './db.ts'
 import { getTeammate, listTeammates, registerTeammate } from './teammates.ts'
 
@@ -14,16 +16,16 @@ afterEach(async () => {
 })
 
 const alice = {
-  name: 'alice',
-  botEmail: 'alice-bot@test.zulipchat.com',
-  apiKey: 'key-alice',
+  name: 'alice' as TeammateName,
+  botEmail: 'alice-bot@test.zulipchat.com' as Email,
+  apiKey: 'key-alice' as ApiKey,
   botUserId: null,
 }
 
 const bob = {
-  name: 'bob',
-  botEmail: 'bob-bot@test.zulipchat.com',
-  apiKey: 'key-bob',
+  name: 'bob' as TeammateName,
+  botEmail: 'bob-bot@test.zulipchat.com' as Email,
+  apiKey: 'key-bob' as ApiKey,
   botUserId: null,
 }
 
@@ -31,7 +33,7 @@ test('registerTeammate and getTeammate', async () => {
   const result = await registerTeammate(db, alice)
   expect(result.isOk()).toBe(true)
 
-  const fetched = await getTeammate(db, 'alice')
+  const fetched = await getTeammate(db, 'alice' as TeammateName)
   expect(fetched.isOk()).toBe(true)
   expect(fetched._unsafeUnwrap()).toEqual(alice)
 })
@@ -44,7 +46,7 @@ test('registerTeammate rejects duplicate', async () => {
 })
 
 test('getTeammate returns not_found', async () => {
-  const result = await getTeammate(db, 'nobody')
+  const result = await getTeammate(db, 'nobody' as TeammateName)
   expect(result.isErr()).toBe(true)
   expect(result._unsafeUnwrapErr().type).toBe('not_found')
 })

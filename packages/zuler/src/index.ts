@@ -2,11 +2,16 @@ import { appendFileSync } from 'node:fs'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
+import type { TeamName } from './tagged-types.ts'
 import { createEventListenerManager } from './zulip/event-listener.ts'
 
 const t0 = performance.now()
 
-const teamName = process.env.ZULER_TEAM ?? 'default'
+const rawTeamName = process.env.ZULER_TEAM ?? 'default'
+if (rawTeamName.length === 0) {
+  throw new Error('ZULER_TEAM must not be empty')
+}
+const teamName = rawTeamName as TeamName
 const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
 
 const logFile = `${stateDir(repoRoot)}/zuler.log`

@@ -1,30 +1,53 @@
 import { okAsync, type ResultAsync } from 'neverthrow'
-import type { GetMessagesParams, Message, Reaction, ZulipClient, ZulipError } from 'zulip-ts'
+import type {
+  ChannelName,
+  DisplayName,
+  EmojiName,
+  GetMessagesParams,
+  Message,
+  MessageId,
+  Reaction,
+  TopicName,
+  UnixEpochSeconds,
+  UserId,
+  ZulipClient,
+  ZulipError,
+} from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
 
 export type FormattedReaction = {
-  readonly emoji: string
+  readonly emoji: EmojiName
   readonly users: readonly string[]
 }
 
-export type FormattedMessage = {
-  readonly id: number
-  readonly stream: string
-  readonly topic: string
-  readonly sender: string
+type SharedMessageFields = {
+  readonly id: MessageId
+  readonly sender: DisplayName
   readonly content: string
-  readonly timestamp: number
-  readonly dmWith?: string
-  readonly isGroupDm?: boolean
+  readonly timestamp: UnixEpochSeconds
   readonly reactions?: readonly FormattedReaction[]
 }
+
+export type FormattedStreamMessage = SharedMessageFields & {
+  readonly type: 'stream'
+  readonly stream: ChannelName
+  readonly topic: TopicName
+}
+
+export type FormattedDmMessage = SharedMessageFields & {
+  readonly type: 'dm'
+  readonly dmWith: string
+  readonly isGroupDm: boolean
+}
+
+export type FormattedMessage = FormattedStreamMessage | FormattedDmMessage
 
 /** Group raw reactions by emoji name, resolving user IDs to names. */
 function aggregateReactions(
   raw: readonly Reaction[],
-  resolveUserId?: (id: number) => string | undefined,
+  resolveUserId?: (id: UserId) => string | undefined,
 ): FormattedReaction[] {
-  const byEmoji = new Map<string, string[]>()
+  const byEmoji = new Map<EmojiName, string[]>()
   for (const r of raw) {
     const name = resolveUserId?.(r.user_id) ?? `user ${r.user_id}`
     const existing = byEmoji.get(r.emoji_name)
@@ -40,7 +63,7 @@ function aggregateReactions(
 /** Build the reactions field for a FormattedMessage, returning undefined when empty. */
 function formatReactionsField(
   msg: Message,
-  resolveUserId?: (id: number) => string | undefined,
+  resolveUserId?: (id: UserId) => string | undefined,
 ): FormattedReaction[] | undefined {
   if (msg.reactions.length === 0) return undefined
   const reactions = msg.reactions
@@ -53,10 +76,10 @@ export function fetchMessages(
   params: GetMessagesParams,
   options?: {
     markRead?: boolean
-    streamFallback?: string
-    topicFallback?: string
-    botUserId?: number | null
-    resolveUserId?: (id: number) => string | undefined
+    streamFallback?: ChannelName
+    topicFallback?: TopicName
+    botUserId?: UserId | null
+    resolveUserId?: (id: UserId) => string | undefined
   },
 ): ResultAsync<readonly FormattedMessage[], ZulipError> {
   const { markRead = true, streamFallback, topicFallback, botUserId, resolveUserId } = options ?? {}
@@ -65,9 +88,10 @@ export function fetchMessages(
     const messages: FormattedMessage[] = res.messages.map((msg) => {
       if (msg.type === 'stream') {
         return {
+          type: 'stream' as const,
           id: msg.id,
-          stream: msg.display_recipient || (streamFallback ?? ''),
-          topic: msg.subject || (topicFallback ?? ''),
+          stream: msg.display_recipient || (streamFallback ?? ('' as ChannelName)),
+          topic: msg.subject || (topicFallback ?? ('' as TopicName)),
           sender: msg.sender_full_name,
           content: msg.content,
           timestamp: msg.timestamp,
@@ -75,19 +99,18 @@ export function fetchMessages(
         }
       }
       // DM — extract the other participants (exclude the bot making the API call)
-      // If botUserId is unknown, skip enrichment rather than guessing wrong
+      // If botUserId is unknown, include all participants rather than guessing
       const others =
         botUserId != null
           ? msg.display_recipient.filter((r) => r.id !== botUserId).map((r) => r.full_name)
-          : []
+          : msg.display_recipient.map((r) => r.full_name)
       return {
+        type: 'dm' as const,
         id: msg.id,
-        stream: '',
-        topic: '',
         sender: msg.sender_full_name,
         content: msg.content,
         timestamp: msg.timestamp,
-        dmWith: others.length > 0 ? others.join(', ') : undefined,
+        dmWith: others.length > 0 ? others.join(', ') : (msg.sender_full_name as string),
         isGroupDm: msg.display_recipient.length > 2,
         reactions: formatReactionsField(msg, resolveUserId),
       }
@@ -106,7 +129,7 @@ export function fetchMessages(
 
 const MSG_FOOTER_RE = /\n\[msg:\d+ ts:[^\]]+\]$/
 
-export function formatMessageFooter(id: number, timestamp: number): string {
+export function formatMessageFooter(id: MessageId, timestamp: UnixEpochSeconds): string {
   const ts = new Date(timestamp * 1000).toISOString()
   return `[msg:${id} ts:${ts}]`
 }
@@ -122,11 +145,8 @@ export function formatMessages(
   return messages
     .map((msg) => {
       const dt = new Date(msg.timestamp * 1000).toISOString()
-      const location = msg.stream
-        ? `${msg.stream}/${msg.topic}`
-        : msg.dmWith
-          ? `DM with ${msg.dmWith}`
-          : 'DM'
+      const location =
+        msg.type === 'stream' ? `${msg.stream}/${msg.topic}` : `DM with ${msg.dmWith}`
       const prefix = includeLocation ? `${location} — ` : ''
       const reactionsLine = msg.reactions
         ? `\n  reactions: ${msg.reactions.map((r) => `:${r.emoji}: ${r.users.join(', ')}`).join('  ')}`

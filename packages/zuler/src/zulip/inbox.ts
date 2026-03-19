@@ -1,6 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type {
+  ChannelName,
+  DisplayName,
+  MessageId,
+  TopicName,
+  UnixEpochSeconds,
+  UserId,
+} from 'zulip-ts'
+import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { type FormattedMessage, stripMessageFooter } from './message-reader.ts'
 
 type InboxMessage = {
@@ -9,22 +18,22 @@ type InboxMessage = {
   readonly summary: string
   readonly timestamp: string
   readonly read: boolean
-  readonly zulipMessageId?: number
-  readonly zulipSenderId?: number
-  readonly zulipStream?: string
-  readonly zulipTopic?: string
-  readonly zulipSender?: string
+  readonly zulipMessageId?: MessageId
+  readonly zulipSenderId?: UserId
+  readonly zulipStream?: ChannelName
+  readonly zulipTopic?: TopicName
+  readonly zulipSender?: DisplayName
 }
 
 type InboxEntry = Omit<InboxMessage, 'timestamp' | 'read'>
 
 /** Resolve the inbox directory for a given team name. */
-export function inboxDir(teamName: string): string {
+export function inboxDir(teamName: TeamName): string {
   return join(homedir(), '.claude', 'teams', teamName, 'inboxes')
 }
 
 /** Resolve the inbox file path for a teammate within a team. */
-export function inboxPath(teamName: string, teammate: string): string {
+export function inboxPath(teamName: TeamName, teammate: TeammateName): string {
   return join(inboxDir(teamName), `${teammate}.json`)
 }
 
@@ -39,12 +48,12 @@ function loadInbox(path: string): InboxMessage[] {
 }
 
 /** Read all messages from a teammate's inbox file. */
-export function readInbox(teamName: string, teammate: string): readonly InboxMessage[] {
+export function readInbox(teamName: TeamName, teammate: TeammateName): readonly InboxMessage[] {
   return loadInbox(inboxPath(teamName, teammate))
 }
 
 /** Append a message to a teammate's inbox file. */
-export function writeToInbox(teamName: string, teammate: string, entry: InboxEntry): void {
+export function writeToInbox(teamName: TeamName, teammate: TeammateName, entry: InboxEntry): void {
   const dir = inboxDir(teamName)
   mkdirSync(dir, { recursive: true })
 
@@ -84,10 +93,10 @@ function consumeMatching(
 
 /** Consume unread inbox messages matching a stream/topic. */
 export function consumeUnreadInboxMessages(
-  teamName: string,
-  teammate: string,
-  stream: string,
-  topic: string,
+  teamName: TeamName,
+  teammate: TeammateName,
+  stream: ChannelName,
+  topic: TopicName,
 ): readonly InboxMessage[] {
   return consumeMatching(
     inboxPath(teamName, teammate),
@@ -97,17 +106,17 @@ export function consumeUnreadInboxMessages(
 
 /** Consume all unread inbox messages from Zulip stream sources (not DMs). */
 export function consumeAllUnreadStreamMessages(
-  teamName: string,
-  teammate: string,
+  teamName: TeamName,
+  teammate: TeammateName,
 ): readonly InboxMessage[] {
   return consumeMatching(inboxPath(teamName, teammate), (m) => !!m.zulipStream)
 }
 
 /** Consume unread DMs from a specific user in a teammate's inbox. */
 export function consumeUnreadDmMessages(
-  teamName: string,
-  teammate: string,
-  fromUserId: number,
+  teamName: TeamName,
+  teammate: TeammateName,
+  fromUserId: UserId,
 ): readonly InboxMessage[] {
   return consumeMatching(
     inboxPath(teamName, teammate),
@@ -117,8 +126,8 @@ export function consumeUnreadDmMessages(
 
 /** Consume all unread DMs in a teammate's inbox (any sender). */
 export function consumeAllUnreadDmMessages(
-  teamName: string,
-  teammate: string,
+  teamName: TeamName,
+  teammate: TeammateName,
 ): readonly InboxMessage[] {
   return consumeMatching(
     inboxPath(teamName, teammate),
@@ -128,26 +137,27 @@ export function consumeAllUnreadDmMessages(
 
 /** Convert inbox messages to FormattedMessage for merging with Zulip API results. */
 export function inboxToFormattedMessages(messages: readonly InboxMessage[]): FormattedMessage[] {
-  return messages.flatMap((m) => {
+  return messages.flatMap((m): FormattedMessage[] => {
     if (!m.zulipSender) return []
-    // Stream messages need stream+topic; DMs just need sender
-    const isStream = !!m.zulipStream && !!m.zulipTopic
-    const isDm = !m.zulipStream && m.zulipSenderId !== undefined
-    if (!isStream && !isDm) return []
-    return [
-      {
-        id: m.zulipMessageId ?? -(Date.parse(m.timestamp) || 0),
-        stream: m.zulipStream ?? '',
-        topic: m.zulipTopic ?? '',
-        sender: m.zulipSender,
-        content: stripMessageFooter(m.text),
-        timestamp: (Date.parse(m.timestamp) || 0) / 1000,
-        // Inbox only contains inbound messages, so zulipSender is the other party.
-        // isGroupDm can't be determined from inbox data (no participant list);
-        // group DMs are not routed to inbox by the event listener.
-        ...(isDm ? { dmWith: m.zulipSender, isGroupDm: false } : {}),
-      },
-    ]
+    const id = (m.zulipMessageId ?? -(Date.parse(m.timestamp) || 0)) as MessageId
+    const timestamp = ((Date.parse(m.timestamp) || 0) / 1000) as UnixEpochSeconds
+    const shared = {
+      id,
+      sender: m.zulipSender,
+      content: stripMessageFooter(m.text),
+      timestamp,
+    }
+
+    if (m.zulipStream && m.zulipTopic) {
+      return [{ ...shared, type: 'stream' as const, stream: m.zulipStream, topic: m.zulipTopic }]
+    }
+    if (m.zulipSenderId !== undefined) {
+      // Inbox only contains inbound messages, so zulipSender is the other party.
+      // isGroupDm can't be determined from inbox data (no participant list);
+      // group DMs are not routed to inbox by the event listener.
+      return [{ ...shared, type: 'dm' as const, dmWith: m.zulipSender as string, isGroupDm: false }]
+    }
+    return []
   })
 }
 

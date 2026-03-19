@@ -7,6 +7,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zTeammateName,
 } from '../helpers.ts'
 
 export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
@@ -16,7 +17,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
       description:
         'Search Zulip messages by keyword. Optionally scope to a channel and/or topic. Consider searching before asking questions that might already be answered in the history.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name (uses their bot for search)'),
+        sender: zTeammateName.describe('Teammate name (uses their bot for search)'),
         query: z.string().describe('Search query'),
         channel: z.string().optional().describe('Limit search to this channel'),
         topic: z.string().optional().describe('Limit search to this topic (requires channel)'),

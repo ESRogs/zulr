@@ -7,6 +7,7 @@ import {
   notConfiguredResult,
   type ToolContext,
   textResult,
+  zChannelName,
 } from '../helpers.ts'
 
 export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): void {
@@ -15,7 +16,7 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
     {
       description: 'Create a new Zulip channel.',
       inputSchema: z.object({
-        name: z.string().describe('Channel name'),
+        name: zChannelName.describe('Channel name'),
         description: z.string().optional().describe('Channel description'),
       }),
     },
@@ -51,12 +52,12 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
       description: 'Rename a Zulip channel or update its description.',
       inputSchema: z.object({
         channel: z.string().describe('Current channel name'),
-        name: z.string().optional().describe('New channel name'),
+        name: zChannelName.optional().describe('New channel name'),
         description: z.string().optional().describe('New channel description'),
       }),
     },
-    async ({ channel, name, description }) => {
-      if (name === undefined && description === undefined) {
+    async ({ channel, name: newName, description }) => {
+      if (newName === undefined && description === undefined) {
         return errorResult('provide "name" and/or "description" to update')
       }
 
@@ -67,7 +68,7 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
       const result = await updateChannel(client, streamResult.value.stream_id, {
-        newName: name,
+        newName,
         description,
       })
 
@@ -75,7 +76,7 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
         () => {
           ctx.invalidateChannelsCache()
           const changes = [
-            name !== undefined ? `renamed to "${name}"` : '',
+            newName !== undefined ? `renamed to "${newName}"` : '',
             description !== undefined ? 'description updated' : '',
           ]
             .filter(Boolean)

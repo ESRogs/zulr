@@ -1,16 +1,25 @@
 import type { Kysely } from 'kysely'
-import type { ZulipClient } from 'zulip-ts'
+import type {
+  DisplayName,
+  Email,
+  EmojiName,
+  EventId,
+  MessageId,
+  UserId,
+  ZulipClient,
+} from 'zulip-ts'
 import { getEvents, getMembers, getMessages, markAsRead, registerQueue } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates, type Teammate } from '../state/teammates.ts'
+import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
 import { routeDm, sanitizeSummary, truncate } from './routing.ts'
 
 type EventListenerManagerOptions = {
   readonly db: Kysely<ZulerDatabase>
-  readonly teamName: string
+  readonly teamName: TeamName
   readonly site: string
   /** Called on each successfully routed message for logging/debugging. */
   readonly onRoute?: (info: {
@@ -24,7 +33,7 @@ type EventListenerManagerOptions = {
     readonly emoji: string
     readonly op: 'add' | 'remove'
     readonly reactorName: string
-    readonly messageId: number
+    readonly messageId: MessageId
     readonly deliveredTo: readonly string[]
   }) => void
   /** Called on errors for logging. Listener continues after errors. */
@@ -41,13 +50,13 @@ const RETRY_DELAY_MS = 5000
  */
 async function handleReaction(
   client: ZulipClient,
-  teamName: string,
-  botName: string,
-  botEmail: string,
-  messageId: number,
-  reactorUserId: number,
-  emojiName: string,
-  resolveUserName: (userId: number) => Promise<string>,
+  teamName: TeamName,
+  botName: TeammateName,
+  botEmail: Email,
+  messageId: MessageId,
+  reactorUserId: UserId,
+  emojiName: EmojiName,
+  resolveUserName: (userId: UserId) => Promise<DisplayName>,
   onReaction?: EventListenerManagerOptions['onReaction'],
   onError?: (error: unknown) => void,
 ): Promise<void> {
@@ -107,16 +116,16 @@ async function handleReaction(
  * using the bot's client and long-polls for events.
  */
 async function runBotListener(
-  botName: string,
+  botName: TeammateName,
   botClient: ZulipClient,
-  botEmail: string,
-  allBotEmails: ReadonlySet<string>,
+  botEmail: Email,
+  allBotEmails: ReadonlySet<Email>,
   options: EventListenerManagerOptions,
 ): Promise<void> {
   const { db, teamName, onRoute, onReaction, onError, signal } = options
-  let membersMap: Map<number, string> | null = null
+  let membersMap: Map<UserId, DisplayName> | null = null
 
-  async function resolveUserName(userId: number): Promise<string> {
+  async function resolveUserName(userId: UserId): Promise<DisplayName> {
     if (membersMap) {
       const name = membersMap.get(userId)
       if (name) return name
@@ -124,9 +133,9 @@ async function runBotListener(
     const result = await getMembers(botClient)
     if (result.isOk()) {
       membersMap = new Map(result.value.members.map((m) => [m.user_id, m.full_name]))
-      return membersMap.get(userId) ?? `user ${userId}`
+      return membersMap.get(userId) ?? (`user ${userId}` as DisplayName)
     }
-    return `user ${userId}`
+    return `user ${userId}` as DisplayName
   }
 
   while (!signal?.aborted) {
@@ -139,7 +148,7 @@ async function runBotListener(
     }
 
     const { queue_id: queueId, last_event_id: initialLastEventId } = regResult.value
-    let lastEventId = initialLastEventId
+    let lastEventId: EventId = initialLastEventId
 
     while (!signal?.aborted) {
       const eventsResult = await getEvents(botClient, { queueId, lastEventId })
@@ -242,7 +251,7 @@ async function runBotListener(
  */
 export type EventListenerManager = {
   /** Start a listener for a specific bot by name. No-op if already running. */
-  readonly startBot: (name: string) => Promise<void>
+  readonly startBot: (name: TeammateName) => Promise<void>
   /** Start listeners for all registered bots. */
   readonly startAll: () => Promise<void>
 }
@@ -250,19 +259,19 @@ export type EventListenerManager = {
 export function createEventListenerManager(
   options: EventListenerManagerOptions,
 ): EventListenerManager {
-  const running = new Set<string>()
+  const running = new Set<TeammateName>()
   /** Cached set of all bot emails for bot-to-bot DM blocking. Refreshed on startAll/startBot. */
-  let allBotEmails = new Set<string>()
+  let allBotEmails = new Set<Email>()
 
   async function refreshBotEmails(): Promise<readonly Teammate[]> {
     const result = await listTeammates(options.db)
     if (result.isErr()) return []
     const teammates = result.value
-    allBotEmails = new Set(teammates.map((t) => t.botEmail))
+    allBotEmails = new Set<Email>(teammates.map((t) => t.botEmail))
     return teammates
   }
 
-  async function startBot(name: string): Promise<void> {
+  async function startBot(name: TeammateName): Promise<void> {
     if (running.has(name)) return
 
     const clientResult = await clientForTeammate(options.db, options.site, name)

@@ -1,7 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getSubscriptions, setUserTopic, subscribe, TopicVisibility, unsubscribe } from 'zulip-ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  type ToolContext,
+  textResult,
+  zChannelName,
+  zTeammateName,
+  zTopicName,
+} from '../helpers.ts'
 
 export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -10,10 +18,9 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
       description:
         'Subscribe a teammate to a channel, or follow a specific topic within a channel the teammate is already subscribed to.',
       inputSchema: z.object({
-        teammate: z.string().describe('Teammate name'),
-        channel: z.string().describe('Channel name'),
-        topic: z
-          .string()
+        teammate: zTeammateName.describe('Teammate name'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName
           .optional()
           .describe('Topic name (follow this topic — requires channel subscription)'),
       }),
@@ -57,10 +64,9 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
       description:
         'Unsubscribe a teammate from a channel, or unfollow a specific topic within a channel.',
       inputSchema: z.object({
-        teammate: z.string().describe('Teammate name'),
-        channel: z.string().describe('Channel name'),
-        topic: z
-          .string()
+        teammate: zTeammateName.describe('Teammate name'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName
           .optional()
           .describe('Topic name (unfollow this topic — keeps channel subscription)'),
       }),
@@ -101,7 +107,7 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
     {
       description: "List a teammate's current channel subscriptions on Zulip.",
       inputSchema: z.object({
-        teammate: z.string().describe('Teammate name'),
+        teammate: zTeammateName.describe('Teammate name'),
       }),
     },
     async ({ teammate }) => {

@@ -64,4 +64,18 @@ export {
   unsubscribe,
   updateChannel,
 } from './streams.ts'
+export type {
+  ApiKey,
+  ChannelName,
+  DisplayName,
+  Email,
+  EmojiName,
+  EventId,
+  MessageId,
+  QueueId,
+  StreamId,
+  TopicName,
+  UnixEpochSeconds,
+  UserId,
+} from './tagged-types.ts'
 export { getMembers, updateSettings } from './users.ts'

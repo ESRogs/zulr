@@ -5,7 +5,15 @@ import { z } from 'zod'
 import type { Member } from 'zulip-ts'
 import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  type ToolContext,
+  textResult,
+  zChannelName,
+  zTeammateName,
+  zTopicName,
+} from '../helpers.ts'
 
 export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
   const { teamName } = ctx.config
@@ -16,12 +24,12 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       description:
         'Upload a file to Zulip and optionally share it in a channel or DM. Returns the file URL.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        sender: zTeammateName.describe('Teammate name'),
         path: z
           .string()
           .describe('Local file path to upload (relative paths resolve from repo root)'),
-        channel: z.string().optional().describe('Channel to share the file in'),
-        topic: z.string().optional().describe('Topic to share the file in (requires channel)'),
+        channel: zChannelName.optional().describe('Channel to share the file in'),
+        topic: zTopicName.optional().describe('Topic to share the file in (requires channel)'),
         to: z
           .union([z.number(), z.string()])
           .optional()
@@ -115,7 +123,7 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
       description:
         'Download a file from Zulip by its URL path (e.g. /user_uploads/...) and save it locally.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name'),
+        sender: zTeammateName.describe('Teammate name'),
         url: z.string().describe('Zulip file URL path (e.g. /user_uploads/...)'),
         saveTo: z
           .string()

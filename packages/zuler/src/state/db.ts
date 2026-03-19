@@ -4,12 +4,14 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Kysely } from 'kysely'
 import { BunSqliteDialect } from 'kysely-bun-sqlite'
+import type { ApiKey, Email, UserId } from 'zulip-ts'
+import type { TeammateName } from '../tagged-types.ts'
 
 type TeammatesTable = {
-  name: string
-  bot_email: string
-  api_key: string
-  bot_user_id: number | null
+  name: TeammateName
+  bot_email: Email
+  api_key: ApiKey
+  bot_user_id: UserId | null
 }
 
 type ZulerDatabase = {

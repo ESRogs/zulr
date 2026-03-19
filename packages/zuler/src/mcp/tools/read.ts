@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { markAsRead } from 'zulip-ts'
+import { type ChannelName, markAsRead, type TopicName, type UserId } from 'zulip-ts'
+import type { TeammateName } from '../../tagged-types.ts'
 import {
   consumeUnreadDmMessages,
   consumeUnreadInboxMessages,
@@ -14,6 +15,9 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zChannelName,
+  zTeammateName,
+  zTopicName,
 } from '../helpers.ts'
 
 export function registerReadTool(server: McpServer, ctx: ToolContext): void {
@@ -23,9 +27,9 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       description:
         'Fetch recent messages from a Zulip channel/topic or DM conversation. For channel messages, provide "channel" and "topic". For DMs, provide "user" (ID, name, or email). Uses the sender bot API key and marks fetched messages as read.',
       inputSchema: z.object({
-        sender: z.string().describe('Teammate name (uses their bot for read tracking)'),
-        channel: z.string().optional().describe('Channel name'),
-        topic: z.string().optional().describe('Topic name'),
+        sender: zTeammateName.describe('Teammate name (uses their bot for read tracking)'),
+        channel: zChannelName.optional().describe('Channel name'),
+        topic: zTopicName.optional().describe('Topic name'),
         user: z
           .union([z.number(), z.string()])
           .optional()
@@ -51,9 +55,9 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
 
 async function readStream(
   ctx: ToolContext,
-  sender: string,
-  stream: string,
-  topic: string,
+  sender: TeammateName,
+  stream: ChannelName,
+  topic: TopicName,
   count: number,
 ) {
   const botClientResult = await ctx.getTeammateClient(sender)
@@ -115,7 +119,7 @@ async function readStream(
   return textResult(body)
 }
 
-async function readDms(ctx: ToolContext, sender: string, userId: number, count: number) {
+async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, count: number) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)

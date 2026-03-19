@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
-import type { ZulipClient } from 'zulip-ts'
+import type { ChannelName, MessageId, TopicName, ZulipClient } from 'zulip-ts'
 import { getMessages, updateMessage } from 'zulip-ts'
 import {
   errorResult,
@@ -9,6 +9,8 @@ import {
   notConfiguredResult,
   type ToolContext,
   textResult,
+  zChannelName,
+  zTopicName,
 } from '../helpers.ts'
 
 const RESOLVED_PREFIX = '✔ '
@@ -16,9 +18,9 @@ const RESOLVED_PREFIX = '✔ '
 /** Find any message ID in a topic (needed for updateMessage). */
 function findMessageIdInTopic(
   client: ZulipClient,
-  channel: string,
-  topic: string,
-): ResultAsync<number, string> {
+  channel: ChannelName,
+  topic: TopicName,
+): ResultAsync<MessageId, string> {
   return getMessages(client, {
     anchor: 'newest',
     numBefore: 1,
@@ -43,8 +45,8 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
     {
       description: 'Mark a Zulip topic as resolved (adds ✔ prefix). Use unresolve-topic to undo.',
       inputSchema: z.object({
-        channel: z.string().describe('Channel name'),
-        topic: z.string().describe('Topic name'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName.describe('Topic name'),
       }),
     },
     async ({ channel, topic }) => {
@@ -59,7 +61,7 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
       if (found.isErr()) return errorResult(found.error)
 
       const result = await updateMessage(client, found.value, {
-        topic: `${RESOLVED_PREFIX}${topic}`,
+        topic: `${RESOLVED_PREFIX}${topic}` as TopicName,
         propagateMode: 'change_all',
       })
 
@@ -77,18 +79,20 @@ export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext):
     {
       description: 'Remove the resolved (✔) prefix from a Zulip topic.',
       inputSchema: z.object({
-        channel: z.string().describe('Channel name'),
-        topic: z.string().describe('Topic name (with or without ✔ prefix)'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName.describe('Topic name (with or without ✔ prefix)'),
       }),
     },
     async ({ channel, topic }) => {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const resolvedTopic = topic.startsWith(RESOLVED_PREFIX) ? topic : `${RESOLVED_PREFIX}${topic}`
-      const unresolvedTopic = topic.startsWith(RESOLVED_PREFIX)
-        ? topic.slice(RESOLVED_PREFIX.length)
-        : topic
+      const resolvedTopic = (
+        topic.startsWith(RESOLVED_PREFIX) ? topic : `${RESOLVED_PREFIX}${topic}`
+      ) as TopicName
+      const unresolvedTopic = (
+        topic.startsWith(RESOLVED_PREFIX) ? topic.slice(RESOLVED_PREFIX.length) : topic
+      ) as TopicName
 
       const found = await findMessageIdInTopic(client, channel, resolvedTopic)
       if (found.isErr()) return errorResult(found.error)
@@ -113,13 +117,13 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       description:
         'Move all messages in a topic to a different channel. Optionally rename the topic during the move via "toTopic".',
       inputSchema: z.object({
-        channel: z.string().describe('Source channel name'),
-        topic: z.string().describe('Topic name'),
+        channel: zChannelName.describe('Source channel name'),
+        topic: zTopicName.describe('Topic name'),
         toChannel: z.string().describe('Destination channel name'),
-        toTopic: z.string().optional().describe('New topic name (defaults to keeping the same)'),
+        toTopic: zTopicName.optional().describe('New topic name (defaults to keeping the same)'),
       }),
     },
-    async ({ channel, topic, toChannel, toTopic }) => {
+    async ({ channel, topic, toChannel, toTopic: rawToTopic }) => {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
@@ -129,7 +133,7 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       const found = await findMessageIdInTopic(client, channel, topic)
       if (found.isErr()) return errorResult(found.error)
 
-      const destTopic = toTopic ?? topic
+      const destTopic = rawToTopic ?? topic
       const result = await updateMessage(client, found.value, {
         streamId: destResult.value.stream_id,
         topic: destTopic,

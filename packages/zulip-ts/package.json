@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "neverthrow": "^8.2.0",
+    "type-fest": "^5.5.0",
     "zod": "^4.3.6"
   }
 }

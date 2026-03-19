@@ -6,6 +6,7 @@ import {
   type RegisterQueueResponse,
   RegisterQueueResponseSchema,
 } from './schemas.ts'
+import type { EventId, QueueId } from './tagged-types.ts'
 
 export type RegisterQueueParams = {
   readonly eventTypes: readonly string[]
@@ -30,8 +31,8 @@ export function registerQueue(
 }
 
 export type GetEventsParams = {
-  readonly queueId: string
-  readonly lastEventId: number
+  readonly queueId: QueueId
+  readonly lastEventId: EventId
 }
 
 export function getEvents(

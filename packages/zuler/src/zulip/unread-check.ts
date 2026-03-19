@@ -1,3 +1,5 @@
+import type { ChannelName, TopicName, UserId } from 'zulip-ts'
+import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { readInbox } from './inbox.ts'
 
 /**
@@ -6,10 +8,10 @@ import { readInbox } from './inbox.ts'
  * zulipStream and zulipTopic fields (case-sensitive).
  */
 export function countUnreadFromTopic(
-  teamName: string,
-  teammate: string,
-  stream: string,
-  topic: string,
+  teamName: TeamName,
+  teammate: TeammateName,
+  stream: ChannelName,
+  topic: TopicName,
 ): number {
   const messages = readInbox(teamName, teammate)
   return messages.filter(
@@ -22,9 +24,9 @@ export function countUnreadFromTopic(
  * Matches on the zulipSenderId field.
  */
 export function countUnreadDmsFromUser(
-  teamName: string,
-  teammate: string,
-  fromUserId: number,
+  teamName: TeamName,
+  teammate: TeammateName,
+  fromUserId: UserId,
 ): number {
   const messages = readInbox(teamName, teammate)
   return messages.filter((msg) => !msg.read && !msg.zulipStream && msg.zulipSenderId === fromUserId)
@@ -36,10 +38,10 @@ export function countUnreadDmsFromUser(
  * Returns an error message if blocked, or undefined if allowed.
  */
 export function checkUnreadBeforePost(
-  teamName: string,
-  sender: string,
-  stream: string,
-  topic: string,
+  teamName: TeamName,
+  sender: TeammateName,
+  stream: ChannelName,
+  topic: TopicName,
 ): string | undefined {
   const unread = countUnreadFromTopic(teamName, sender, stream, topic)
   if (unread > 0) {
@@ -53,9 +55,9 @@ export function checkUnreadBeforePost(
  * Returns an error message if blocked, or undefined if allowed.
  */
 export function checkUnreadBeforeDm(
-  teamName: string,
-  sender: string,
-  fromUserId: number,
+  teamName: TeamName,
+  sender: TeammateName,
+  fromUserId: UserId,
 ): string | undefined {
   const unread = countUnreadDmsFromUser(teamName, sender, fromUserId)
   if (unread > 0) {

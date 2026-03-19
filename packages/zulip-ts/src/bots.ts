@@ -6,13 +6,14 @@ import {
   type GetBotsResponse,
   GetBotsResponseSchema,
 } from './schemas.ts'
+import type { DisplayName } from './tagged-types.ts'
 
 export function getBots(client: ZulipClient): ResultAsync<GetBotsResponse, ZulipError> {
   return client.request({ method: 'GET', path: '/bots' }, GetBotsResponseSchema)
 }
 
 export type CreateBotParams = {
-  readonly fullName: string
+  readonly fullName: DisplayName
   readonly shortName: string
   readonly botType?: number
 }
