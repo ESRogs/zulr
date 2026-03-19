@@ -12,9 +12,10 @@ import {
   type UpdateMessageResponse,
   UpdateMessageResponseSchema,
 } from './schemas.ts'
+import type { MessageId, StreamId, UserId } from './tagged-types.ts'
 
 export type SendDirectMessageParams = {
-  readonly to: readonly number[]
+  readonly to: readonly UserId[]
   readonly content: string
 }
 
@@ -67,7 +68,7 @@ export type NarrowFilter = {
 }
 
 export type GetMessagesParams = {
-  readonly anchor: 'newest' | 'oldest' | 'first_unread' | number
+  readonly anchor: 'newest' | 'oldest' | 'first_unread' | MessageId
   readonly numBefore: number
   readonly numAfter: number
   readonly narrow: readonly NarrowFilter[]
@@ -77,7 +78,7 @@ export type GetMessagesParams = {
 /** Mark messages as read (or other flag) for the authenticated user. */
 export function updateMessageFlags(
   client: ZulipClient,
-  messageIds: readonly number[],
+  messageIds: readonly MessageId[],
   op: 'add' | 'remove',
   flag: string,
 ): ResultAsync<UpdateMessageFlagsResponse, ZulipError> {
@@ -98,7 +99,7 @@ export function updateMessageFlags(
 /** Mark specific messages as read for the authenticated user. */
 export function markAsRead(
   client: ZulipClient,
-  messageIds: readonly number[],
+  messageIds: readonly MessageId[],
 ): ResultAsync<UpdateMessageFlagsResponse, ZulipError> {
   return updateMessageFlags(client, messageIds, 'add', 'read')
 }
@@ -106,7 +107,7 @@ export function markAsRead(
 export type UpdateMessageParams = {
   readonly content?: string
   readonly topic?: string
-  readonly streamId?: number
+  readonly streamId?: StreamId
   readonly propagateMode?: 'change_one' | 'change_later' | 'change_all'
   readonly sendNotificationToOldThread?: boolean
   readonly sendNotificationToNewThread?: boolean
@@ -114,7 +115,7 @@ export type UpdateMessageParams = {
 
 export function updateMessage(
   client: ZulipClient,
-  messageId: number,
+  messageId: MessageId,
   params: UpdateMessageParams,
 ): ResultAsync<UpdateMessageResponse, ZulipError> {
   const body: Record<string, unknown> = {}
@@ -134,7 +135,7 @@ export function updateMessage(
 
 export function addReaction(
   client: ZulipClient,
-  messageId: number,
+  messageId: MessageId,
   emojiName: string,
 ): ResultAsync<SuccessResponse, ZulipError> {
   return client.request(
@@ -145,7 +146,7 @@ export function addReaction(
 
 export function removeReaction(
   client: ZulipClient,
-  messageId: number,
+  messageId: MessageId,
   emojiName: string,
 ): ResultAsync<SuccessResponse, ZulipError> {
   return client.request(

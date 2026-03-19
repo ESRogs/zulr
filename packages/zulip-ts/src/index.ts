@@ -1,3 +1,4 @@
+export type { EventId, MessageId, StreamId, UnixEpochSeconds, UserId } from './tagged-types.ts'
 export type { CreateBotParams } from './bots.ts'
 export { createBot, getBots } from './bots.ts'
 export type { ZulipClient, ZulipConfig, ZulipError } from './client.ts'

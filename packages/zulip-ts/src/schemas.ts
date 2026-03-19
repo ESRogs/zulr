@@ -1,4 +1,13 @@
 import { z } from 'zod'
+import type { EventId, MessageId, StreamId, UnixEpochSeconds, UserId } from './tagged-types.ts'
+
+export type { EventId, MessageId, StreamId, UnixEpochSeconds, UserId } from './tagged-types.ts'
+
+const userId = z.number().transform((n): UserId => n as UserId)
+const messageId = z.number().transform((n): MessageId => n as MessageId)
+const streamId = z.number().transform((n): StreamId => n as StreamId)
+const eventId = z.number().transform((n): EventId => n as EventId)
+const unixEpochSeconds = z.number().transform((n): UnixEpochSeconds => n as UnixEpochSeconds)
 
 export const SuccessResponseFields = {
   result: z.literal('success'),
@@ -12,22 +21,22 @@ export type SuccessResponse = z.infer<typeof SuccessResponseSchema>
 
 const ReactionSchema = z.object({
   emoji_name: z.string(),
-  user_id: z.number(),
+  user_id: userId,
 })
 export type Reaction = z.infer<typeof ReactionSchema>
 
 const BaseMessageFields = {
-  id: z.number(),
-  sender_id: z.number(),
+  id: messageId,
+  sender_id: userId,
   sender_email: z.string(),
   sender_full_name: z.string(),
   content: z.string(),
-  timestamp: z.number(),
+  timestamp: unixEpochSeconds,
   reactions: z.array(ReactionSchema).optional().default([]),
 }
 
 export const DmRecipientSchema = z.object({
-  id: z.number(),
+  id: userId,
   email: z.string(),
   full_name: z.string(),
 })
@@ -54,7 +63,7 @@ export type Message = z.infer<typeof MessageSchema>
 
 export const SendMessageResponseSchema = z.object({
   ...SuccessResponseFields,
-  id: z.number(),
+  id: messageId,
 })
 export type SendMessageResponse = z.infer<typeof SendMessageResponseSchema>
 
@@ -66,7 +75,7 @@ export type GetMessagesResponse = z.infer<typeof GetMessagesResponseSchema>
 
 export const UpdateMessageFlagsResponseSchema = z.object({
   ...SuccessResponseFields,
-  messages: z.array(z.number()),
+  messages: z.array(messageId),
 })
 export type UpdateMessageFlagsResponse = z.infer<typeof UpdateMessageFlagsResponseSchema>
 
@@ -76,7 +85,7 @@ export type UpdateMessageResponse = z.infer<typeof UpdateMessageResponseSchema>
 // --- Streams ---
 
 export const StreamSchema = z.object({
-  stream_id: z.number(),
+  stream_id: streamId,
   name: z.string(),
   description: z.string().optional(),
 })
@@ -103,7 +112,7 @@ export const UnsubscribeResponseSchema = z.object({
 export type UnsubscribeResponse = z.infer<typeof UnsubscribeResponseSchema>
 
 export const SubscriptionSchema = z.object({
-  stream_id: z.number(),
+  stream_id: streamId,
   name: z.string(),
   description: z.string().optional(),
 })
@@ -120,13 +129,13 @@ export type UpdateChannelResponse = z.infer<typeof UpdateChannelResponseSchema>
 
 export const CreateChannelResponseSchema = z.object({
   ...SuccessResponseFields,
-  id: z.number(),
+  id: streamId,
 })
 export type CreateChannelResponse = z.infer<typeof CreateChannelResponseSchema>
 
 export const TopicSchema = z.object({
   name: z.string(),
-  max_id: z.number(),
+  max_id: messageId,
 })
 export type Topic = z.infer<typeof TopicSchema>
 
@@ -139,7 +148,7 @@ export type GetTopicsResponse = z.infer<typeof GetTopicsResponseSchema>
 // --- Users ---
 
 export const MemberSchema = z.object({
-  user_id: z.number(),
+  user_id: userId,
   email: z.string(),
   delivery_email: z.string().nullable().optional(),
   full_name: z.string(),
@@ -156,7 +165,7 @@ export type GetMembersResponse = z.infer<typeof GetMembersResponseSchema>
 // --- Bots ---
 
 export const BotSchema = z.object({
-  user_id: z.number().optional(),
+  user_id: userId.optional(),
   username: z.string(),
   full_name: z.string(),
   api_key: z.string(),
@@ -172,7 +181,7 @@ export type GetBotsResponse = z.infer<typeof GetBotsResponseSchema>
 
 export const CreateBotResponseSchema = z.object({
   ...SuccessResponseFields,
-  user_id: z.number(),
+  user_id: userId,
   api_key: z.string(),
 })
 export type CreateBotResponse = z.infer<typeof CreateBotResponseSchema>
@@ -182,19 +191,19 @@ export type CreateBotResponse = z.infer<typeof CreateBotResponseSchema>
 export const RegisterQueueResponseSchema = z.object({
   ...SuccessResponseFields,
   queue_id: z.string(),
-  last_event_id: z.number(),
+  last_event_id: eventId,
 })
 export type RegisterQueueResponse = z.infer<typeof RegisterQueueResponseSchema>
 
 export const EventSchema = z.object({
   type: z.string(),
-  id: z.number(),
+  id: eventId,
   // message events
   message: MessageSchema.optional(),
   // reaction events
   op: z.string().optional(),
-  message_id: z.number().optional(),
-  user_id: z.number().optional(),
+  message_id: messageId.optional(),
+  user_id: userId.optional(),
   emoji_name: z.string().optional(),
 })
 export type Event = z.infer<typeof EventSchema>

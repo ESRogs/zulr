@@ -18,6 +18,7 @@ import {
   type UpdateChannelResponse,
   UpdateChannelResponseSchema,
 } from './schemas.ts'
+import type { StreamId, UserId } from './tagged-types.ts'
 
 export function getStreams(client: ZulipClient): ResultAsync<GetStreamsResponse, ZulipError> {
   return client.request({ method: 'GET', path: '/streams' }, GetStreamsResponseSchema)
@@ -25,7 +26,7 @@ export function getStreams(client: ZulipClient): ResultAsync<GetStreamsResponse,
 
 export function getTopics(
   client: ZulipClient,
-  streamId: number,
+  streamId: StreamId,
 ): ResultAsync<GetTopicsResponse, ZulipError> {
   return client.request(
     { method: 'GET', path: `/users/me/${streamId}/topics` },
@@ -36,7 +37,7 @@ export function getTopics(
 export type CreateChannelParams = {
   readonly name: string
   readonly description?: string
-  readonly subscribers: readonly number[]
+  readonly subscribers: readonly UserId[]
 }
 
 export function createChannel(
@@ -64,7 +65,7 @@ export type UpdateChannelParams = {
 
 export function updateChannel(
   client: ZulipClient,
-  streamId: number,
+  streamId: StreamId,
   params: UpdateChannelParams,
 ): ResultAsync<UpdateChannelResponse, ZulipError> {
   const body: Record<string, unknown> = {}
@@ -78,7 +79,7 @@ export function updateChannel(
 
 export function archiveStream(
   client: ZulipClient,
-  streamId: number,
+  streamId: StreamId,
 ): ResultAsync<SuccessResponse, ZulipError> {
   return client.request({ method: 'DELETE', path: `/streams/${streamId}` }, SuccessResponseSchema)
 }
@@ -136,7 +137,7 @@ export const TopicVisibility = {
 
 export function setUserTopic(
   client: ZulipClient,
-  streamId: number,
+  streamId: StreamId,
   topic: string,
   visibilityPolicy: UserTopicVisibility,
 ): ResultAsync<SuccessResponse, ZulipError> {
