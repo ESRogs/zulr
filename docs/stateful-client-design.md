@@ -18,7 +18,7 @@ Zuler currently treats the Zulip API as a request-response service: each MCP too
 
 - **`neverthrow`** Result/ResultAsync for error handling — errors are values, not exceptions
 - **`zod`** for schema validation at external boundaries (Zulip API responses, event payloads)
-- **`type-fest` Tagged** for opaque ID types — `MessageId`, `StreamId`, `UserId` are branded numbers to prevent accidental mixing
+- **`type-fest` Tagged** for opaque types — already in place via PR #61. Numeric IDs: `UserId`, `MessageId`, `StreamId`, `EventId`, `UnixEpochSeconds`. String types: `ChannelName`, `TopicName`, `Email`, `DisplayName`, `EmojiName`, `QueueId`, `ApiKey`. Zuler-specific: `TeammateName`, `TeamName`.
 - **Functional style** with standalone functions, not classes. Imperative loops when clearer (e.g. event processing with side effects)
 - **No database** — `zulip-client-ts` is pure in-memory state, no Kysely or SQLite
 - **No web server** — it's a library consumed by `zuler`, not a standalone service
@@ -44,9 +44,9 @@ Each registered bot gets one `ZulipSession` instance that manages:
 - On queue expiration (BAD_EVENT_QUEUE_ID), re-registers and fully resets local state from the new initial state. Events during the re-register gap are recovered via the fresh `unread_msgs` snapshot.
 
 **Local state**
-- **Unread map (streams)**: `Map<"streamId:topic", Set<MessageId>>` — updated on `message` events (add) and `update_message_flags` events (remove when read flag added)
+- **Unread map (streams)**: `Map<"${StreamId}:${TopicName}", Set<MessageId>>` — updated on `message` events (add) and `update_message_flags` events (remove when read flag added)
 - **Unread map (DMs)**: `Map<UserId, Set<MessageId>>` — same update pattern, from the `pms` section of `unread_msgs`
-- **Topic visibility**: `Map<"streamId:topic", VisibilityPolicy>` — updated from `user_topic` events. Values: 0=inherit, 1=muted, 2=unmuted, 3=followed
+- **Topic visibility**: `Map<"${StreamId}:${TopicName}", VisibilityPolicy>` — updated from `user_topic` events. Values: 0=inherit, 1=muted, 2=unmuted, 3=followed
 - **Members cache**: `Map<UserId, Member>` — populated from initial state, updated on `realm_user` events
 - **Subscriptions**: channel list from initial state, updated on `subscription` events
 
@@ -63,24 +63,24 @@ For each incoming message event, determine if it's notification-worthy:
 ```ts
 type ZulipSession = {
   // Unread state (streams)
-  getUnreadCount(streamId: StreamId, topic: string): number
-  getUnreadMessageIds(streamId: StreamId, topic: string): readonly MessageId[]
-  hasUnreads(streamId: StreamId, topic: string): boolean
+  getUnreadCount(streamId: StreamId, topic: TopicName): number
+  getUnreadMessageIds(streamId: StreamId, topic: TopicName): readonly MessageId[]
+  hasUnreads(streamId: StreamId, topic: TopicName): boolean
 
   // Unread state (DMs)
   getUnreadDmCount(userId: UserId): number
   hasUnreadDms(userId: UserId): boolean
 
   // Topic state
-  getTopicVisibility(streamId: StreamId, topic: string): VisibilityPolicy
-  isFollowed(streamId: StreamId, topic: string): boolean
+  getTopicVisibility(streamId: StreamId, topic: TopicName): VisibilityPolicy
+  isFollowed(streamId: StreamId, topic: TopicName): boolean
 
   // Notification check
   shouldNotify(message: Message): boolean
 
   // Members
-  resolveUserId(id: UserId): string | undefined
-  resolveName(name: string): Member | undefined
+  resolveUserId(id: UserId): DisplayName | undefined
+  resolveName(name: DisplayName): Member | undefined
 
   // Lifecycle
   start(): Promise<void>
@@ -130,7 +130,7 @@ Create the new package with `ZulipSession`:
 New zulip-ts API additions:
 - Update `registerQueue` to accept `fetch_event_types` and return `unread_msgs` in initial state
 - Parse the `unread_msgs` structure (streams, DMs, mentions)
-- Tagged ID types: `MessageId`, `StreamId`, `UserId`
+- Tagged ID types already in place (PR #61): `MessageId`, `StreamId`, `UserId`, `TopicName`, `ChannelName`, etc.
 
 ### Step 2: Topic visibility tracking + notification logic
 
@@ -172,6 +172,6 @@ Replace the current "deliver everything to inbox" with:
 
 **Unread state is Zulip-native**: Tracked via Zulip's own unread_msgs + event updates. No custom SQLite tables or inbox-based approximations.
 
-**Tagged ID types**: `MessageId`, `StreamId`, `UserId` are branded numbers (via type-fest Tagged) to prevent accidental mixing at function boundaries.
+**Tagged types (already landed)**: PR #61 introduced branded types for all numeric IDs (`UserId`, `MessageId`, `StreamId`, `EventId`, `UnixEpochSeconds`) and string values (`ChannelName`, `TopicName`, `Email`, `DisplayName`, etc.) across both `zulip-ts` and `zuler`. The `ZulipSession` interface uses these throughout.
 
 **Full state reset on reconnection**: When the event queue expires, the session re-registers and replaces all local state from the fresh initial snapshot. Simple and correct — avoids incremental patching of potentially stale state.
