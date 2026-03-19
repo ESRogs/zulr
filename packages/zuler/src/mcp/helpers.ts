@@ -134,6 +134,14 @@ function getZulipCredentials(): { site: string; email: Email; apiKey: ApiKey } |
   const email = process.env.ZULIP_EMAIL
   const apiKey = process.env.ZULIP_API_KEY
   if (!site || !email || !apiKey) return undefined
+  if (!email.includes('@')) {
+    throw new Error(`ZULIP_EMAIL is not a valid email address: ${email}`)
+  }
+  try {
+    new URL(site)
+  } catch {
+    throw new Error(`ZULIP_SITE is not a valid URL: ${site}`)
+  }
   return { site, email: email as Email, apiKey: apiKey as ApiKey }
 }
 
