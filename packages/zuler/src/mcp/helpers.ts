@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { Member, Stream, ZulipClient } from 'zulip-ts'
+import type { Member, Stream, UserId, ZulipClient } from 'zulip-ts'
 import { createClient, getMembers, getStreams } from 'zulip-ts'
 import { clientForTeammate, type TeammateClient } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
@@ -35,11 +35,11 @@ export function formatError(err: unknown): string {
 /** Build a synchronous user ID → full_name resolver from the members cache. Best-effort — returns a no-op resolver on failure. */
 export async function buildUserIdResolver(
   ctx: ToolContext,
-): Promise<(id: number) => string | undefined> {
+): Promise<(id: UserId) => string | undefined> {
   const result = await ctx.getMembersMap()
   if (result.isErr()) return () => undefined
   const members = result.value
-  return (id: number) => members.get(id)?.full_name
+  return (id: UserId) => members.get(id)?.full_name
 }
 
 export type ServerConfig = {
@@ -77,7 +77,7 @@ export type ToolContext = {
   readonly tryLoadEnv: () => void
   /** Set the callback to start the event listener when credentials become available. */
   readonly onCredentialsLoaded: (callback: () => void) => void
-  readonly isBot: (userId: number) => ResultAsync<boolean, string>
+  readonly isBot: (userId: UserId) => ResultAsync<boolean, string>
   /** Resolve a user by ID, full name, or email. Returns the Member if found. */
   readonly resolveUser: (identifier: string | number) => ResultAsync<Member, string>
   /** Resolve a channel name to a Stream object. */
@@ -85,7 +85,7 @@ export type ToolContext = {
   /** List all channels (uses cache). */
   readonly listChannels: () => ResultAsync<readonly Stream[], string>
   /** Get the members map (user_id → Member), refreshing the cache if needed. */
-  readonly getMembersMap: () => ResultAsync<ReadonlyMap<number, Member>, string>
+  readonly getMembersMap: () => ResultAsync<ReadonlyMap<UserId, Member>, string>
   readonly invalidateMembersCache: () => void
   readonly invalidateChannelsCache: () => void
   /** Set the event listener manager (called from index.ts after boot). */
@@ -138,7 +138,7 @@ function getZulipCredentials(): { site: string; email: string; apiKey: string } 
 
 export function createToolContext(config: ServerConfig): ToolContext {
   let adminClient: ZulipClient | undefined
-  let membersCache: TimedCache<Map<number, Member>> | null = null
+  let membersCache: TimedCache<Map<UserId, Member>> | null = null
   let channelsCache: TimedCache<readonly Stream[]> | null = null
   let eventListenerManager: EventListenerManager | undefined
 
@@ -150,7 +150,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     return adminClient
   }
 
-  function refreshMembersCache(): ResultAsync<Map<number, Member>, string> {
+  function refreshMembersCache(): ResultAsync<Map<UserId, Member>, string> {
     const client = tryGetClient()
     if (!client) return errAsync(NOT_CONFIGURED_MESSAGE)
     return getMembers(client)
@@ -162,7 +162,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
       .mapErr((err) => `failed to fetch Zulip members: ${JSON.stringify(err)}`)
   }
 
-  function getMember(userId: number): ResultAsync<Member | undefined, string> {
+  function getMember(userId: UserId): ResultAsync<Member | undefined, string> {
     if (isCacheValid(membersCache)) {
       const cached = membersCache.data.get(userId)
       if (cached) return okAsync(cached)
@@ -175,7 +175,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     })
   }
 
-  function isBot(userId: number): ResultAsync<boolean, string> {
+  function isBot(userId: UserId): ResultAsync<boolean, string> {
     return getMember(userId).andThen((member) => {
       if (!member) return errAsync(`unknown Zulip user ID: ${userId}`)
       return okAsync(member.is_bot ?? false)
@@ -186,12 +186,13 @@ export function createToolContext(config: ServerConfig): ToolContext {
     // MCP transport may serialize numbers as strings
     const asNumber = typeof identifier === 'number' ? identifier : Number(identifier)
     if (Number.isInteger(asNumber) && asNumber > 0) {
-      return getMember(asNumber).andThen((member) =>
-        member ? okAsync(member) : errAsync(`unknown Zulip user ID: ${asNumber}`),
+      const id = asNumber as UserId
+      return getMember(id).andThen((member) =>
+        member ? okAsync(member) : errAsync(`unknown Zulip user ID: ${id}`),
       )
     }
     // Exact match — callers use canonical names/emails from Zulip's API
-    function findInCache(cache: Map<number, Member>): Member | undefined {
+    function findInCache(cache: Map<UserId, Member>): Member | undefined {
       for (const m of cache.values()) {
         if (m.full_name === identifier || m.email === identifier || m.delivery_email === identifier)
           return m
@@ -269,8 +270,8 @@ export function createToolContext(config: ServerConfig): ToolContext {
     resolveChannel,
     getMembersMap: () => {
       if (isCacheValid(membersCache))
-        return okAsync(membersCache.data as ReadonlyMap<number, Member>)
-      return refreshMembersCache().map((data) => data as ReadonlyMap<number, Member>)
+        return okAsync(membersCache.data as ReadonlyMap<UserId, Member>)
+      return refreshMembersCache().map((data) => data as ReadonlyMap<UserId, Member>)
     },
     listChannels: () => {
       if (isCacheValid(channelsCache)) return okAsync(channelsCache.data)

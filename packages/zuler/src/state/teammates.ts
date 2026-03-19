@@ -1,5 +1,6 @@
 import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
+import type { UserId } from 'zulip-ts'
 import type { ZulerDatabase } from './db.ts'
 import { AlreadyExistsError, dbOp, NotFoundError, type StateError } from './db-utils.ts'
 
@@ -9,7 +10,7 @@ export type Teammate = {
   readonly name: string
   readonly botEmail: string
   readonly apiKey: string
-  readonly botUserId: number | null
+  readonly botUserId: UserId | null
 }
 
 export function registerTeammate(
@@ -60,7 +61,7 @@ export function getTeammate(
       name: row.name,
       botEmail: row.bot_email,
       apiKey: row.api_key,
-      botUserId: row.bot_user_id,
+      botUserId: row.bot_user_id as UserId | null,
     }
   })
 }
@@ -74,7 +75,7 @@ export function listTeammates(
       name: r.name,
       botEmail: r.bot_email,
       apiKey: r.api_key,
-      botUserId: r.bot_user_id,
+      botUserId: r.bot_user_id as UserId | null,
     }))
   })
 }
@@ -84,7 +85,7 @@ export function updateTeammateCredentials(
   name: string,
   updates: {
     readonly apiKey: string
-    readonly botUserId: number | null
+    readonly botUserId: UserId | null
     readonly botEmail: string
   },
 ): ResultAsync<void, StateError> {

@@ -1,5 +1,14 @@
 import { okAsync, type ResultAsync } from 'neverthrow'
-import type { GetMessagesParams, Message, Reaction, ZulipClient, ZulipError } from 'zulip-ts'
+import type {
+  GetMessagesParams,
+  Message,
+  MessageId,
+  Reaction,
+  UnixEpochSeconds,
+  UserId,
+  ZulipClient,
+  ZulipError,
+} from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
 
 export type FormattedReaction = {
@@ -8,12 +17,12 @@ export type FormattedReaction = {
 }
 
 export type FormattedMessage = {
-  readonly id: number
+  readonly id: MessageId
   readonly stream: string
   readonly topic: string
   readonly sender: string
   readonly content: string
-  readonly timestamp: number
+  readonly timestamp: UnixEpochSeconds
   readonly dmWith?: string
   readonly isGroupDm?: boolean
   readonly reactions?: readonly FormattedReaction[]
@@ -22,7 +31,7 @@ export type FormattedMessage = {
 /** Group raw reactions by emoji name, resolving user IDs to names. */
 function aggregateReactions(
   raw: readonly Reaction[],
-  resolveUserId?: (id: number) => string | undefined,
+  resolveUserId?: (id: UserId) => string | undefined,
 ): FormattedReaction[] {
   const byEmoji = new Map<string, string[]>()
   for (const r of raw) {
@@ -40,7 +49,7 @@ function aggregateReactions(
 /** Build the reactions field for a FormattedMessage, returning undefined when empty. */
 function formatReactionsField(
   msg: Message,
-  resolveUserId?: (id: number) => string | undefined,
+  resolveUserId?: (id: UserId) => string | undefined,
 ): FormattedReaction[] | undefined {
   if (msg.reactions.length === 0) return undefined
   const reactions = msg.reactions
@@ -55,8 +64,8 @@ export function fetchMessages(
     markRead?: boolean
     streamFallback?: string
     topicFallback?: string
-    botUserId?: number | null
-    resolveUserId?: (id: number) => string | undefined
+    botUserId?: UserId | null
+    resolveUserId?: (id: UserId) => string | undefined
   },
 ): ResultAsync<readonly FormattedMessage[], ZulipError> {
   const { markRead = true, streamFallback, topicFallback, botUserId, resolveUserId } = options ?? {}
@@ -106,7 +115,7 @@ export function fetchMessages(
 
 const MSG_FOOTER_RE = /\n\[msg:\d+ ts:[^\]]+\]$/
 
-export function formatMessageFooter(id: number, timestamp: number): string {
+export function formatMessageFooter(id: MessageId, timestamp: UnixEpochSeconds): string {
   const ts = new Date(timestamp * 1000).toISOString()
   return `[msg:${id} ts:${ts}]`
 }

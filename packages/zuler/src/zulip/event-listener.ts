@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely'
-import type { ZulipClient } from 'zulip-ts'
+import type { EventId, MessageId, UserId, ZulipClient } from 'zulip-ts'
 import { getEvents, getMembers, getMessages, markAsRead, registerQueue } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
@@ -24,7 +24,7 @@ type EventListenerManagerOptions = {
     readonly emoji: string
     readonly op: 'add' | 'remove'
     readonly reactorName: string
-    readonly messageId: number
+    readonly messageId: MessageId
     readonly deliveredTo: readonly string[]
   }) => void
   /** Called on errors for logging. Listener continues after errors. */
@@ -44,10 +44,10 @@ async function handleReaction(
   teamName: string,
   botName: string,
   botEmail: string,
-  messageId: number,
-  reactorUserId: number,
+  messageId: MessageId,
+  reactorUserId: UserId,
   emojiName: string,
-  resolveUserName: (userId: number) => Promise<string>,
+  resolveUserName: (userId: UserId) => Promise<string>,
   onReaction?: EventListenerManagerOptions['onReaction'],
   onError?: (error: unknown) => void,
 ): Promise<void> {
@@ -114,9 +114,9 @@ async function runBotListener(
   options: EventListenerManagerOptions,
 ): Promise<void> {
   const { db, teamName, onRoute, onReaction, onError, signal } = options
-  let membersMap: Map<number, string> | null = null
+  let membersMap: Map<UserId, string> | null = null
 
-  async function resolveUserName(userId: number): Promise<string> {
+  async function resolveUserName(userId: UserId): Promise<string> {
     if (membersMap) {
       const name = membersMap.get(userId)
       if (name) return name
@@ -139,7 +139,7 @@ async function runBotListener(
     }
 
     const { queue_id: queueId, last_event_id: initialLastEventId } = regResult.value
-    let lastEventId = initialLastEventId
+    let lastEventId: EventId = initialLastEventId
 
     while (!signal?.aborted) {
       const eventsResult = await getEvents(botClient, { queueId, lastEventId })

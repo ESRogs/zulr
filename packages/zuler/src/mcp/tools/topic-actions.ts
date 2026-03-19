@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
-import type { ZulipClient } from 'zulip-ts'
+import type { MessageId, ZulipClient } from 'zulip-ts'
 import { getMessages, updateMessage } from 'zulip-ts'
 import {
   errorResult,
@@ -18,7 +18,7 @@ function findMessageIdInTopic(
   client: ZulipClient,
   channel: string,
   topic: string,
-): ResultAsync<number, string> {
+): ResultAsync<MessageId, string> {
   return getMessages(client, {
     anchor: 'newest',
     numBefore: 1,

@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { markAsRead } from 'zulip-ts'
+import { markAsRead, type UserId } from 'zulip-ts'
 import {
   consumeUnreadDmMessages,
   consumeUnreadInboxMessages,
@@ -115,7 +115,7 @@ async function readStream(
   return textResult(body)
 }
 
-async function readDms(ctx: ToolContext, sender: string, userId: number, count: number) {
+async function readDms(ctx: ToolContext, sender: string, userId: UserId, count: number) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)

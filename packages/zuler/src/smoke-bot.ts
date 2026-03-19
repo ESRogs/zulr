@@ -50,8 +50,8 @@ console.log()
 
 const botClient = await clientForTeammate(db, site, botName)
 botClient.match(
-  (client) => {
-    console.log(`Client for '${botName}': ${client.config.email}`)
+  (tc) => {
+    console.log(`Client for '${botName}': ${tc.client.config.email}`)
   },
   (err) => console.error('Client error:', err),
 )

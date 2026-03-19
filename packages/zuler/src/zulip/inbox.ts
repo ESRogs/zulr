@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { MessageId, UnixEpochSeconds, UserId } from 'zulip-ts'
 import { type FormattedMessage, stripMessageFooter } from './message-reader.ts'
 
 type InboxMessage = {
@@ -9,8 +10,8 @@ type InboxMessage = {
   readonly summary: string
   readonly timestamp: string
   readonly read: boolean
-  readonly zulipMessageId?: number
-  readonly zulipSenderId?: number
+  readonly zulipMessageId?: MessageId
+  readonly zulipSenderId?: UserId
   readonly zulipStream?: string
   readonly zulipTopic?: string
   readonly zulipSender?: string
@@ -107,7 +108,7 @@ export function consumeAllUnreadStreamMessages(
 export function consumeUnreadDmMessages(
   teamName: string,
   teammate: string,
-  fromUserId: number,
+  fromUserId: UserId,
 ): readonly InboxMessage[] {
   return consumeMatching(
     inboxPath(teamName, teammate),
@@ -136,12 +137,12 @@ export function inboxToFormattedMessages(messages: readonly InboxMessage[]): For
     if (!isStream && !isDm) return []
     return [
       {
-        id: m.zulipMessageId ?? -(Date.parse(m.timestamp) || 0),
+        id: (m.zulipMessageId ?? -(Date.parse(m.timestamp) || 0)) as MessageId,
         stream: m.zulipStream ?? '',
         topic: m.zulipTopic ?? '',
         sender: m.zulipSender,
         content: stripMessageFooter(m.text),
-        timestamp: (Date.parse(m.timestamp) || 0) / 1000,
+        timestamp: ((Date.parse(m.timestamp) || 0) / 1000) as UnixEpochSeconds,
         // Inbox only contains inbound messages, so zulipSender is the other party.
         // isGroupDm can't be determined from inbox data (no participant list);
         // group DMs are not routed to inbox by the event listener.

@@ -1,3 +1,4 @@
+import type { UserId } from 'zulip-ts'
 import { readInbox } from './inbox.ts'
 
 /**
@@ -24,7 +25,7 @@ export function countUnreadFromTopic(
 export function countUnreadDmsFromUser(
   teamName: string,
   teammate: string,
-  fromUserId: number,
+  fromUserId: UserId,
 ): number {
   const messages = readInbox(teamName, teammate)
   return messages.filter((msg) => !msg.read && !msg.zulipStream && msg.zulipSenderId === fromUserId)
@@ -55,7 +56,7 @@ export function checkUnreadBeforePost(
 export function checkUnreadBeforeDm(
   teamName: string,
   sender: string,
-  fromUserId: number,
+  fromUserId: UserId,
 ): string | undefined {
   const unread = countUnreadDmsFromUser(teamName, sender, fromUserId)
   if (unread > 0) {

@@ -1,12 +1,12 @@
 import type { Kysely } from 'kysely'
-import type { DmMessage } from 'zulip-ts'
+import type { DmMessage, MessageId, UnixEpochSeconds } from 'zulip-ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates } from '../state/teammates.ts'
 import { writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
 
 type RouteResult = {
-  readonly messageId: number
+  readonly messageId: MessageId
   readonly delivered: readonly {
     readonly teammate: string
     readonly from: string
@@ -25,7 +25,7 @@ export function sanitizeSummary(s: string): string {
   })
 }
 
-function appendFooter(content: string, messageId: number, timestamp: number): string {
+function appendFooter(content: string, messageId: MessageId, timestamp: UnixEpochSeconds): string {
   return `${content}\n${formatMessageFooter(messageId, timestamp)}`
 }
 

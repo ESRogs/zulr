@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { MessageId, UserId } from 'zulip-ts'
 import {
   consumeUnreadDmMessages,
   consumeUnreadInboxMessages,
@@ -164,7 +165,7 @@ test('consumeUnreadInboxMessages leaves messages without structured fields alone
 // --- DM unread check tests ---
 
 test('countUnreadDmsFromUser returns 0 when inbox does not exist', () => {
-  expect(countUnreadDmsFromUser(teamName, 'alice', 42)).toBe(0)
+  expect(countUnreadDmsFromUser(teamName, 'alice', 42 as UserId)).toBe(0)
 })
 
 test('countUnreadDmsFromUser counts DMs from matching sender', () => {
@@ -172,19 +173,19 @@ test('countUnreadDmsFromUser counts DMs from matching sender', () => {
     from: 'zulip:Bob',
     text: 'dm1',
     summary: 'dm1',
-    zulipMessageId: 100,
-    zulipSenderId: 42,
+    zulipMessageId: 100 as MessageId,
+    zulipSenderId: 42 as UserId,
     zulipSender: 'Bob',
   })
   writeToInbox(teamName, 'alice', {
     from: 'zulip:Bob',
     text: 'dm2',
     summary: 'dm2',
-    zulipMessageId: 101,
-    zulipSenderId: 42,
+    zulipMessageId: 101 as MessageId,
+    zulipSenderId: 42 as UserId,
     zulipSender: 'Bob',
   })
-  expect(countUnreadDmsFromUser(teamName, 'alice', 42)).toBe(2)
+  expect(countUnreadDmsFromUser(teamName, 'alice', 42 as UserId)).toBe(2)
 })
 
 test('countUnreadDmsFromUser ignores DMs from other senders', () => {
@@ -192,19 +193,19 @@ test('countUnreadDmsFromUser ignores DMs from other senders', () => {
     from: 'zulip:Bob',
     text: 'dm from bob',
     summary: 'dm',
-    zulipMessageId: 100,
-    zulipSenderId: 42,
+    zulipMessageId: 100 as MessageId,
+    zulipSenderId: 42 as UserId,
     zulipSender: 'Bob',
   })
   writeToInbox(teamName, 'alice', {
     from: 'zulip:Charlie',
     text: 'dm from charlie',
     summary: 'dm',
-    zulipMessageId: 101,
-    zulipSenderId: 99,
+    zulipMessageId: 101 as MessageId,
+    zulipSenderId: 99 as UserId,
     zulipSender: 'Charlie',
   })
-  expect(countUnreadDmsFromUser(teamName, 'alice', 42)).toBe(1)
+  expect(countUnreadDmsFromUser(teamName, 'alice', 42 as UserId)).toBe(1)
 })
 
 test('countUnreadDmsFromUser ignores stream messages from same sender', () => {
@@ -212,13 +213,13 @@ test('countUnreadDmsFromUser ignores stream messages from same sender', () => {
     from: 'zulip:general/greetings:Bob',
     text: 'stream msg',
     summary: 'stream msg',
-    zulipMessageId: 100,
-    zulipSenderId: 42,
+    zulipMessageId: 100 as MessageId,
+    zulipSenderId: 42 as UserId,
     zulipStream: 'general',
     zulipTopic: 'greetings',
     zulipSender: 'Bob',
   })
-  expect(countUnreadDmsFromUser(teamName, 'alice', 42)).toBe(0)
+  expect(countUnreadDmsFromUser(teamName, 'alice', 42 as UserId)).toBe(0)
 })
 
 test('checkUnreadBeforeDm returns error when unread DMs exist', () => {
@@ -226,17 +227,17 @@ test('checkUnreadBeforeDm returns error when unread DMs exist', () => {
     from: 'zulip:Bob',
     text: 'dm',
     summary: 'dm',
-    zulipMessageId: 100,
-    zulipSenderId: 42,
+    zulipMessageId: 100 as MessageId,
+    zulipSenderId: 42 as UserId,
     zulipSender: 'Bob',
   })
-  const result = checkUnreadBeforeDm(teamName, 'alice', 42)
+  const result = checkUnreadBeforeDm(teamName, 'alice', 42 as UserId)
   expect(result).toContain('1 unread DM(s)')
   expect(result).toContain('user 42')
 })
 
 test('checkUnreadBeforeDm returns undefined when no unread DMs', () => {
-  const result = checkUnreadBeforeDm(teamName, 'alice', 42)
+  const result = checkUnreadBeforeDm(teamName, 'alice', 42 as UserId)
   expect(result).toBeUndefined()
 })
 
@@ -245,20 +246,20 @@ test('consumeUnreadDmMessages marks matching DMs and returns them', () => {
     from: 'zulip:Bob',
     text: 'dm from bob',
     summary: 'dm',
-    zulipMessageId: 100,
-    zulipSenderId: 42,
+    zulipMessageId: 100 as MessageId,
+    zulipSenderId: 42 as UserId,
     zulipSender: 'Bob',
   })
   writeToInbox(teamName, 'alice', {
     from: 'zulip:Charlie',
     text: 'dm from charlie',
     summary: 'dm',
-    zulipMessageId: 101,
-    zulipSenderId: 99,
+    zulipMessageId: 101 as MessageId,
+    zulipSenderId: 99 as UserId,
     zulipSender: 'Charlie',
   })
 
-  const consumed = consumeUnreadDmMessages(teamName, 'alice', 42)
+  const consumed = consumeUnreadDmMessages(teamName, 'alice', 42 as UserId)
 
   expect(consumed).toHaveLength(1)
   expect(consumed[0]!.text).toBe('dm from bob')
@@ -272,12 +273,12 @@ test('consumeUnreadDmMessages unblocks checkUnreadBeforeDm', () => {
     from: 'zulip:Bob',
     text: 'dm',
     summary: 'dm',
-    zulipMessageId: 100,
-    zulipSenderId: 42,
+    zulipMessageId: 100 as MessageId,
+    zulipSenderId: 42 as UserId,
     zulipSender: 'Bob',
   })
 
-  expect(checkUnreadBeforeDm(teamName, 'alice', 42)).toBeDefined()
-  consumeUnreadDmMessages(teamName, 'alice', 42)
-  expect(checkUnreadBeforeDm(teamName, 'alice', 42)).toBeUndefined()
+  expect(checkUnreadBeforeDm(teamName, 'alice', 42 as UserId)).toBeDefined()
+  consumeUnreadDmMessages(teamName, 'alice', 42 as UserId)
+  expect(checkUnreadBeforeDm(teamName, 'alice', 42 as UserId)).toBeUndefined()
 })

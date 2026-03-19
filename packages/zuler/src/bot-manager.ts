@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { ZulipClient, ZulipError } from 'zulip-ts'
+import type { UserId, ZulipClient, ZulipError } from 'zulip-ts'
 import { createBot, createClient, getBots, getMembers } from 'zulip-ts'
 import type { ZulerDatabase } from './state/db.ts'
 import {
@@ -26,7 +26,7 @@ export function botEmail(name: string, site: string): string {
 
 type BotCredentials = {
   readonly apiKey: string
-  readonly userId: number | null
+  readonly userId: UserId | null
   readonly email: string
 }
 
@@ -38,7 +38,7 @@ type BotCredentials = {
 function lookupBotUserId(
   adminClient: ZulipClient,
   botEmail: string,
-): ResultAsync<number | null, BotManagerError> {
+): ResultAsync<UserId | null, BotManagerError> {
   return getMembers(adminClient)
     .map((res) => {
       const member = res.members.find((m) => m.email === botEmail)
@@ -167,7 +167,7 @@ export function registerBot(
 
 export type TeammateClient = {
   readonly client: ZulipClient
-  readonly botUserId: number | null
+  readonly botUserId: UserId | null
 }
 
 /** Create a ZulipClient for a registered teammate's bot. */

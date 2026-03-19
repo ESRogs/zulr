@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { addReaction, removeReaction } from 'zulip-ts'
+import { addReaction, type MessageId, removeReaction } from 'zulip-ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerReactTool(server: McpServer, ctx: ToolContext): void {
@@ -11,7 +11,10 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
         'Add or remove an emoji reaction on a Zulip message. Use the emoji name without colons (e.g. "thumbs_up", "check", "eyes"). Consider using reactions to acknowledge messages — e.g. "eyes" when you start working on something, "check" when done.',
       inputSchema: z.object({
         sender: z.string().describe('Teammate name (uses their bot identity)'),
-        messageId: z.coerce.number().describe('Zulip message ID to react to'),
+        messageId: z.coerce
+          .number()
+          .transform((n): MessageId => n as MessageId)
+          .describe('Zulip message ID to react to'),
         emoji: z.string().describe('Emoji name (e.g. "thumbs_up", "check", "eyes")'),
         remove: z
           .union([z.boolean(), z.string().transform((s) => s === 'true')])
