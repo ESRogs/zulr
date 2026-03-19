@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { ApiKey, DisplayName, Email, UserId, ZulipClient, ZulipError } from 'zulip-ts'
+import type { ApiKey, Email, UserId, ZulipClient, ZulipError } from 'zulip-ts'
 import { createBot, createClient, getBots, getMembers } from 'zulip-ts'
 import type { ZulerDatabase } from './state/db.ts'
 import {
@@ -9,7 +9,7 @@ import {
   type StateError,
   updateTeammateCredentials,
 } from './state/teammates.ts'
-import type { TeammateName } from './tagged-types.ts'
+import { type TeammateName, teammateToDisplayName } from './tagged-types.ts'
 
 export type BotManagerError =
   | { readonly type: 'zulip'; readonly inner: ZulipError }
@@ -87,8 +87,16 @@ function createNewBot(
   adminClient: ZulipClient,
   name: TeammateName,
 ): ResultAsync<BotCredentials, BotManagerError> {
+  const displayNameResult = teammateToDisplayName(name)
+  if (displayNameResult.isErr()) {
+    return errAsync({
+      type: 'state',
+      inner: { type: 'db_error', message: displayNameResult.error },
+    })
+  }
+
   return createBot(adminClient, {
-    fullName: name as string as DisplayName,
+    fullName: displayNameResult.value,
     shortName: name,
   })
     .map((res) => ({
