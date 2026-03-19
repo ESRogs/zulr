@@ -26,3 +26,12 @@ export type Email = Tagged<string, 'Email'>
 
 /** Human-readable display name (full_name / sender_full_name). */
 export type DisplayName = Tagged<string, 'DisplayName'>
+
+/** Zulip emoji name (e.g. "thumbs_up", "heart"). */
+export type EmojiName = Tagged<string, 'EmojiName'>
+
+/** Zulip event queue ID returned by /register. */
+export type QueueId = Tagged<string, 'QueueId'>
+
+/** Zulip API key for authentication. */
+export type ApiKey = Tagged<string, 'ApiKey'>

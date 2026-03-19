@@ -1,7 +1,7 @@
 import { getBots } from './bots.ts'
 import { createClient } from './client.ts'
 import { getStreams } from './streams.ts'
-import type { Email } from './tagged-types.ts'
+import type { ApiKey, Email } from './tagged-types.ts'
 import { getMembers } from './users.ts'
 
 const site = process.env.ZULIP_SITE
@@ -13,7 +13,7 @@ if (!site || !email || !apiKey) {
   process.exit(1)
 }
 
-const client = createClient({ site, email: email as Email, apiKey })
+const client = createClient({ site, email: email as Email, apiKey: apiKey as ApiKey })
 
 console.log('Fetching streams, members, and bots...\n')
 

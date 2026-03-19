@@ -1,10 +1,13 @@
 import { z } from 'zod'
 import type {
+  ApiKey,
   ChannelName,
   DisplayName,
   Email,
+  EmojiName,
   EventId,
   MessageId,
+  QueueId,
   StreamId,
   TopicName,
   UnixEpochSeconds,
@@ -12,11 +15,14 @@ import type {
 } from './tagged-types.ts'
 
 export type {
+  ApiKey,
   ChannelName,
   DisplayName,
   Email,
+  EmojiName,
   EventId,
   MessageId,
+  QueueId,
   StreamId,
   TopicName,
   UnixEpochSeconds,
@@ -32,6 +38,9 @@ const channelName = z.string().transform((s): ChannelName => s as ChannelName)
 const topicName = z.string().transform((s): TopicName => s as TopicName)
 const email = z.string().transform((s): Email => s as Email)
 const displayName = z.string().transform((s): DisplayName => s as DisplayName)
+const emojiName = z.string().transform((s): EmojiName => s as EmojiName)
+const queueId = z.string().transform((s): QueueId => s as QueueId)
+const apiKey = z.string().transform((s): ApiKey => s as ApiKey)
 
 export const SuccessResponseFields = {
   result: z.literal('success'),
@@ -44,7 +53,7 @@ export type SuccessResponse = z.infer<typeof SuccessResponseSchema>
 // --- Messages ---
 
 const ReactionSchema = z.object({
-  emoji_name: z.string(),
+  emoji_name: emojiName,
   user_id: userId,
 })
 export type Reaction = z.infer<typeof ReactionSchema>
@@ -192,7 +201,7 @@ export const BotSchema = z.object({
   user_id: userId.optional(),
   username: email,
   full_name: displayName,
-  api_key: z.string(),
+  api_key: apiKey,
   bot_type: z.number().optional(),
 })
 export type Bot = z.infer<typeof BotSchema>
@@ -206,7 +215,7 @@ export type GetBotsResponse = z.infer<typeof GetBotsResponseSchema>
 export const CreateBotResponseSchema = z.object({
   ...SuccessResponseFields,
   user_id: userId,
-  api_key: z.string(),
+  api_key: apiKey,
 })
 export type CreateBotResponse = z.infer<typeof CreateBotResponseSchema>
 
@@ -214,7 +223,7 @@ export type CreateBotResponse = z.infer<typeof CreateBotResponseSchema>
 
 export const RegisterQueueResponseSchema = z.object({
   ...SuccessResponseFields,
-  queue_id: z.string(),
+  queue_id: queueId,
   last_event_id: eventId,
 })
 export type RegisterQueueResponse = z.infer<typeof RegisterQueueResponseSchema>
@@ -228,7 +237,7 @@ export const EventSchema = z.object({
   op: z.string().optional(),
   message_id: messageId.optional(),
   user_id: userId.optional(),
-  emoji_name: z.string().optional(),
+  emoji_name: emojiName.optional(),
 })
 export type Event = z.infer<typeof EventSchema>
 

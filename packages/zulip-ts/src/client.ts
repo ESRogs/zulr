@@ -1,11 +1,11 @@
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import type { z } from 'zod'
-import type { Email } from './tagged-types.ts'
+import type { ApiKey, Email } from './tagged-types.ts'
 
 export type ZulipConfig = {
   readonly site: string
   readonly email: Email
-  readonly apiKey: string
+  readonly apiKey: ApiKey
 }
 
 export type ZulipError =

@@ -12,7 +12,14 @@ import {
   type UpdateMessageResponse,
   UpdateMessageResponseSchema,
 } from './schemas.ts'
-import type { ChannelName, MessageId, StreamId, TopicName, UserId } from './tagged-types.ts'
+import type {
+  ChannelName,
+  EmojiName,
+  MessageId,
+  StreamId,
+  TopicName,
+  UserId,
+} from './tagged-types.ts'
 
 export type SendDirectMessageParams = {
   readonly to: readonly UserId[]
@@ -136,7 +143,7 @@ export function updateMessage(
 export function addReaction(
   client: ZulipClient,
   messageId: MessageId,
-  emojiName: string,
+  emojiName: EmojiName,
 ): ResultAsync<SuccessResponse, ZulipError> {
   return client.request(
     { method: 'POST', path: `/messages/${messageId}/reactions`, body: { emoji_name: emojiName } },
@@ -147,7 +154,7 @@ export function addReaction(
 export function removeReaction(
   client: ZulipClient,
   messageId: MessageId,
-  emojiName: string,
+  emojiName: EmojiName,
 ): ResultAsync<SuccessResponse, ZulipError> {
   return client.request(
     {

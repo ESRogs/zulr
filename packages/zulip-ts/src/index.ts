@@ -65,11 +65,14 @@ export {
   updateChannel,
 } from './streams.ts'
 export type {
+  ApiKey,
   ChannelName,
   DisplayName,
   Email,
+  EmojiName,
   EventId,
   MessageId,
+  QueueId,
   StreamId,
   TopicName,
   UnixEpochSeconds,
