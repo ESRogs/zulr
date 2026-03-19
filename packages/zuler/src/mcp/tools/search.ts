@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import type { TeammateName } from '../../tagged-types.ts'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import {
   buildUserIdResolver,
@@ -23,12 +24,12 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
         count: z.coerce.number().optional().default(20).describe('Max results (default: 20)'),
       }),
     },
-    async ({ sender, query, channel, topic, count }) => {
+    async ({ sender: rawSender, query, channel, topic, count }) => {
       if (topic && !channel) {
         return errorResult('"topic" requires "channel" to be specified')
       }
 
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.getTeammateClient(rawSender as TeammateName)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const { client, botUserId } = clientResult.value

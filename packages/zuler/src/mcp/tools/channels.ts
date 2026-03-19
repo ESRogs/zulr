@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import type { ChannelName } from 'zulip-ts'
 import { archiveStream, createChannel, getTopics, updateChannel } from 'zulip-ts'
 import {
   errorResult,
@@ -19,7 +20,8 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
         description: z.string().optional().describe('Channel description'),
       }),
     },
-    async ({ name, description }) => {
+    async ({ name: rawName, description }) => {
+      const name = rawName as ChannelName
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
@@ -55,8 +57,9 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
         description: z.string().optional().describe('New channel description'),
       }),
     },
-    async ({ channel, name, description }) => {
-      if (name === undefined && description === undefined) {
+    async ({ channel, name: rawName, description }) => {
+      const newName = rawName as ChannelName | undefined
+      if (newName === undefined && description === undefined) {
         return errorResult('provide "name" and/or "description" to update')
       }
 
@@ -67,7 +70,7 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
       const result = await updateChannel(client, streamResult.value.stream_id, {
-        newName: name,
+        newName,
         description,
       })
 
@@ -75,7 +78,7 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
         () => {
           ctx.invalidateChannelsCache()
           const changes = [
-            name !== undefined ? `renamed to "${name}"` : '',
+            newName !== undefined ? `renamed to "${newName}"` : '',
             description !== undefined ? 'description updated' : '',
           ]
             .filter(Boolean)

@@ -2,8 +2,9 @@ import { basename } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
-import type { Member } from 'zulip-ts'
+import type { ChannelName, Member, TopicName } from 'zulip-ts'
 import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from 'zulip-ts'
+import type { TeammateName } from '../../tagged-types.ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
@@ -29,7 +30,10 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
         message: z.string().optional().describe('Optional message to include with the file'),
       }),
     },
-    async ({ sender, path, channel, topic, to, message }) => {
+    async ({ sender: rawSender, path, channel: rawChannel, topic: rawTopic, to, message }) => {
+      const sender = rawSender as TeammateName
+      const channel = rawChannel as ChannelName | undefined
+      const topic = rawTopic as TopicName | undefined
       if (topic && !channel) return errorResult('"topic" requires "channel"')
       if (channel && !topic) return errorResult('"channel" requires "topic"')
       if (channel && to !== undefined) {
@@ -122,11 +126,11 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
           .describe('Local path to save the file to (relative paths resolve from repo root)'),
       }),
     },
-    async ({ sender, url: rawUrl, saveTo }) => {
+    async ({ sender: rawSender, url: rawUrl, saveTo }) => {
       // Extract path if a full URL was passed
       const url = rawUrl.startsWith('http') ? new URL(rawUrl).pathname : rawUrl
 
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.getTeammateClient(rawSender as TeammateName)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await downloadFile(clientResult.value.client, url)

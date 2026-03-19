@@ -1,14 +1,15 @@
 import type { Kysely } from 'kysely'
-import type { DmMessage, MessageId, UnixEpochSeconds } from 'zulip-ts'
+import type { DmMessage, Email, MessageId, UnixEpochSeconds } from 'zulip-ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates } from '../state/teammates.ts'
+import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
 
 type RouteResult = {
   readonly messageId: MessageId
   readonly delivered: readonly {
-    readonly teammate: string
+    readonly teammate: TeammateName
     readonly from: string
   }[]
 }
@@ -30,7 +31,7 @@ function appendFooter(content: string, messageId: MessageId, timestamp: UnixEpoc
 }
 
 /** Build a reverse map of bot_email → teammate_name. */
-async function buildEmailMap(db: Kysely<ZulerDatabase>): Promise<Map<string, string>> {
+async function buildEmailMap(db: Kysely<ZulerDatabase>): Promise<Map<Email, TeammateName>> {
   const result = await listTeammates(db)
   if (result.isErr()) return new Map()
   return new Map(result.value.map((t) => [t.botEmail, t.name]))
@@ -42,9 +43,9 @@ async function buildEmailMap(db: Kysely<ZulerDatabase>): Promise<Map<string, str
  */
 export async function routeDm(
   db: Kysely<ZulerDatabase>,
-  teamName: string,
+  teamName: TeamName,
   message: DmMessage,
-  targetBot?: string,
+  targetBot?: TeammateName,
 ): Promise<RouteResult> {
   const emailMap = await buildEmailMap(db)
   const senderName = message.sender_full_name

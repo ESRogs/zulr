@@ -1,7 +1,9 @@
+import type { ApiKey, Email } from 'zulip-ts'
 import { createClient } from 'zulip-ts'
 import { clientForTeammate, registerBot } from './bot-manager.ts'
 import { createDatabase } from './state/db.ts'
 import { listTeammates } from './state/teammates.ts'
+import type { TeammateName } from './tagged-types.ts'
 
 const site = process.env.ZULIP_SITE
 const email = process.env.ZULIP_EMAIL
@@ -12,9 +14,9 @@ if (!site || !email || !apiKey) {
   process.exit(1)
 }
 
-const botName = process.argv[2] ?? 'test-bot'
+const botName = (process.argv[2] ?? 'test-bot') as TeammateName
 
-const adminClient = createClient({ site, email, apiKey })
+const adminClient = createClient({ site, email: email as Email, apiKey: apiKey as ApiKey })
 const db = createDatabase(':memory:')
 
 console.log(`Registering bot '${botName}'...\n`)

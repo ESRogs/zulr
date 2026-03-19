@@ -1,9 +1,13 @@
 import { okAsync, type ResultAsync } from 'neverthrow'
 import type {
+  ChannelName,
+  DisplayName,
+  EmojiName,
   GetMessagesParams,
   Message,
   MessageId,
   Reaction,
+  TopicName,
   UnixEpochSeconds,
   UserId,
   ZulipClient,
@@ -12,15 +16,15 @@ import type {
 import { getMessages, markAsRead } from 'zulip-ts'
 
 export type FormattedReaction = {
-  readonly emoji: string
+  readonly emoji: EmojiName
   readonly users: readonly string[]
 }
 
 export type FormattedMessage = {
   readonly id: MessageId
-  readonly stream: string
-  readonly topic: string
-  readonly sender: string
+  readonly stream: ChannelName
+  readonly topic: TopicName
+  readonly sender: DisplayName
   readonly content: string
   readonly timestamp: UnixEpochSeconds
   readonly dmWith?: string
@@ -33,7 +37,7 @@ function aggregateReactions(
   raw: readonly Reaction[],
   resolveUserId?: (id: UserId) => string | undefined,
 ): FormattedReaction[] {
-  const byEmoji = new Map<string, string[]>()
+  const byEmoji = new Map<EmojiName, string[]>()
   for (const r of raw) {
     const name = resolveUserId?.(r.user_id) ?? `user ${r.user_id}`
     const existing = byEmoji.get(r.emoji_name)
@@ -62,8 +66,8 @@ export function fetchMessages(
   params: GetMessagesParams,
   options?: {
     markRead?: boolean
-    streamFallback?: string
-    topicFallback?: string
+    streamFallback?: ChannelName
+    topicFallback?: TopicName
     botUserId?: UserId | null
     resolveUserId?: (id: UserId) => string | undefined
   },
@@ -75,8 +79,8 @@ export function fetchMessages(
       if (msg.type === 'stream') {
         return {
           id: msg.id,
-          stream: msg.display_recipient || (streamFallback ?? ''),
-          topic: msg.subject || (topicFallback ?? ''),
+          stream: msg.display_recipient || (streamFallback ?? ('' as ChannelName)),
+          topic: msg.subject || (topicFallback ?? ('' as TopicName)),
           sender: msg.sender_full_name,
           content: msg.content,
           timestamp: msg.timestamp,
@@ -91,12 +95,12 @@ export function fetchMessages(
           : []
       return {
         id: msg.id,
-        stream: '',
-        topic: '',
+        stream: '' as ChannelName,
+        topic: '' as TopicName,
         sender: msg.sender_full_name,
         content: msg.content,
         timestamp: msg.timestamp,
-        dmWith: others.length > 0 ? others.join(', ') : undefined,
+        dmWith: others.length > 0 ? (others.join(', ') as string) : undefined,
         isGroupDm: msg.display_recipient.length > 2,
         reactions: formatReactionsField(msg, resolveUserId),
       }

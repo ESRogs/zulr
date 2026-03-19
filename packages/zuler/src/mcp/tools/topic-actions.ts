@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
-import type { MessageId, ZulipClient } from 'zulip-ts'
+import type { ChannelName, MessageId, TopicName, ZulipClient } from 'zulip-ts'
 import { getMessages, updateMessage } from 'zulip-ts'
 import {
   errorResult,
@@ -16,8 +16,8 @@ const RESOLVED_PREFIX = '✔ '
 /** Find any message ID in a topic (needed for updateMessage). */
 function findMessageIdInTopic(
   client: ZulipClient,
-  channel: string,
-  topic: string,
+  channel: ChannelName,
+  topic: TopicName,
 ): ResultAsync<MessageId, string> {
   return getMessages(client, {
     anchor: 'newest',
@@ -47,7 +47,9 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
         topic: z.string().describe('Topic name'),
       }),
     },
-    async ({ channel, topic }) => {
+    async ({ channel: rawChannel, topic: rawTopic }) => {
+      const channel = rawChannel as ChannelName
+      const topic = rawTopic as TopicName
       if (topic.startsWith(RESOLVED_PREFIX)) {
         return errorResult('topic is already resolved')
       }
@@ -59,7 +61,7 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
       if (found.isErr()) return errorResult(found.error)
 
       const result = await updateMessage(client, found.value, {
-        topic: `${RESOLVED_PREFIX}${topic}`,
+        topic: `${RESOLVED_PREFIX}${topic}` as TopicName,
         propagateMode: 'change_all',
       })
 
@@ -81,14 +83,18 @@ export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext):
         topic: z.string().describe('Topic name (with or without ✔ prefix)'),
       }),
     },
-    async ({ channel, topic }) => {
+    async ({ channel: rawChannel, topic: rawTopic }) => {
+      const channel = rawChannel as ChannelName
+      const topic = rawTopic as TopicName
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const resolvedTopic = topic.startsWith(RESOLVED_PREFIX) ? topic : `${RESOLVED_PREFIX}${topic}`
-      const unresolvedTopic = topic.startsWith(RESOLVED_PREFIX)
-        ? topic.slice(RESOLVED_PREFIX.length)
-        : topic
+      const resolvedTopic = (
+        topic.startsWith(RESOLVED_PREFIX) ? topic : `${RESOLVED_PREFIX}${topic}`
+      ) as TopicName
+      const unresolvedTopic = (
+        topic.startsWith(RESOLVED_PREFIX) ? topic.slice(RESOLVED_PREFIX.length) : topic
+      ) as TopicName
 
       const found = await findMessageIdInTopic(client, channel, resolvedTopic)
       if (found.isErr()) return errorResult(found.error)
@@ -119,7 +125,9 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
         toTopic: z.string().optional().describe('New topic name (defaults to keeping the same)'),
       }),
     },
-    async ({ channel, topic, toChannel, toTopic }) => {
+    async ({ channel: rawChannel, topic: rawTopic, toChannel, toTopic: rawToTopic }) => {
+      const channel = rawChannel as ChannelName
+      const topic = rawTopic as TopicName
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
@@ -129,7 +137,7 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       const found = await findMessageIdInTopic(client, channel, topic)
       if (found.isErr()) return errorResult(found.error)
 
-      const destTopic = toTopic ?? topic
+      const destTopic = (rawToTopic ?? topic) as TopicName
       const result = await updateMessage(client, found.value, {
         streamId: destResult.value.stream_id,
         topic: destTopic,

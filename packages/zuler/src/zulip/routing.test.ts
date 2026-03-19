@@ -3,21 +3,30 @@ import { rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
-import type { DmMessage, MessageId, UnixEpochSeconds, UserId } from 'zulip-ts'
+import type {
+  ApiKey,
+  DisplayName,
+  DmMessage,
+  Email,
+  MessageId,
+  UnixEpochSeconds,
+  UserId,
+} from 'zulip-ts'
 import { createDatabase, type ZulerDatabase } from '../state/db.ts'
 import { registerTeammate } from '../state/teammates.ts'
+import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { readInbox } from './inbox.ts'
 import { routeDm } from './routing.ts'
 
 let db: Kysely<ZulerDatabase>
 
 // Use a unique team name per test to avoid inbox file collisions
-let teamName: string
+let teamName: TeamName
 let inboxDirPath: string
 
 beforeEach(() => {
   db = createDatabase(':memory:')
-  teamName = `test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  teamName = `test-${Date.now()}-${Math.random().toString(36).slice(2)}` as TeamName
   inboxDirPath = join(homedir(), '.claude', 'teams', teamName, 'inboxes')
 })
 
@@ -30,12 +39,20 @@ afterEach(async () => {
 const makeDmMessage = (overrides: Partial<DmMessage> = {}): DmMessage => ({
   id: 2 as MessageId,
   sender_id: 100 as UserId,
-  sender_email: 'human@example.com',
-  sender_full_name: 'Human User',
+  sender_email: 'human@example.com' as Email,
+  sender_full_name: 'Human User' as DisplayName,
   type: 'private',
   display_recipient: [
-    { id: 100 as UserId, email: 'human@example.com', full_name: 'Human User' },
-    { id: 200 as UserId, email: 'alice-bot@test.zulipchat.com', full_name: 'alice' },
+    {
+      id: 100 as UserId,
+      email: 'human@example.com' as Email,
+      full_name: 'Human User' as DisplayName,
+    },
+    {
+      id: 200 as UserId,
+      email: 'alice-bot@test.zulipchat.com' as Email,
+      full_name: 'alice' as DisplayName,
+    },
   ],
   content: 'hey alice',
   timestamp: (Date.now() / 1000) as UnixEpochSeconds,
@@ -44,16 +61,16 @@ const makeDmMessage = (overrides: Partial<DmMessage> = {}): DmMessage => ({
 })
 
 const alice = {
-  name: 'alice',
-  botEmail: 'alice-bot@test.zulipchat.com',
-  apiKey: 'key-alice',
+  name: 'alice' as TeammateName,
+  botEmail: 'alice-bot@test.zulipchat.com' as Email,
+  apiKey: 'key-alice' as ApiKey,
   botUserId: null,
 }
 
 const bob = {
-  name: 'bob',
-  botEmail: 'bob-bot@test.zulipchat.com',
-  apiKey: 'key-bob',
+  name: 'bob' as TeammateName,
+  botEmail: 'bob-bot@test.zulipchat.com' as Email,
+  apiKey: 'key-bob' as ApiKey,
   botUserId: null,
 }
 
@@ -63,9 +80,9 @@ test('DM routed to recipient teammate', async () => {
   const result = await routeDm(db, teamName, makeDmMessage())
 
   expect(result.delivered).toHaveLength(1)
-  expect(result.delivered[0]!.teammate).toBe('alice')
+  expect(result.delivered[0]!.teammate).toBe('alice' as TeammateName)
 
-  const inbox = readInbox(teamName, 'alice')
+  const inbox = readInbox(teamName, 'alice' as TeammateName)
   expect(inbox).toHaveLength(1)
   expect(inbox[0]!.from).toBe('zulip:Human User')
   expect(inbox[0]!.text).toContain('hey alice')
@@ -81,19 +98,27 @@ test('DM not delivered back to sender bot', async () => {
     db,
     teamName,
     makeDmMessage({
-      sender_email: 'alice-bot@test.zulipchat.com',
-      sender_full_name: 'alice',
+      sender_email: 'alice-bot@test.zulipchat.com' as Email,
+      sender_full_name: 'alice' as DisplayName,
       display_recipient: [
-        { id: 200 as UserId, email: 'alice-bot@test.zulipchat.com', full_name: 'alice' },
-        { id: 300 as UserId, email: 'bob-bot@test.zulipchat.com', full_name: 'bob' },
+        {
+          id: 200 as UserId,
+          email: 'alice-bot@test.zulipchat.com' as Email,
+          full_name: 'alice' as DisplayName,
+        },
+        {
+          id: 300 as UserId,
+          email: 'bob-bot@test.zulipchat.com' as Email,
+          full_name: 'bob' as DisplayName,
+        },
       ],
       content: 'hey bob',
     }),
   )
 
   expect(result.delivered).toHaveLength(1)
-  expect(result.delivered[0]!.teammate).toBe('bob')
-  expect(readInbox(teamName, 'alice')).toHaveLength(0)
+  expect(result.delivered[0]!.teammate).toBe('bob' as TeammateName)
+  expect(readInbox(teamName, 'alice' as TeammateName)).toHaveLength(0)
 })
 
 test('DM with targetBot only delivers to that bot', async () => {
@@ -102,16 +127,28 @@ test('DM with targetBot only delivers to that bot', async () => {
 
   const msg = makeDmMessage({
     display_recipient: [
-      { id: 100 as UserId, email: 'human@example.com', full_name: 'Human User' },
-      { id: 200 as UserId, email: 'alice-bot@test.zulipchat.com', full_name: 'alice' },
-      { id: 300 as UserId, email: 'bob-bot@test.zulipchat.com', full_name: 'bob' },
+      {
+        id: 100 as UserId,
+        email: 'human@example.com' as Email,
+        full_name: 'Human User' as DisplayName,
+      },
+      {
+        id: 200 as UserId,
+        email: 'alice-bot@test.zulipchat.com' as Email,
+        full_name: 'alice' as DisplayName,
+      },
+      {
+        id: 300 as UserId,
+        email: 'bob-bot@test.zulipchat.com' as Email,
+        full_name: 'bob' as DisplayName,
+      },
     ],
     content: 'hey everyone',
   })
 
-  const result = await routeDm(db, teamName, msg, 'alice')
+  const result = await routeDm(db, teamName, msg, 'alice' as TeammateName)
 
   expect(result.delivered).toHaveLength(1)
-  expect(result.delivered[0]!.teammate).toBe('alice')
-  expect(readInbox(teamName, 'bob')).toHaveLength(0)
+  expect(result.delivered[0]!.teammate).toBe('alice' as TeammateName)
+  expect(readInbox(teamName, 'bob' as TeammateName)).toHaveLength(0)
 })

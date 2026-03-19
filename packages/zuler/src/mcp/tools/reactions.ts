@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { addReaction, type MessageId, removeReaction } from 'zulip-ts'
+import { addReaction, type EmojiName, type MessageId, removeReaction } from 'zulip-ts'
+import type { TeammateName } from '../../tagged-types.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerReactTool(server: McpServer, ctx: ToolContext): void {
@@ -23,7 +24,9 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
           .describe('If true, remove the reaction instead of adding it'),
       }),
     },
-    async ({ sender, messageId, emoji, remove }) => {
+    async ({ sender: rawSender, messageId, emoji: rawEmoji, remove }) => {
+      const sender = rawSender as TeammateName
+      const emoji = rawEmoji as EmojiName
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 

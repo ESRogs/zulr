@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { updateSettings } from 'zulip-ts'
 import { registerBot } from '../../bot-manager.ts'
+import type { TeammateName } from '../../tagged-types.ts'
 import {
   errorResult,
   formatError,
@@ -20,7 +21,8 @@ export function registerRegisterTool(server: McpServer, ctx: ToolContext): void 
         name: z.string().describe('Teammate name'),
       }),
     },
-    async ({ name }) => {
+    async ({ name: rawName }) => {
+      const name = rawName as TeammateName
       const adminClient = ctx.getAdminClient()
       if (!adminClient) {
         return notConfiguredResult()

@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { Member, Stream, UserId, ZulipClient } from 'zulip-ts'
+import type { ApiKey, Email, Member, Stream, UserId, ZulipClient } from 'zulip-ts'
 import { createClient, getMembers, getStreams } from 'zulip-ts'
 import { clientForTeammate, type TeammateClient } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
+import type { TeammateName, TeamName } from '../tagged-types.ts'
 import type { EventListenerManager } from '../zulip/event-listener.ts'
 
 /** MCP tool response helpers */
@@ -44,7 +45,7 @@ export async function buildUserIdResolver(
 
 export type ServerConfig = {
   readonly db: Kysely<ZulerDatabase>
-  readonly teamName: string
+  readonly teamName: TeamName
   readonly repoRoot: string
 }
 
@@ -65,11 +66,11 @@ export type ToolContext = {
   /** Returns the admin client, or undefined if credentials aren't configured. */
   readonly getAdminClient: () => ZulipClient | undefined
   /** Get a ZulipClient and bot user ID for a registered teammate. Checks credentials are configured. */
-  readonly getTeammateClient: (sender: string) => ResultAsync<TeammateClient, string>
+  readonly getTeammateClient: (sender: TeammateName) => ResultAsync<TeammateClient, string>
   /** Returns true if Zulip credentials are configured. */
   readonly isConfigured: () => boolean
   /** Returns Zulip credentials if configured. */
-  readonly getCredentials: () => { site: string; email: string; apiKey: string } | undefined
+  readonly getCredentials: () => { site: string; email: Email; apiKey: ApiKey } | undefined
   /**
    * Try to load credentials from .env file if not already configured.
    * If credentials become available, starts the event listener for inbound messages.
@@ -128,12 +129,12 @@ function loadEnvFile(repoRoot: string): boolean {
   }
 }
 
-function getZulipCredentials(): { site: string; email: string; apiKey: string } | undefined {
+function getZulipCredentials(): { site: string; email: Email; apiKey: ApiKey } | undefined {
   const site = process.env.ZULIP_SITE
   const email = process.env.ZULIP_EMAIL
   const apiKey = process.env.ZULIP_API_KEY
   if (!site || !email || !apiKey) return undefined
-  return { site, email, apiKey }
+  return { site, email: email as Email, apiKey: apiKey as ApiKey }
 }
 
 export function createToolContext(config: ServerConfig): ToolContext {
@@ -260,7 +261,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     onCredentialsLoaded: (callback: () => void) => {
       credentialsLoadedCallback = callback
     },
-    getTeammateClient: (sender: string) => {
+    getTeammateClient: (sender: TeammateName) => {
       const creds = getZulipCredentials()
       if (!creds) return errAsync(NOT_CONFIGURED_MESSAGE)
       return clientForTeammate(config.db, creds.site, sender).mapErr(formatError)

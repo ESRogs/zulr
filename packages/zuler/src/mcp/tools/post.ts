@@ -1,6 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import type { ChannelName, TopicName } from 'zulip-ts'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
+import type { TeammateName } from '../../tagged-types.ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
@@ -23,7 +25,11 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         topic: z.string().optional().describe('Topic name'),
       }),
     },
-    async ({ sender, content, to, channel, topic }) => {
+    async ({ sender: rawSender, content, to, channel: rawChannel, topic: rawTopic }) => {
+      const sender = rawSender as TeammateName
+      const channel = rawChannel as ChannelName | undefined
+      const topic = rawTopic as TopicName | undefined
+
       // Pre-flight unread checks before any async work
       if (channel && topic) {
         const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)

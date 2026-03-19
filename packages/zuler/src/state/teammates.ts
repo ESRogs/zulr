@@ -1,15 +1,16 @@
 import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
-import type { UserId } from 'zulip-ts'
+import type { ApiKey, Email, UserId } from 'zulip-ts'
+import type { TeammateName } from '../tagged-types.ts'
 import type { ZulerDatabase } from './db.ts'
 import { AlreadyExistsError, dbOp, NotFoundError, type StateError } from './db-utils.ts'
 
 export type { StateError } from './db-utils.ts'
 
 export type Teammate = {
-  readonly name: string
-  readonly botEmail: string
-  readonly apiKey: string
+  readonly name: TeammateName
+  readonly botEmail: Email
+  readonly apiKey: ApiKey
   readonly botUserId: UserId | null
 }
 
@@ -44,7 +45,7 @@ export function registerTeammate(
 
 export function getTeammate(
   db: Kysely<ZulerDatabase>,
-  name: string,
+  name: TeammateName,
 ): ResultAsync<Teammate, StateError> {
   return dbOp(async () => {
     const row = await db
@@ -58,9 +59,9 @@ export function getTeammate(
     }
 
     return {
-      name: row.name,
-      botEmail: row.bot_email,
-      apiKey: row.api_key,
+      name: row.name as TeammateName,
+      botEmail: row.bot_email as Email,
+      apiKey: row.api_key as ApiKey,
       botUserId: row.bot_user_id as UserId | null,
     }
   })
@@ -72,9 +73,9 @@ export function listTeammates(
   return dbOp(async () => {
     const rows = await db.selectFrom('teammates').selectAll().execute()
     return rows.map((r) => ({
-      name: r.name,
-      botEmail: r.bot_email,
-      apiKey: r.api_key,
+      name: r.name as TeammateName,
+      botEmail: r.bot_email as Email,
+      apiKey: r.api_key as ApiKey,
       botUserId: r.bot_user_id as UserId | null,
     }))
   })
@@ -82,11 +83,11 @@ export function listTeammates(
 
 export function updateTeammateCredentials(
   db: Kysely<ZulerDatabase>,
-  name: string,
+  name: TeammateName,
   updates: {
-    readonly apiKey: string
+    readonly apiKey: ApiKey
     readonly botUserId: UserId | null
-    readonly botEmail: string
+    readonly botEmail: Email
   },
 ): ResultAsync<void, StateError> {
   return dbOp(async () => {

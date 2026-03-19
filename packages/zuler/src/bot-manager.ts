@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { UserId, ZulipClient, ZulipError } from 'zulip-ts'
+import type { ApiKey, DisplayName, Email, UserId, ZulipClient, ZulipError } from 'zulip-ts'
 import { createBot, createClient, getBots, getMembers } from 'zulip-ts'
 import type { ZulerDatabase } from './state/db.ts'
 import {
@@ -9,6 +9,7 @@ import {
   type StateError,
   updateTeammateCredentials,
 } from './state/teammates.ts'
+import type { TeammateName } from './tagged-types.ts'
 
 export type BotManagerError =
   | { readonly type: 'zulip'; readonly inner: ZulipError }
@@ -19,15 +20,15 @@ const wrapZulip = (e: ZulipError): BotManagerError => ({ type: 'zulip', inner: e
 const wrapState = (e: StateError): BotManagerError => ({ type: 'state', inner: e })
 
 /** Derive bot email from teammate name and Zulip site URL. */
-export function botEmail(name: string, site: string): string {
+export function botEmail(name: TeammateName, site: string): Email {
   const host = new URL(site).hostname
-  return `${name}-bot@${host}`
+  return `${name}-bot@${host}` as Email
 }
 
 type BotCredentials = {
-  readonly apiKey: string
+  readonly apiKey: ApiKey
   readonly userId: UserId | null
-  readonly email: string
+  readonly email: Email
 }
 
 /**
@@ -37,7 +38,7 @@ type BotCredentials = {
  */
 function lookupBotUserId(
   adminClient: ZulipClient,
-  botEmail: string,
+  botEmail: Email,
 ): ResultAsync<UserId | null, BotManagerError> {
   return getMembers(adminClient)
     .map((res) => {
@@ -50,8 +51,8 @@ function lookupBotUserId(
 /** Find an existing bot, preferring email match, falling back to full_name match for bots with a bot-pattern email on the same host. */
 function findExistingBot(
   adminClient: ZulipClient,
-  email: string,
-  name: string,
+  email: Email,
+  name: TeammateName,
 ): ResultAsync<BotCredentials | undefined, BotManagerError> {
   const host = new URL(adminClient.config.site).hostname
   return getBots(adminClient)
@@ -60,7 +61,10 @@ function findExistingBot(
       // Prefer exact email match, then full_name match
       const byEmail = res.bots.find((b) => b.username === email)
       const bot =
-        byEmail ?? res.bots.find((b) => b.full_name === name && b.username.endsWith(`-bot@${host}`))
+        byEmail ??
+        res.bots.find(
+          (b) => (b.full_name as string) === name && b.username.endsWith(`-bot@${host}`),
+        )
       if (!bot) return okAsync(undefined)
 
       const creds: BotCredentials = {
@@ -81,10 +85,10 @@ function findExistingBot(
 /** Create a new bot and return its API key and user ID. */
 function createNewBot(
   adminClient: ZulipClient,
-  name: string,
+  name: TeammateName,
 ): ResultAsync<BotCredentials, BotManagerError> {
   return createBot(adminClient, {
-    fullName: name,
+    fullName: name as string as DisplayName,
     shortName: name,
   })
     .map((res) => ({
@@ -102,8 +106,8 @@ function createNewBot(
 export function registerBot(
   adminClient: ZulipClient,
   db: Kysely<ZulerDatabase>,
-  name: string,
-): ResultAsync<{ readonly botEmail: string; readonly apiKey: string }, BotManagerError> {
+  name: TeammateName,
+): ResultAsync<{ readonly botEmail: Email; readonly apiKey: ApiKey }, BotManagerError> {
   const email = botEmail(name, adminClient.config.site)
 
   // Check if already registered in our DB
@@ -113,7 +117,7 @@ export function registerBot(
       // Verify credentials against Zulip and refresh if stale
       return findExistingBot(adminClient, existing.botEmail, name).andThen((zulipBot) => {
         if (!zulipBot) {
-          return errAsync<{ botEmail: string; apiKey: string }, BotManagerError>({
+          return errAsync<{ botEmail: Email; apiKey: ApiKey }, BotManagerError>({
             type: 'bot_deleted',
             message: `bot '${name}' exists in the local DB but was not found on Zulip. It may have been deleted.`,
           })
@@ -174,7 +178,7 @@ export type TeammateClient = {
 export function clientForTeammate(
   db: Kysely<ZulerDatabase>,
   site: string,
-  name: string,
+  name: TeammateName,
 ): ResultAsync<TeammateClient, BotManagerError> {
   return getTeammate(db, name)
     .mapErr(wrapState)

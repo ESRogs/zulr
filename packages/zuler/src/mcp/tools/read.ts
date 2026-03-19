@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { markAsRead, type UserId } from 'zulip-ts'
+import { type ChannelName, markAsRead, type TopicName, type UserId } from 'zulip-ts'
+import type { TeammateName } from '../../tagged-types.ts'
 import {
   consumeUnreadDmMessages,
   consumeUnreadInboxMessages,
@@ -33,7 +34,8 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         count: z.coerce.number().optional().default(10).describe('Number of messages to fetch'),
       }),
     },
-    async ({ sender, channel, topic, user, count }) => {
+    async ({ sender: rawSender, channel: rawChannel, topic: rawTopic, user, count }) => {
+      const sender = rawSender as TeammateName
       if (user !== undefined) {
         const resolveResult = await ctx.resolveUser(user)
         if (resolveResult.isErr()) {
@@ -41,6 +43,8 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         }
         return readDms(ctx, sender, resolveResult.value.user_id, count)
       }
+      const channel = rawChannel as ChannelName | undefined
+      const topic = rawTopic as TopicName | undefined
       if (channel && topic) {
         return readStream(ctx, sender, channel, topic, count)
       }
@@ -51,9 +55,9 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
 
 async function readStream(
   ctx: ToolContext,
-  sender: string,
-  stream: string,
-  topic: string,
+  sender: TeammateName,
+  stream: ChannelName,
+  topic: TopicName,
   count: number,
 ) {
   const botClientResult = await ctx.getTeammateClient(sender)
@@ -115,7 +119,7 @@ async function readStream(
   return textResult(body)
 }
 
-async function readDms(ctx: ToolContext, sender: string, userId: UserId, count: number) {
+async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, count: number) {
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Kysely } from 'kysely'
+import type { ApiKey, Email } from 'zulip-ts'
+import type { TeammateName } from '../tagged-types.ts'
 import { exportConfig, parseConfig } from './config-io.ts'
 import { createDatabase, type ZulerDatabase } from './db.ts'
 import { registerTeammate } from './teammates.ts'
@@ -16,16 +18,16 @@ afterEach(async () => {
 
 test('export and parse round-trip', async () => {
   await registerTeammate(db, {
-    name: 'alice',
-    botEmail: 'alice-bot@test.zulipchat.com',
-    apiKey: 'secret-key-alice',
+    name: 'alice' as TeammateName,
+    botEmail: 'alice-bot@test.zulipchat.com' as Email,
+    apiKey: 'secret-key-alice' as ApiKey,
     botUserId: null,
   })
 
   await registerTeammate(db, {
-    name: 'bob',
-    botEmail: 'bob-bot@test.zulipchat.com',
-    apiKey: 'secret-key-bob',
+    name: 'bob' as TeammateName,
+    botEmail: 'bob-bot@test.zulipchat.com' as Email,
+    apiKey: 'secret-key-bob' as ApiKey,
     botUserId: null,
   })
 

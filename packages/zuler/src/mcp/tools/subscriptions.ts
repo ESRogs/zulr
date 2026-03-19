@@ -1,6 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import type { ChannelName, TopicName } from 'zulip-ts'
 import { getSubscriptions, setUserTopic, subscribe, TopicVisibility, unsubscribe } from 'zulip-ts'
+import type { TeammateName } from '../../tagged-types.ts'
 import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
 
 export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void {
@@ -18,7 +20,10 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
           .describe('Topic name (follow this topic — requires channel subscription)'),
       }),
     },
-    async ({ teammate, channel, topic }) => {
+    async ({ teammate: rawTeammate, channel: rawChannel, topic: rawTopic }) => {
+      const teammate = rawTeammate as TeammateName
+      const channel = rawChannel as ChannelName
+      const topic = rawTopic as TopicName | undefined
       const clientResult = await ctx.getTeammateClient(teammate)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
@@ -65,7 +70,10 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
           .describe('Topic name (unfollow this topic — keeps channel subscription)'),
       }),
     },
-    async ({ teammate, channel, topic }) => {
+    async ({ teammate: rawTeammate, channel: rawChannel, topic: rawTopic }) => {
+      const teammate = rawTeammate as TeammateName
+      const channel = rawChannel as ChannelName
+      const topic = rawTopic as TopicName | undefined
       const clientResult = await ctx.getTeammateClient(teammate)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
@@ -104,8 +112,8 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
         teammate: z.string().describe('Teammate name'),
       }),
     },
-    async ({ teammate }) => {
-      const clientResult = await ctx.getTeammateClient(teammate)
+    async ({ teammate: rawTeammate }) => {
+      const clientResult = await ctx.getTeammateClient(rawTeammate as TeammateName)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await getSubscriptions(clientResult.value.client)
