@@ -3,6 +3,7 @@ import type { ResultAsync } from 'neverthrow'
 import type { ApiKey, Email, UserId } from 'zulip-ts'
 import type { TeammateName } from '../tagged-types.ts'
 import type { ZulerDatabase } from './db.ts'
+
 import { AlreadyExistsError, dbOp, NotFoundError, type StateError } from './db-utils.ts'
 
 export type { StateError } from './db-utils.ts'
@@ -59,10 +60,10 @@ export function getTeammate(
     }
 
     return {
-      name: row.name as TeammateName,
-      botEmail: row.bot_email as Email,
-      apiKey: row.api_key as ApiKey,
-      botUserId: row.bot_user_id as UserId | null,
+      name: row.name,
+      botEmail: row.bot_email,
+      apiKey: row.api_key,
+      botUserId: row.bot_user_id,
     }
   })
 }
@@ -73,10 +74,10 @@ export function listTeammates(
   return dbOp(async () => {
     const rows = await db.selectFrom('teammates').selectAll().execute()
     return rows.map((r) => ({
-      name: r.name as TeammateName,
-      botEmail: r.bot_email as Email,
-      apiKey: r.api_key as ApiKey,
-      botUserId: r.bot_user_id as UserId | null,
+      name: r.name,
+      botEmail: r.bot_email,
+      apiKey: r.api_key,
+      botUserId: r.bot_user_id,
     }))
   })
 }
