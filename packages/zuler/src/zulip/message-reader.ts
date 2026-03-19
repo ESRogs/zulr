@@ -99,18 +99,18 @@ export function fetchMessages(
         }
       }
       // DM — extract the other participants (exclude the bot making the API call)
-      // If botUserId is unknown, skip enrichment rather than guessing wrong
+      // If botUserId is unknown, include all participants rather than guessing
       const others =
         botUserId != null
           ? msg.display_recipient.filter((r) => r.id !== botUserId).map((r) => r.full_name)
-          : []
+          : msg.display_recipient.map((r) => r.full_name)
       return {
         type: 'dm' as const,
         id: msg.id,
         sender: msg.sender_full_name,
         content: msg.content,
         timestamp: msg.timestamp,
-        dmWith: others.length > 0 ? others.join(', ') : 'unknown',
+        dmWith: others.length > 0 ? others.join(', ') : (msg.sender_full_name as string),
         isGroupDm: msg.display_recipient.length > 2,
         reactions: formatReactionsField(msg, resolveUserId),
       }
