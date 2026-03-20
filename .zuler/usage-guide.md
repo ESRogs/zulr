@@ -45,7 +45,7 @@ Team-wide conversations. Key topics:
 ### prs
 
 PR review coordination. **One topic per PR**, named `<number> – <short title>`
-(e.g., `59 – Zulip-native subscriptions`).
+(e.g., `59 – Zulip-native subs`). Keep topic names short.
 
 Workflow:
 1. When a PR is ready for review, post a summary with a link to the PR and
@@ -56,9 +56,10 @@ Workflow:
    decisions should be posted back to GitHub.
 4. The PR on GitHub should be self-contained — you should be able to
    understand all decisions by reading it.
-5. **Do not merge without Eric's explicit approval** — even if the reviewer
-   approves.
+5. **Do not merge without the user's explicit approval** — even if the
+   reviewer approves.
 6. Default to squash merge: `gh pr merge --squash --delete-branch`.
+7. When a PR is merged, resolve the PR topic in prs.
 
 ### Other channels
 
@@ -76,7 +77,7 @@ Default to posting on Zulip rather than using SendMessage for teammate
 communication. Zulip messages are:
 - Visible to the whole team (or relevant subscribers)
 - Searchable and persistent
-- Readable by Eric in the Zulip UI
+- Readable by the user in the Zulip UI
 
 Use SendMessage only for Claude Code-internal coordination that doesn't need
 to be visible on Zulip (e.g., asking team-lead to spawn a new agent).
@@ -93,6 +94,15 @@ Always read recent messages in a topic before replying. The `read` and
 `catch-up` tools mark messages as read on Zulip. If you skip this step, the
 `post` tool will block you until you catch up — this prevents stale replies
 that ignore intervening discussion.
+
+### Reply Where You Were Messaged
+
+Reply in the same way you were messaged:
+- If the user talks to you directly in Claude Code, reply in text.
+- If a teammate messages you via SendMessage, reply via SendMessage.
+- If you get a message from Zulip, reply in the same channel/topic or DM.
+
+Don't forward Zulip conversations to SendMessage or vice versa.
 
 ### Avoid Repeating Messages
 
@@ -113,6 +123,6 @@ in the same topic. They can read it themselves.
 ## Git and PRs
 
 - Default to squash merge: `gh pr merge --squash --delete-branch`.
-- Never merge without Eric's explicit approval.
+- Never merge without the user's explicit approval.
 - PR descriptions should explain the "why," not just the "what."
 - Tag reviewers as appropriate when a PR is ready.
