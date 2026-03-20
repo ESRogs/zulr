@@ -64,11 +64,11 @@ Each agent has its own MCP server connection (stdio). The event listener needs t
 Currently, the MCP server is a single process — all agents connect to the same server. The server doesn't know which connection belongs to which agent (agents identify themselves by passing `sender` in tool calls).
 
 **Options:**
-- **Connection registration**: when an agent first calls a tool (e.g. `register` or `catch-up`), the server associates that stdio connection with the agent name. Subsequent notifications route to the right connection.
-- **Broadcast with filtering**: send all notifications on all connections, include the target agent in `meta`, and rely on the `instructions` string to tell Claude to ignore messages not addressed to it. Simpler but wasteful.
+- **Connection registration**: when an agent first calls a tool (e.g. `register` or `catch-up`), the server associates that stdio connection with the agent name. Subsequent notifications route to the right connection. **Race condition**: a Zulip message could arrive before the agent makes any tool call. During Phase 1 (dual-write), inbox delivery covers this gap. Phase 2 requires that all agents have registered their connection before inbox writes are removed — this is a Phase 2 precondition.
+- **Broadcast with filtering**: send all notifications on all connections, include the target agent in `meta`, and rely on the `instructions` string to tell Claude to ignore messages not addressed to it. For small teams (3-6 agents), the waste is negligible — each agent ignores a few extra notifications. The simplicity benefit (no connection tracking, no registration race) may outweigh the cost.
 - **Per-agent server instances**: run a separate MCP server per agent. Clean routing but changes the deployment model.
 
-Connection registration is the most likely path — it preserves the single-process model and adds minimal complexity.
+Either connection registration or broadcast could work. Connection registration is more precise; broadcast is simpler and avoids the registration race entirely. The right choice depends on how many agents are typical and whether extra context injection is problematic at scale.
 
 ### 2. Server capability declaration
 
@@ -115,12 +115,24 @@ This is acceptable because:
 
 ### 5. Removing team dependency
 
-With channels handling notification delivery, agents no longer need to be "team members" in Claude Code's team system. This removes:
+With channels handling notification delivery, agents no longer need to be "team members" in Claude Code's team system for **inbox delivery**. This removes:
 - Dependency on `ZULER_TEAM` matching Claude Code's team name
 - Dependency on Claude Code's inbox file format/location
 - The `~/.claude/teams/` directory structure
 
-Agents would still coordinate through Zulip — the team system just wouldn't be the transport.
+Note: agents currently use the team system for more than inbox delivery — `SendMessage` between teammates also goes through team infra. If channels replace inbox delivery but agents still use `SendMessage`, the team dependency can't be fully removed. Phase 3 scope is limited to removing the *inbox* dependency; whether to also migrate inter-agent messaging is a separate decision.
+
+## Relationship to stateful client design (PR #60)
+
+The [stateful client design](stateful-client-design.md) introduces `ZulipSession` per bot with notification trigger evaluation (`shouldNotify`). That design changes *what* gets delivered (only notification-worthy messages, not everything). This design changes *how* delivery happens (MCP channel notifications instead of inbox files).
+
+These are complementary and touch the same delivery path:
+- `ZulipSession.shouldNotify()` gates whether a message is delivered at all
+- Channel notifications (this design) change the transport for that delivery
+
+**Sequencing**: implement the stateful client first. The channel migration builds on top of it — `ZulipSession`'s notification callback is the natural place to emit channel notifications instead of (or alongside) inbox writes. Migrating to channels before the stateful client would mean migrating the current "deliver everything" behavior, then changing the filtering logic — two migrations instead of one.
+
+**Unread tracking interaction**: when a message is delivered via channel notification, the session should mark it as read (same as the current behavior where the event listener marks delivered messages as read per-bot). This ensures `catch-up` with `first_unread` anchor doesn't re-fetch already-delivered messages.
 
 ## Migration plan
 
