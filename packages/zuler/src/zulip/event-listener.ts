@@ -35,6 +35,8 @@ type EventListenerManagerOptions = {
   readonly signal?: AbortSignal
 }
 
+// 'reaction' is not processed by ZulipSession internally — it flows through
+// to the onEvent callback where zuler handles it for inbox delivery.
 const SESSION_EVENT_TYPES = [
   'message',
   'update_message_flags',
@@ -121,6 +123,7 @@ function startBotSession(
   botEmail: Email,
   allBotEmails: ReadonlySet<Email>,
   options: EventListenerManagerOptions,
+  onSessionExit?: () => void,
 ): ZulipSession {
   const { db, teamName, onRoute, onReaction, onError, signal } = options
 
@@ -140,12 +143,14 @@ function startBotSession(
           // Block bot-to-bot DMs
           if (allBotEmails.has(msg.sender_email)) return
 
-          routeDm(db, teamName, msg, botName).then((result) => {
-            if (result.delivered.length > 0) {
-              onRoute?.({ sender: msg.sender_full_name, botName })
-              markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
-            }
-          })
+          routeDm(db, teamName, msg, botName)
+            .then((result) => {
+              if (result.delivered.length > 0) {
+                onRoute?.({ sender: msg.sender_full_name, botName })
+                markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
+              }
+            })
+            .catch((err) => onError?.(err))
         } else {
           const stream = msg.display_recipient
           const topic = msg.subject
@@ -190,7 +195,7 @@ function startBotSession(
             (userId) => session.resolveUserId(userId),
             onReaction,
             onError,
-          )
+          ).catch((err) => onError?.(err))
         }
       },
 
@@ -198,7 +203,10 @@ function startBotSession(
     },
   })
 
-  session.start().catch((err) => onError?.(err))
+  session.start().catch((err) => {
+    onError?.(err)
+    onSessionExit?.()
+  })
 
   return session
 }
@@ -253,6 +261,7 @@ export function createEventListenerManager(
       botEmail,
       allBotEmails,
       options,
+      () => running.delete(name),
     )
     running.set(name, session)
   }
