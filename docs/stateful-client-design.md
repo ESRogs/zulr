@@ -38,17 +38,17 @@ zuler             — MCP server + Claude Code integration (exists, uses the abo
 Each registered bot gets one `ZulipSession` instance that manages:
 
 **Event queue + long-poll loop**
-- Registers with `message`, `update_message_flags`, `update_message`, `reaction`, and `user_topic` event types
+- Registers with `message`, `update_message_flags`, `update_message`, `reaction`, `user_topic`, `realm_user`, and `subscription` event types
 - Initial state from `register` includes `unread_msgs` (message IDs grouped by stream/topic)
 - Long-polls for events and updates local state
 - On queue expiration (BAD_EVENT_QUEUE_ID), re-registers and fully resets local state from the new initial state. Events during the re-register gap are recovered via the fresh `unread_msgs` snapshot.
 
 **Local state**
-- **Unread map (streams)**: `Map<"${StreamId}:${TopicName}", Set<MessageId>>` — updated on `message` events (add) and `update_message_flags` events (remove when read flag added)
+- **Unread map (streams)**: `Map<StreamId, Map<TopicName, Set<MessageId>>>` — nested structure avoids composite-key ambiguity (topic names can contain colons). Updated on `message` events (add) and `update_message_flags` events (remove when read flag added).
 - **Unread map (DMs)**: `Map<UserId, Set<MessageId>>` — same update pattern, from the `pms` section of `unread_msgs`
-- **Topic visibility**: `Map<"${StreamId}:${TopicName}", VisibilityPolicy>` — updated from `user_topic` events. Values: 0=inherit, 1=muted, 2=unmuted, 3=followed
-- **Members cache**: `Map<UserId, Member>` — populated from initial state, updated on `realm_user` events
-- **Subscriptions**: channel list from initial state, updated on `subscription` events
+- **Topic visibility**: `Map<StreamId, Map<TopicName, VisibilityPolicy>>` — updated from `user_topic` events. Values: 0=inherit, 1=muted, 2=unmuted, 3=followed
+- **Members cache**: `Map<UserId, Member>` — populated via `getMembers` API call on start (not included in `registerQueue` initial state), updated on `realm_user` events
+- **Subscriptions**: channel list from initial state (via `fetch_event_types: ['subscription']`), updated on `subscription` events
 
 **Notification trigger evaluation**
 
@@ -96,21 +96,21 @@ type ZulipSession = {
 
 **`reply` tool** (new): Posts to a channel/topic or DM, but first checks `session.hasUnreads(streamId, topic)` (or `session.hasUnreadDms(userId)` for DMs). If unreads exist, returns an error with context:
 ```
-You have 5 unread messages in general/project-update (oldest: 2h ago).
-Use `read` to catch up, or use `post` to skip this check.
+You have 5 unread messages in general/project-update.
+Use `read` or `catch-up` to catch up first, or use `post` to skip this check.
 ```
 
-The check covers ALL unreads in the topic. Agents use `post` when they want to skip the check (e.g. the "days later" case where accumulated unreads aren't relevant).
+The check covers ALL unreads in the topic. Agents use `post` when they want to skip the check (e.g. the "days later" case where accumulated unreads aren't relevant, or when replying to a busy channel for the first time).
 
 **`post` tool** (modified): Posts without any unread check. For new threads or when the agent has context and doesn't need to catch up.
 
 **`topic-state` tool** (new): Returns a summary of the bot's state for a topic:
 ```
 general/project-update
-  Unread: 5 messages (oldest: 2h ago, newest: 10m ago)
-  Your last message: 3h ago
+  Unread: 5 messages (oldest: msg #12345, newest: msg #12350)
   Following: yes
 ```
+Unread count and visibility come from local session state. Additional context (like the bot's last message timestamp) can be added later via API call if needed — keeping the initial version simple with only locally-tracked state.
 
 **`read` tool**: Can optionally query local state instead of hitting the Zulip API when recent messages are cached.
 
@@ -132,12 +132,18 @@ New zulip-ts API additions:
 - Parse the `unread_msgs` structure (streams, DMs, mentions)
 - Tagged ID types already in place (PR #61): `MessageId`, `StreamId`, `UserId`, `TopicName`, `ChannelName`, etc.
 
-### Step 2: Topic visibility tracking + notification logic
+Session startup sequence:
+1. `registerQueue` with `fetch_event_types: ['subscription']` to get initial subscriptions and `unread_msgs`
+2. `getMembers` API call to populate the members cache (not available from `registerQueue` initial state)
+3. Start long-poll loop
+
+### Step 2: Topic visibility, members, and notification logic
 
 Add to `ZulipSession`:
 - Track `user_topic` events for follow/mute state
+- Track `realm_user` events to keep members cache current (new users, name changes, deactivations)
 - `shouldNotify(message)` evaluating: DM, mentions (from flags), followed topic
-- `getTopicVisibility`, `isFollowed` query methods
+- `getTopicVisibility`, `isFollowed`, `resolveUserId`, `resolveName` query methods
 - Tests for notification trigger logic
 
 ### Step 3: Integrate with zuler event listener
