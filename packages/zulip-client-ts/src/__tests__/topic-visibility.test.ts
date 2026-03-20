@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import type { Event, EventId, StreamId, TopicName } from 'zulip-ts'
+import type { Event, EventId, StreamId, TopicName, UserTopicEntry } from 'zulip-ts'
 import {
   applyUserTopicEvent,
   emptyTopicVisibility,
   getTopicVisibility,
+  initTopicVisibility,
   isFollowed,
 } from '../topic-visibility.ts'
 
@@ -30,6 +31,35 @@ function makeUserTopicEvent(overrides: {
     visibility_policy: overrides.visibilityPolicy,
   } as unknown as Event
 }
+
+describe('initTopicVisibility', () => {
+  test('builds state from user_topics entries', () => {
+    const entries: UserTopicEntry[] = [
+      { stream_id: sid(10), topic_name: topic('bugs'), visibility_policy: 3 },
+      { stream_id: sid(10), topic_name: topic('features'), visibility_policy: 1 },
+      { stream_id: sid(20), topic_name: topic('design'), visibility_policy: 2 },
+    ]
+
+    const state = initTopicVisibility(entries)
+    expect(isFollowed(state, sid(10), topic('bugs'))).toBe(true)
+    expect(getTopicVisibility(state, sid(10), topic('features'))).toBe(1)
+    expect(getTopicVisibility(state, sid(20), topic('design'))).toBe(2)
+  })
+
+  test('skips INHERIT (0) entries', () => {
+    const entries: UserTopicEntry[] = [
+      { stream_id: sid(10), topic_name: topic('bugs'), visibility_policy: 0 },
+    ]
+
+    const state = initTopicVisibility(entries)
+    expect(state.size).toBe(0)
+  })
+
+  test('handles empty entries', () => {
+    const state = initTopicVisibility([])
+    expect(state.size).toBe(0)
+  })
+})
 
 describe('topic visibility', () => {
   test('defaults to INHERIT (0) for unknown topics', () => {

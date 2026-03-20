@@ -53,6 +53,7 @@ export type {
   UpdateChannelResponse,
   UpdateMessageFlagsResponse,
   UpdateMessageResponse,
+  UserTopicEntry,
 } from './schemas.ts'
 export type { CreateChannelParams, UpdateChannelParams, UserTopicVisibility } from './streams.ts'
 export {

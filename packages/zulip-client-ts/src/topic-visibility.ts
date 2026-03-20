@@ -1,9 +1,25 @@
-import type { Event, StreamId, TopicName, UserTopicVisibility } from 'zulip-ts'
+import type { Event, StreamId, TopicName, UserTopicEntry, UserTopicVisibility } from 'zulip-ts'
 
 export type TopicVisibilityState = Map<StreamId, Map<TopicName, UserTopicVisibility>>
 
 export function emptyTopicVisibility(): TopicVisibilityState {
   return new Map()
+}
+
+/** Build topic visibility state from the /register response's user_topics. */
+export function initTopicVisibility(entries: readonly UserTopicEntry[]): TopicVisibilityState {
+  const state: TopicVisibilityState = new Map()
+  for (const entry of entries) {
+    const policy = entry.visibility_policy as UserTopicVisibility
+    if (policy === 0) continue // INHERIT — no override to store
+    let topicMap = state.get(entry.stream_id)
+    if (!topicMap) {
+      topicMap = new Map()
+      state.set(entry.stream_id, topicMap)
+    }
+    topicMap.set(entry.topic_name, policy)
+  }
+  return state
 }
 
 /** Apply a user_topic event — updates topic visibility policy. */

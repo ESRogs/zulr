@@ -18,6 +18,7 @@ export {
   applyUserTopicEvent,
   emptyTopicVisibility,
   getTopicVisibility,
+  initTopicVisibility,
   isFollowed,
 } from './topic-visibility.ts'
 

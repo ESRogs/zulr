@@ -25,6 +25,7 @@ import { evaluateNotification, type NotificationResult } from './notifications.t
 import {
   applyUserTopicEvent,
   emptyTopicVisibility,
+  initTopicVisibility,
   type TopicVisibilityState,
   getTopicVisibility as tvGetTopicVisibility,
   isFollowed as tvIsFollowed,
@@ -121,18 +122,23 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   async function runEventLoop(): Promise<Result<void, ZulipError | string>> {
     const regResult = await registerQueue(client, {
       eventTypes: [...eventTypes],
-      fetchEventTypes: ['message'],
+      fetchEventTypes: ['message', 'user_topic'],
     })
 
     if (regResult.isErr()) return err(regResult.error)
 
-    const { queue_id: queueId, last_event_id: initialLastEventId, unread_msgs } = regResult.value
+    const {
+      queue_id: queueId,
+      last_event_id: initialLastEventId,
+      unread_msgs,
+      user_topics,
+    } = regResult.value
 
     // Initialize unread state from the register response
     unreads = unread_msgs ? initUnreadState(unread_msgs) : emptyUnreadState()
 
-    // Reset topic visibility on reconnect (will be rebuilt from user_topic events)
-    topicVisibility = emptyTopicVisibility()
+    // Initialize topic visibility from the register response
+    topicVisibility = user_topics ? initTopicVisibility(user_topics) : emptyTopicVisibility()
 
     // Fetch members list
     const membersResult = await getMembers(client)
