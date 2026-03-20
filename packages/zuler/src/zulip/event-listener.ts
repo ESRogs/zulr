@@ -1,14 +1,7 @@
 import type { Kysely } from 'kysely'
-import type {
-  DisplayName,
-  Email,
-  EmojiName,
-  EventId,
-  MessageId,
-  UserId,
-  ZulipClient,
-} from 'zulip-ts'
-import { getEvents, getMembers, getMessages, markAsRead, registerQueue } from 'zulip-ts'
+import { createSession, type ZulipSession } from 'zulip-client-ts'
+import type { DisplayName, Email, EmojiName, MessageId, UserId, ZulipClient } from 'zulip-ts'
+import { getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates, type Teammate } from '../state/teammates.ts'
@@ -42,7 +35,13 @@ type EventListenerManagerOptions = {
   readonly signal?: AbortSignal
 }
 
-const RETRY_DELAY_MS = 5000
+const SESSION_EVENT_TYPES = [
+  'message',
+  'update_message_flags',
+  'user_topic',
+  'realm_user',
+  'reaction',
+] as const
 
 /**
  * Handle a reaction event for a specific bot: fetch the reacted-to message,
@@ -56,7 +55,7 @@ async function handleReaction(
   messageId: MessageId,
   reactorUserId: UserId,
   emojiName: EmojiName,
-  resolveUserName: (userId: UserId) => Promise<DisplayName>,
+  resolveUserName: (userId: UserId) => DisplayName | undefined,
   onReaction?: EventListenerManagerOptions['onReaction'],
   onError?: (error: unknown) => void,
 ): Promise<void> {
@@ -76,7 +75,7 @@ async function handleReaction(
   const msg = msgResult.value.messages[0]
   if (!msg) return
 
-  const reactorName = await resolveUserName(reactorUserId)
+  const reactorName = resolveUserName(reactorUserId) ?? (`user ${reactorUserId}` as DisplayName)
 
   // Only notify the bot if they authored the message
   if (msg.sender_email !== botEmail) return
@@ -112,105 +111,42 @@ async function handleReaction(
 }
 
 /**
- * Run a single bot's event listener loop. Registers its own event queue
- * using the bot's client and long-polls for events.
+ * Start a ZulipSession for a single bot. The session handles event queue
+ * lifecycle (register, long-poll, reconnect) and tracks unread/visibility/members
+ * state. Only notification-worthy messages are delivered to the inbox.
  */
-async function runBotListener(
+function startBotSession(
   botName: TeammateName,
   botClient: ZulipClient,
   botEmail: Email,
   allBotEmails: ReadonlySet<Email>,
   options: EventListenerManagerOptions,
-): Promise<void> {
+): ZulipSession {
   const { db, teamName, onRoute, onReaction, onError, signal } = options
-  let membersMap: Map<UserId, DisplayName> | null = null
 
-  async function resolveUserName(userId: UserId): Promise<DisplayName> {
-    if (membersMap) {
-      const name = membersMap.get(userId)
-      if (name) return name
-    }
-    const result = await getMembers(botClient)
-    if (result.isOk()) {
-      membersMap = new Map(result.value.members.map((m) => [m.user_id, m.full_name]))
-      return membersMap.get(userId) ?? (`user ${userId}` as DisplayName)
-    }
-    return `user ${userId}` as DisplayName
-  }
-
-  while (!signal?.aborted) {
-    const regResult = await registerQueue(botClient, { eventTypes: ['message', 'reaction'] })
-
-    if (regResult.isErr()) {
-      onError?.(regResult.error)
-      await sleep(RETRY_DELAY_MS, signal)
-      continue
-    }
-
-    const { queue_id: queueId, last_event_id: initialLastEventId } = regResult.value
-    let lastEventId: EventId = initialLastEventId
-
-    while (!signal?.aborted) {
-      const eventsResult = await getEvents(botClient, { queueId, lastEventId })
-
-      if (eventsResult.isErr()) {
-        const evtErr = eventsResult.error
-        if (evtErr.type === 'api' && evtErr.code === 'BAD_EVENT_QUEUE_ID') {
-          break
-        }
-        onError?.(evtErr)
-        await sleep(RETRY_DELAY_MS, signal)
-        continue
-      }
-
-      for (const event of eventsResult.value.events) {
-        lastEventId = event.id
-
-        // Handle reaction events
-        if (
-          event.type === 'reaction' &&
-          event.op === 'add' &&
-          event.message_id != null &&
-          event.user_id != null &&
-          event.emoji_name
-        ) {
-          await handleReaction(
-            botClient,
-            teamName,
-            botName,
-            botEmail,
-            event.message_id,
-            event.user_id,
-            event.emoji_name,
-            resolveUserName,
-            onReaction,
-            onError,
-          )
-          continue
-        }
-
-        if (event.type !== 'message' || !event.message) continue
-
+  const session = createSession({
+    client: botClient,
+    eventTypes: [...SESSION_EVENT_TYPES],
+    signal,
+    handler: {
+      onNotification: (event, _result) => {
         const msg = event.message
+        if (!msg) return
 
         // Skip messages sent by this bot
-        if (msg.sender_email === botEmail) continue
+        if (msg.sender_email === botEmail) return
 
         if (msg.type === 'private') {
           // Block bot-to-bot DMs
-          if (allBotEmails.has(msg.sender_email)) continue
+          if (allBotEmails.has(msg.sender_email)) return
 
-          // DM — use existing routeDm logic
-          const result = await routeDm(db, teamName, msg, botName)
-          if (result.delivered.length > 0) {
-            onRoute?.({
-              sender: msg.sender_full_name,
-              botName,
-            })
-            markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
-          }
+          routeDm(db, teamName, msg, botName).then((result) => {
+            if (result.delivered.length > 0) {
+              onRoute?.({ sender: msg.sender_full_name, botName })
+              markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
+            }
+          })
         } else {
-          // Stream message — bot is subscribed, so deliver it
           const stream = msg.display_recipient
           const topic = msg.subject
           const senderName = msg.sender_full_name
@@ -230,19 +166,41 @@ async function runBotListener(
             zulipSender: senderName,
           })
 
-          onRoute?.({
-            stream,
-            topic,
-            sender: senderName,
-            botName,
-          })
-
-          // Mark as read
+          onRoute?.({ stream, topic, sender: senderName, botName })
           markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
         }
-      }
-    }
-  }
+      },
+
+      onEvent: (event) => {
+        if (
+          event.type === 'reaction' &&
+          event.op === 'add' &&
+          event.message_id != null &&
+          event.user_id != null &&
+          event.emoji_name
+        ) {
+          handleReaction(
+            botClient,
+            teamName,
+            botName,
+            botEmail,
+            event.message_id,
+            event.user_id,
+            event.emoji_name,
+            (userId) => session.resolveUserId(userId),
+            onReaction,
+            onError,
+          )
+        }
+      },
+
+      onError: (error) => onError?.(error),
+    },
+  })
+
+  session.start().catch((err) => onError?.(err))
+
+  return session
 }
 
 /**
@@ -259,7 +217,7 @@ export type EventListenerManager = {
 export function createEventListenerManager(
   options: EventListenerManagerOptions,
 ): EventListenerManager {
-  const running = new Set<TeammateName>()
+  const running = new Map<TeammateName, ZulipSession>()
   /** Cached set of all bot emails for bot-to-bot DM blocking. Refreshed on startAll/startBot. */
   let allBotEmails = new Set<Email>()
 
@@ -282,7 +240,6 @@ export function createEventListenerManager(
       return
     }
 
-    // Refresh bot emails so the new bot is included in the set
     const teammates = await refreshBotEmails()
     const botEmail = teammates.find((t) => t.name === name)?.botEmail
     if (!botEmail) {
@@ -290,14 +247,14 @@ export function createEventListenerManager(
       return
     }
 
-    running.add(name)
-    // Run in background — don't await
-    runBotListener(name, clientResult.value.client, botEmail, allBotEmails, options).catch(
-      (err) => {
-        options.onError?.(err)
-        running.delete(name)
-      },
+    const session = startBotSession(
+      name,
+      clientResult.value.client,
+      botEmail,
+      allBotEmails,
+      options,
     )
+    running.set(name, session)
   }
 
   async function startAll(): Promise<void> {
@@ -308,22 +265,4 @@ export function createEventListenerManager(
   }
 
   return { startBot, startAll }
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal?.aborted) {
-      resolve()
-      return
-    }
-    const timer = setTimeout(resolve, ms)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        resolve()
-      },
-      { once: true },
-    )
-  })
 }

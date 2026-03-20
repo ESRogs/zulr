@@ -28,7 +28,8 @@
 
     // Workspace package resolution
     "paths": {
-      "zulip-ts": ["./packages/zulip-ts/src/index.ts"]
+      "zulip-ts": ["./packages/zulip-ts/src/index.ts"],
+      "zulip-client-ts": ["./packages/zulip-client-ts/src/index.ts"]
     }
   },
   "include": ["packages/*/src"]
