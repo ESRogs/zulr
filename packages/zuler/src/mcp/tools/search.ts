@@ -34,7 +34,7 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
 
       const { client, botUserId } = clientResult.value
 
-      const resolveUserId = await buildUserIdResolver(ctx)
+      const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
       const narrow = [
         { operator: 'search', operand: query },

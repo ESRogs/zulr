@@ -50,14 +50,11 @@ export function formatError(err: unknown): string {
   return JSON.stringify(err)
 }
 
-/** Build a synchronous user ID → full_name resolver from the members cache. Best-effort — returns a no-op resolver on failure. */
-export async function buildUserIdResolver(
+/** Build a synchronous user ID → full_name resolver from the members cache. */
+export function buildUserIdResolver(
   ctx: ToolContext,
-): Promise<(id: UserId) => string | undefined> {
-  const result = await ctx.getMembersMap()
-  if (result.isErr()) return () => undefined
-  const members = result.value
-  return (id: UserId) => members.get(id)?.full_name
+): ResultAsync<(id: UserId) => string | undefined, string> {
+  return ctx.getMembersMap().map((members) => (id: UserId) => members.get(id)?.full_name)
 }
 
 export type ServerConfig = {
