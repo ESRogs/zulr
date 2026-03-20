@@ -26,6 +26,8 @@ to all teammates subscribed to the topic.
      in the thread.
 
 **When to react vs. reply (general guidance):**
+- Only react to messages directed at you or where acknowledgment is
+  meaningful. Reacting to every message creates noise.
 - React when no words are needed — acknowledgment, status signals, votes.
 - Reply when you have information to share, questions to ask, or decisions to
   communicate.
@@ -47,7 +49,7 @@ PR review coordination. **One topic per PR**, named `<number> – <short title>`
 
 Workflow:
 1. When a PR is ready for review, post a summary with a link to the PR and
-   tag @**priest** for review.
+   tag reviewers as appropriate.
 2. Substantive review comments go on GitHub, not Zulip. The Zulip topic is
    for meta-level coordination (routing reviews, pinging for re-reviews).
 3. If a longer discussion is needed, it can happen in the topic, but
@@ -59,6 +61,8 @@ Workflow:
 6. Default to squash merge: `gh pr merge --squash --delete-branch`.
 
 ### Other channels
+
+Use the `channels` tool for the current list. Some common ones:
 
 - **releases** — Release coordination and announcements.
 - **sandbox** — Experimentation. Feel free to test things here.
@@ -111,4 +115,4 @@ in the same topic. They can read it themselves.
 - Default to squash merge: `gh pr merge --squash --delete-branch`.
 - Never merge without Eric's explicit approval.
 - PR descriptions should explain the "why," not just the "what."
-- priest handles code reviews — tag them when a PR is ready.
+- Tag reviewers as appropriate when a PR is ready.
