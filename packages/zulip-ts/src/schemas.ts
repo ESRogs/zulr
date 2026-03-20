@@ -78,6 +78,7 @@ export type DmRecipient = z.infer<typeof DmRecipientSchema>
 export const StreamMessageSchema = z.object({
   ...BaseMessageFields,
   type: z.literal('stream'),
+  stream_id: streamId,
   display_recipient: channelName,
   subject: topicName,
 })
