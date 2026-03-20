@@ -243,6 +243,16 @@ export const UnreadMsgsSchema = z.object({
 })
 export type UnreadMsgs = z.infer<typeof UnreadMsgsSchema>
 
+// --- User Topic Visibility (from /register initial state) ---
+
+export const UserTopicEntrySchema = z.object({
+  stream_id: streamId,
+  topic_name: topicName,
+  visibility_policy: z.number(),
+  last_updated: unixEpochSeconds.optional(),
+})
+export type UserTopicEntry = z.infer<typeof UserTopicEntrySchema>
+
 // --- Events ---
 
 export const RegisterQueueResponseSchema = z.object({
@@ -250,6 +260,7 @@ export const RegisterQueueResponseSchema = z.object({
   queue_id: queueId,
   last_event_id: eventId,
   unread_msgs: UnreadMsgsSchema.optional(),
+  user_topics: z.array(UserTopicEntrySchema).optional(),
 })
 export type RegisterQueueResponse = z.infer<typeof RegisterQueueResponseSchema>
 
