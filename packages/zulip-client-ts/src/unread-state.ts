@@ -1,10 +1,16 @@
 import type { Event, MessageId, StreamId, TopicName, UnreadMsgs, UserId } from 'zulip-ts'
 
+type StreamLocation = { readonly streamId: StreamId; readonly topic: TopicName }
+
 export type UnreadState = {
   /** Nested map: streamId → topicName → set of unread message IDs. */
   readonly streams: Map<StreamId, Map<TopicName, Set<MessageId>>>
+  /** Reverse index: messageId → stream location. O(1) removal on read events. */
+  readonly streamIndex: Map<MessageId, StreamLocation>
   /** Map: userId → set of unread DM message IDs from that user. */
   readonly dms: Map<UserId, Set<MessageId>>
+  /** Reverse index: messageId → userId. O(1) removal on read events. */
+  readonly dmIndex: Map<MessageId, UserId>
   /** Set of message IDs where the user was mentioned. */
   readonly mentions: Set<MessageId>
 }
@@ -12,6 +18,7 @@ export type UnreadState = {
 /** Build initial unread state from the /register response's unread_msgs. */
 export function initUnreadState(unreadMsgs: UnreadMsgs): UnreadState {
   const streams = new Map<StreamId, Map<TopicName, Set<MessageId>>>()
+  const streamIndex = new Map<MessageId, StreamLocation>()
   for (const entry of unreadMsgs.streams) {
     let topicMap = streams.get(entry.stream_id)
     if (!topicMap) {
@@ -19,23 +26,33 @@ export function initUnreadState(unreadMsgs: UnreadMsgs): UnreadState {
       streams.set(entry.stream_id, topicMap)
     }
     topicMap.set(entry.topic, new Set(entry.unread_message_ids))
+    const loc: StreamLocation = { streamId: entry.stream_id, topic: entry.topic }
+    for (const id of entry.unread_message_ids) {
+      streamIndex.set(id, loc)
+    }
   }
 
   const dms = new Map<UserId, Set<MessageId>>()
+  const dmIndex = new Map<MessageId, UserId>()
   for (const entry of unreadMsgs.pms) {
     dms.set(entry.other_user_id, new Set(entry.unread_message_ids))
+    for (const id of entry.unread_message_ids) {
+      dmIndex.set(id, entry.other_user_id)
+    }
   }
 
   const mentions = new Set(unreadMsgs.mentions)
 
-  return { streams, dms, mentions }
+  return { streams, streamIndex, dms, dmIndex, mentions }
 }
 
 /** Create an empty unread state. */
 export function emptyUnreadState(): UnreadState {
   return {
     streams: new Map(),
+    streamIndex: new Map(),
     dms: new Map(),
+    dmIndex: new Map(),
     mentions: new Set(),
   }
 }
@@ -62,9 +79,9 @@ export function applyMessageEvent(state: UnreadState, event: Event): void {
       topicMap.set(msg.subject, msgSet)
     }
     msgSet.add(msg.id)
+    state.streamIndex.set(msg.id, { streamId: msg.stream_id, topic: msg.subject })
   } else {
-    // DM — find the other user's ID
-    // For DMs, sender_id is the other user (since the bot received it)
+    // DM — sender_id is the other user (bot received it; own sends have flags: ['read'])
     const senderId = msg.sender_id
     let msgSet = state.dms.get(senderId)
     if (!msgSet) {
@@ -72,6 +89,7 @@ export function applyMessageEvent(state: UnreadState, event: Event): void {
       state.dms.set(senderId, msgSet)
     }
     msgSet.add(msg.id)
+    state.dmIndex.set(msg.id, senderId)
   }
 
   // Track mentions
@@ -88,7 +106,9 @@ export function applyFlagsEvent(state: UnreadState, event: Event): void {
     // "Mark all as read" — clear everything
     if (event.all) {
       state.streams.clear()
+      state.streamIndex.clear()
       state.dms.clear()
+      state.dmIndex.clear()
       state.mentions.clear()
       return
     }
@@ -96,39 +116,38 @@ export function applyFlagsEvent(state: UnreadState, event: Event): void {
     const messageIds = event.messages
     if (!messageIds || messageIds.length === 0) return
 
-    const idsToRemove = new Set(messageIds)
-    removeFromStreams(state.streams, idsToRemove)
-    removeFromDms(state.dms, idsToRemove)
-    for (const id of idsToRemove) {
+    for (const id of messageIds) {
+      // Remove from stream unreads via reverse index
+      const loc = state.streamIndex.get(id)
+      if (loc) {
+        const topicMap = state.streams.get(loc.streamId)
+        if (topicMap) {
+          const msgSet = topicMap.get(loc.topic)
+          if (msgSet) {
+            msgSet.delete(id)
+            if (msgSet.size === 0) topicMap.delete(loc.topic)
+          }
+          if (topicMap.size === 0) state.streams.delete(loc.streamId)
+        }
+        state.streamIndex.delete(id)
+      }
+
+      // Remove from DM unreads via reverse index
+      const dmUserId = state.dmIndex.get(id)
+      if (dmUserId !== undefined) {
+        const msgSet = state.dms.get(dmUserId)
+        if (msgSet) {
+          msgSet.delete(id)
+          if (msgSet.size === 0) state.dms.delete(dmUserId)
+        }
+        state.dmIndex.delete(id)
+      }
+
       state.mentions.delete(id)
     }
   }
   // op === 'remove' (manually marking as unread) is rare and requires knowing
   // which stream/topic the messages belong to. Skip — state self-corrects on re-register.
-}
-
-function removeFromStreams(
-  streams: Map<StreamId, Map<TopicName, Set<MessageId>>>,
-  ids: Set<MessageId>,
-): void {
-  for (const [streamId, topicMap] of streams) {
-    for (const [topic, msgSet] of topicMap) {
-      for (const id of ids) {
-        msgSet.delete(id)
-      }
-      if (msgSet.size === 0) topicMap.delete(topic)
-    }
-    if (topicMap.size === 0) streams.delete(streamId)
-  }
-}
-
-function removeFromDms(dms: Map<UserId, Set<MessageId>>, ids: Set<MessageId>): void {
-  for (const [userId, msgSet] of dms) {
-    for (const id of ids) {
-      msgSet.delete(id)
-    }
-    if (msgSet.size === 0) dms.delete(userId)
-  }
 }
 
 // --- Query functions ---
