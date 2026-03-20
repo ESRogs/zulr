@@ -1,0 +1,10 @@
+{
+  "name": "zulip-client-ts",
+  "version": "0.1.0",
+  "module": "src/index.ts",
+  "type": "module",
+  "dependencies": {
+    "neverthrow": "^8.2.0",
+    "zulip-ts": "workspace:*"
+  }
+}
