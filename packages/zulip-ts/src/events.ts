@@ -11,6 +11,8 @@ import type { EventId, QueueId } from './tagged-types.ts'
 export type RegisterQueueParams = {
   readonly eventTypes: readonly string[]
   readonly narrow?: readonly [string, string][]
+  /** Event types whose initial state to include in the response (e.g. ['subscription', 'message']). */
+  readonly fetchEventTypes?: readonly string[]
 }
 
 export function registerQueue(
@@ -24,6 +26,7 @@ export function registerQueue(
       body: {
         event_types: params.eventTypes,
         ...(params.narrow ? { narrow: params.narrow } : {}),
+        ...(params.fetchEventTypes ? { fetch_event_types: params.fetchEventTypes } : {}),
       },
     },
     RegisterQueueResponseSchema,

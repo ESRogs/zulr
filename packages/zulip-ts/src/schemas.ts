@@ -219,12 +219,36 @@ export const CreateBotResponseSchema = z.object({
 })
 export type CreateBotResponse = z.infer<typeof CreateBotResponseSchema>
 
+// --- Unread Messages (from /register initial state) ---
+
+export const UnreadStreamEntrySchema = z.object({
+  stream_id: streamId,
+  topic: topicName,
+  unread_message_ids: z.array(messageId),
+})
+export type UnreadStreamEntry = z.infer<typeof UnreadStreamEntrySchema>
+
+export const UnreadDmEntrySchema = z.object({
+  other_user_id: userId,
+  unread_message_ids: z.array(messageId),
+})
+export type UnreadDmEntry = z.infer<typeof UnreadDmEntrySchema>
+
+export const UnreadMsgsSchema = z.object({
+  count: z.number(),
+  pms: z.array(UnreadDmEntrySchema),
+  streams: z.array(UnreadStreamEntrySchema),
+  mentions: z.array(messageId),
+})
+export type UnreadMsgs = z.infer<typeof UnreadMsgsSchema>
+
 // --- Events ---
 
 export const RegisterQueueResponseSchema = z.object({
   ...SuccessResponseFields,
   queue_id: queueId,
   last_event_id: eventId,
+  unread_msgs: UnreadMsgsSchema.optional(),
 })
 export type RegisterQueueResponse = z.infer<typeof RegisterQueueResponseSchema>
 
@@ -233,11 +257,16 @@ export const EventSchema = z.object({
   id: eventId,
   // message events
   message: MessageSchema.optional(),
+  flags: z.array(z.string()).optional(),
   // reaction events
   op: z.string().optional(),
   message_id: messageId.optional(),
   user_id: userId.optional(),
   emoji_name: emojiName.optional(),
+  // update_message_flags events
+  flag: z.string().optional(),
+  messages: z.array(messageId).optional(),
+  all: z.boolean().optional(),
 })
 export type Event = z.infer<typeof EventSchema>
 
