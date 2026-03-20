@@ -1,10 +1,11 @@
 import type { Kysely } from 'kysely'
+import type { ResultAsync } from 'neverthrow'
 import { createSession, type ZulipSession } from 'zulip-client-ts'
 import type { DisplayName, Email, EmojiName, MessageId, UserId, ZulipClient } from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
-import { listTeammates, type Teammate } from '../state/teammates.ts'
+import { listTeammates, type StateError, type Teammate } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
@@ -230,12 +231,11 @@ export function createEventListenerManager(
   /** Cached set of all bot emails for bot-to-bot DM blocking. Refreshed on startAll/startBot. */
   let allBotEmails = new Set<Email>()
 
-  async function refreshBotEmails(): Promise<readonly Teammate[]> {
-    const result = await listTeammates(options.db)
-    if (result.isErr()) return []
-    const teammates = result.value
-    allBotEmails = new Set<Email>(teammates.map((t) => t.botEmail))
-    return teammates
+  function refreshBotEmails(): ResultAsync<readonly Teammate[], StateError> {
+    return listTeammates(options.db).map((teammates) => {
+      allBotEmails = new Set<Email>(teammates.map((t) => t.botEmail))
+      return teammates
+    })
   }
 
   async function startBot(name: TeammateName): Promise<void> {
@@ -249,8 +249,13 @@ export function createEventListenerManager(
       return
     }
 
-    const teammates = await refreshBotEmails()
-    const botEmail = teammates.find((t) => t.name === name)?.botEmail
+    const teammatesResult = await refreshBotEmails()
+    if (teammatesResult.isErr()) {
+      options.onError?.(teammatesResult.error)
+      return
+    }
+
+    const botEmail = teammatesResult.value.find((t) => t.name === name)?.botEmail
     if (!botEmail) {
       options.onError?.(`bot email not found for '${name}'`)
       return
@@ -268,10 +273,13 @@ export function createEventListenerManager(
   }
 
   async function startAll(): Promise<void> {
-    const teammates = await refreshBotEmails()
-    if (teammates.length === 0) return
+    const teammatesResult = await refreshBotEmails()
+    if (teammatesResult.isErr()) {
+      options.onError?.(teammatesResult.error)
+      return
+    }
 
-    await Promise.all(teammates.map((t) => startBot(t.name)))
+    await Promise.all(teammatesResult.value.map((t) => startBot(t.name)))
   }
 
   return { startBot, startAll }
