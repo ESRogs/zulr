@@ -1,15 +1,34 @@
 import { err, ok, type Result } from 'neverthrow'
 import type {
+  DisplayName,
   Event,
   EventId,
+  Member,
   MessageId,
   StreamId,
   TopicName,
   UserId,
+  UserTopicVisibility,
   ZulipClient,
   ZulipError,
 } from 'zulip-ts'
-import { getEvents, registerQueue } from 'zulip-ts'
+import { getEvents, getMembers, registerQueue } from 'zulip-ts'
+import {
+  applyRealmUserEvent,
+  emptyMembers,
+  initMembers,
+  type MembersState,
+  resolveName as membersResolveName,
+  resolveUserId as membersResolveUserId,
+} from './members.ts'
+import { evaluateNotification, type NotificationResult } from './notifications.ts'
+import {
+  applyUserTopicEvent,
+  emptyTopicVisibility,
+  type TopicVisibilityState,
+  getTopicVisibility as tvGetTopicVisibility,
+  isFollowed as tvIsFollowed,
+} from './topic-visibility.ts'
 import {
   applyFlagsEvent,
   applyMessageEvent,
@@ -28,6 +47,8 @@ const RETRY_DELAY_MS = 5000
 export type SessionEventHandler = {
   /** Called for every event received from the queue. */
   readonly onEvent?: (event: Event) => void
+  /** Called when a message event triggers a notification. */
+  readonly onNotification?: (event: Event, result: NotificationResult) => void
   /** Called on errors (network, API, validation). Session continues after errors. */
   readonly onError?: (error: ZulipError | string) => void
 }
@@ -42,12 +63,27 @@ export type ZulipSession = {
   readonly getUnreadDmCount: (userId: UserId) => number
   readonly hasUnreadDms: (userId: UserId) => boolean
 
+  // Topic visibility
+  readonly getTopicVisibility: (streamId: StreamId, topic: TopicName) => UserTopicVisibility
+  readonly isFollowed: (streamId: StreamId, topic: TopicName) => boolean
+
+  // Members
+  readonly resolveUserId: (id: UserId) => DisplayName | undefined
+  readonly resolveName: (name: DisplayName) => Member | undefined
+
+  // Notification check
+  readonly shouldNotify: (event: Event) => NotificationResult
+
   // Lifecycle
   readonly start: () => Promise<void>
   readonly stop: () => void
 
-  // For testing: direct access to unread state
-  readonly getState: () => UnreadState
+  // For testing: direct access to internal state
+  readonly getState: () => {
+    readonly unreads: UnreadState
+    readonly topicVisibility: TopicVisibilityState
+    readonly members: MembersState
+  }
 }
 
 export type CreateSessionParams = {
@@ -57,10 +93,14 @@ export type CreateSessionParams = {
   readonly signal?: AbortSignal
 }
 
-export function createSession(params: CreateSessionParams): ZulipSession {
-  const { client, eventTypes = ['message', 'update_message_flags'], handler, signal } = params
+const DEFAULT_EVENT_TYPES = ['message', 'update_message_flags', 'user_topic', 'realm_user'] as const
 
-  let state: UnreadState = emptyUnreadState()
+export function createSession(params: CreateSessionParams): ZulipSession {
+  const { client, eventTypes = DEFAULT_EVENT_TYPES, handler, signal } = params
+
+  let unreads: UnreadState = emptyUnreadState()
+  let topicVisibility: TopicVisibilityState = emptyTopicVisibility()
+  let members: MembersState = emptyMembers()
   let stopped = false
 
   async function start(): Promise<void> {
@@ -80,7 +120,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
 
   async function runEventLoop(): Promise<Result<void, ZulipError | string>> {
     const regResult = await registerQueue(client, {
-      eventTypes,
+      eventTypes: [...eventTypes],
       fetchEventTypes: ['message'],
     })
 
@@ -89,10 +129,18 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     const { queue_id: queueId, last_event_id: initialLastEventId, unread_msgs } = regResult.value
 
     // Initialize unread state from the register response
-    if (unread_msgs) {
-      state = initUnreadState(unread_msgs)
+    unreads = unread_msgs ? initUnreadState(unread_msgs) : emptyUnreadState()
+
+    // Reset topic visibility on reconnect (will be rebuilt from user_topic events)
+    topicVisibility = emptyTopicVisibility()
+
+    // Fetch members list
+    const membersResult = await getMembers(client)
+    if (membersResult.isOk()) {
+      members = initMembers(membersResult.value.members)
     } else {
-      state = emptyUnreadState()
+      handler?.onError?.(membersResult.error)
+      members = emptyMembers()
     }
 
     let lastEventId: EventId = initialLastEventId
@@ -113,9 +161,17 @@ export function createSession(params: CreateSessionParams): ZulipSession {
         lastEventId = event.id
 
         if (event.type === 'message') {
-          applyMessageEvent(state, event)
+          applyMessageEvent(unreads, event)
+          const notification = evaluateNotification(event, topicVisibility)
+          if (notification.shouldNotify) {
+            handler?.onNotification?.(event, notification)
+          }
         } else if (event.type === 'update_message_flags') {
-          applyFlagsEvent(state, event)
+          applyFlagsEvent(unreads, event)
+        } else if (event.type === 'user_topic') {
+          applyUserTopicEvent(topicVisibility, event)
+        } else if (event.type === 'realm_user') {
+          applyRealmUserEvent(members, event)
         }
 
         handler?.onEvent?.(event)
@@ -130,14 +186,19 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   }
 
   return {
-    getUnreadCount: (streamId, topic) => getUnreadCount(state, streamId, topic),
-    getUnreadMessageIds: (streamId, topic) => getUnreadMessageIds(state, streamId, topic),
-    hasUnreads: (streamId, topic) => hasUnreads(state, streamId, topic),
-    getUnreadDmCount: (userId) => getUnreadDmCount(state, userId),
-    hasUnreadDms: (userId) => hasUnreadDms(state, userId),
+    getUnreadCount: (streamId, topic) => getUnreadCount(unreads, streamId, topic),
+    getUnreadMessageIds: (streamId, topic) => getUnreadMessageIds(unreads, streamId, topic),
+    hasUnreads: (streamId, topic) => hasUnreads(unreads, streamId, topic),
+    getUnreadDmCount: (userId) => getUnreadDmCount(unreads, userId),
+    hasUnreadDms: (userId) => hasUnreadDms(unreads, userId),
+    getTopicVisibility: (streamId, topic) => tvGetTopicVisibility(topicVisibility, streamId, topic),
+    isFollowed: (streamId, topic) => tvIsFollowed(topicVisibility, streamId, topic),
+    resolveUserId: (id) => membersResolveUserId(members, id),
+    resolveName: (name) => membersResolveName(members, name),
+    shouldNotify: (event) => evaluateNotification(event, topicVisibility),
     start,
     stop,
-    getState: () => state,
+    getState: () => ({ unreads, topicVisibility, members }),
   }
 }
 
