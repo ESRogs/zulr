@@ -25,6 +25,14 @@
         "zulip-ts": "workspace:*",
       },
     },
+    "packages/zulip-client-ts": {
+      "name": "zulip-client-ts",
+      "version": "0.1.0",
+      "dependencies": {
+        "neverthrow": "^8.2.0",
+        "zulip-ts": "workspace:*",
+      },
+    },
     "packages/zulip-ts": {
       "name": "zulip-ts",
       "version": "0.1.0",
@@ -259,6 +267,8 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.1", "", { "peerDependencies": { "zod": "^3.25 || ^4" } }, "sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA=="],
 
     "zuler": ["zuler@workspace:packages/zuler"],
+
+    "zulip-client-ts": ["zulip-client-ts@workspace:packages/zulip-client-ts"],
 
     "zulip-ts": ["zulip-ts@workspace:packages/zulip-ts"],
 
