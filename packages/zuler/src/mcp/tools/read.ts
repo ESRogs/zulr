@@ -67,7 +67,7 @@ async function readStream(
 
   const botClient = botClientResult.value.client
 
-  const resolveUserId = await buildUserIdResolver(ctx)
+  const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
   const fetchResult = await fetchMessages(
     botClient,
@@ -127,7 +127,7 @@ async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, c
 
   const { client: botClient, botUserId } = botClientResult.value
 
-  const resolveUserId = await buildUserIdResolver(ctx)
+  const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
   const fetchResult = await fetchMessages(
     botClient,

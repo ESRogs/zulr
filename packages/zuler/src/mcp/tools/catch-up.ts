@@ -58,7 +58,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
 
       const cutoff = Date.now() / 1000 - maxHours * 3600
 
-      const resolveUserId = await buildUserIdResolver(ctx)
+      const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
       const fetchConfig = unreadOnly
         ? { anchor: 'first_unread' as const, numBefore: 0, numAfter: maxMessages }
