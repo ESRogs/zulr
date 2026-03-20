@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import type { StreamId, TopicName } from 'zulip-ts'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
 import {
   errorResult,
@@ -11,12 +12,12 @@ import {
   zTopicName,
 } from '../helpers.ts'
 
-export function registerPostTool(server: McpServer, ctx: ToolContext): void {
+export function registerReplyTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
-    'post',
+    'reply',
     {
       description:
-        'Send a Zulip message without checking for unreads. Use for new threads or when accumulated unreads aren\'t relevant. For replies in existing conversations, prefer the "reply" tool which checks for unread messages first. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". To @-mention a teammate, use @**full name** (e.g. @**scout**) — this auto-subscribes them to the topic.',
+        'Send a Zulip message after checking for unread messages. If there are unreads in the target topic or DM, returns an error asking you to catch up first. Use "post" instead to skip this check (e.g. for new threads or when accumulated unreads aren\'t relevant).',
       inputSchema: z.object({
         sender: zTeammateName.describe('Name of the registered teammate sending the message'),
         content: z.string().describe('Message content'),
@@ -29,23 +30,30 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, content, to, channel, topic }) => {
+      const manager = ctx.getEventListenerManager()
+      const session = manager?.getSession(sender)
+
       if (to !== undefined) {
         const resolveResult = await ctx.resolveUser(to)
-        if (resolveResult.isErr()) {
-          return errorResult(resolveResult.error)
-        }
+        if (resolveResult.isErr()) return errorResult(resolveResult.error)
         const recipient = resolveResult.value
-
-        const clientResult = await ctx.getTeammateClient(sender)
-        if (clientResult.isErr()) {
-          return errorResult(clientResult.error)
-        }
 
         if (recipient.is_bot) {
           return errorResult(
             'bots cannot DM other bots. Use a channel/topic for bot-to-bot communication.',
           )
         }
+
+        // Session-based unread check for DMs
+        if (session?.hasUnreadDms(recipient.user_id)) {
+          const count = session.getUnreadDmCount(recipient.user_id)
+          return errorResult(
+            `You have ${count} unread DM(s) from ${recipient.full_name}. Use read or catch-up to catch up first, or use post to skip this check.`,
+          )
+        }
+
+        const clientResult = await ctx.getTeammateClient(sender)
+        if (clientResult.isErr()) return errorResult(clientResult.error)
 
         const result = await sendDirectMessage(clientResult.value.client, {
           to: [recipient.user_id],
@@ -58,10 +66,22 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       }
 
       if (channel && topic) {
-        const clientResult = await ctx.getTeammateClient(sender)
-        if (clientResult.isErr()) {
-          return errorResult(clientResult.error)
+        // Resolve channel name → stream ID for session query
+        const channelResult = await ctx.resolveChannel(channel)
+        if (channelResult.isErr()) return errorResult(channelResult.error)
+        const streamId = channelResult.value.stream_id as StreamId
+
+        // Session-based unread check for stream topics
+        if (session?.hasUnreads(streamId, topic as TopicName)) {
+          const count = session.getUnreadCount(streamId, topic as TopicName)
+          return errorResult(
+            `You have ${count} unread message(s) in ${channel}/${topic}. Use read or catch-up to catch up first, or use post to skip this check.`,
+          )
         }
+
+        const clientResult = await ctx.getTeammateClient(sender)
+        if (clientResult.isErr()) return errorResult(clientResult.error)
+
         const result = await sendStreamMessage(clientResult.value.client, {
           to: channel,
           topic,

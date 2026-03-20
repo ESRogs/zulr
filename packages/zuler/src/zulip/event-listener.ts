@@ -222,6 +222,8 @@ export type EventListenerManager = {
   readonly startBot: (name: TeammateName) => Promise<void>
   /** Start listeners for all registered bots. */
   readonly startAll: () => Promise<void>
+  /** Get a bot's session for querying local state (unreads, visibility, etc.). */
+  readonly getSession: (name: TeammateName) => ZulipSession | undefined
 }
 
 export function createEventListenerManager(
@@ -282,5 +284,9 @@ export function createEventListenerManager(
     await Promise.all(teammatesResult.value.map((t) => startBot(t.name)))
   }
 
-  return { startBot, startAll }
+  return {
+    startBot,
+    startAll,
+    getSession: (name: TeammateName) => running.get(name),
+  }
 }
