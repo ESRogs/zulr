@@ -143,14 +143,15 @@ function startBotSession(
           // Block bot-to-bot DMs
           if (allBotEmails.has(msg.sender_email)) return
 
-          routeDm(db, teamName, msg, botName)
-            .then((result) => {
+          routeDm(db, teamName, msg, botName).match(
+            (result) => {
               if (result.delivered.length > 0) {
                 onRoute?.({ sender: msg.sender_full_name, botName })
                 markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
               }
-            })
-            .catch((err) => onError?.(err))
+            },
+            (err) => onError?.(err),
+          )
         } else {
           const stream = msg.display_recipient
           const topic = msg.subject

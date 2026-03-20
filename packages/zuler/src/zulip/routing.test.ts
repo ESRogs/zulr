@@ -79,8 +79,10 @@ test('DM routed to recipient teammate', async () => {
 
   const result = await routeDm(db, teamName, makeDmMessage())
 
-  expect(result.delivered).toHaveLength(1)
-  expect(result.delivered[0]!.teammate).toBe('alice' as TeammateName)
+  expect(result.isOk()).toBe(true)
+  const value = result._unsafeUnwrap()
+  expect(value.delivered).toHaveLength(1)
+  expect(value.delivered[0]!.teammate).toBe('alice' as TeammateName)
 
   const inbox = readInbox(teamName, 'alice' as TeammateName)
   expect(inbox).toHaveLength(1)
@@ -116,8 +118,10 @@ test('DM not delivered back to sender bot', async () => {
     }),
   )
 
-  expect(result.delivered).toHaveLength(1)
-  expect(result.delivered[0]!.teammate).toBe('bob' as TeammateName)
+  expect(result.isOk()).toBe(true)
+  const value = result._unsafeUnwrap()
+  expect(value.delivered).toHaveLength(1)
+  expect(value.delivered[0]!.teammate).toBe('bob' as TeammateName)
   expect(readInbox(teamName, 'alice' as TeammateName)).toHaveLength(0)
 })
 
@@ -148,7 +152,9 @@ test('DM with targetBot only delivers to that bot', async () => {
 
   const result = await routeDm(db, teamName, msg, 'alice' as TeammateName)
 
-  expect(result.delivered).toHaveLength(1)
-  expect(result.delivered[0]!.teammate).toBe('alice' as TeammateName)
+  expect(result.isOk()).toBe(true)
+  const value = result._unsafeUnwrap()
+  expect(value.delivered).toHaveLength(1)
+  expect(value.delivered[0]!.teammate).toBe('alice' as TeammateName)
   expect(readInbox(teamName, 'bob' as TeammateName)).toHaveLength(0)
 })
