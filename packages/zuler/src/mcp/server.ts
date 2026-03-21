@@ -15,6 +15,7 @@ import { registerPostTool } from './tools/post.ts'
 import { registerReactTool } from './tools/reactions.ts'
 import { registerReadTool } from './tools/read.ts'
 import { registerRegisterTool } from './tools/register.ts'
+import { registerReplyTool } from './tools/reply.ts'
 import { registerSearchTool } from './tools/search.ts'
 import {
   registerSubscribeTool,
@@ -27,6 +28,7 @@ import {
   registerResolveTopicTool,
   registerUnresolveTopicTool,
 } from './tools/topic-actions.ts'
+import { registerTopicStateTool } from './tools/topic-state.ts'
 
 export type { ServerConfig } from './helpers.ts'
 
@@ -43,6 +45,7 @@ export function createMcpServer(config: ServerConfig) {
   registerRegisterTool(server, ctx)
   registerTeammatesTool(server, ctx)
   registerPostTool(server, ctx)
+  registerReplyTool(server, ctx)
   registerReactTool(server, ctx)
   registerReadTool(server, ctx)
   registerSearchTool(server, ctx)
@@ -58,6 +61,7 @@ export function createMcpServer(config: ServerConfig) {
   registerResolveTopicTool(server, ctx)
   registerUnresolveTopicTool(server, ctx)
   registerMoveTopicTool(server, ctx)
+  registerTopicStateTool(server, ctx)
   registerUploadTool(server, ctx)
   registerDownloadTool(server, ctx)
 
