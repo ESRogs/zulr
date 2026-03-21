@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import type { StreamId, TopicName } from 'zulip-ts'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
 import {
   errorResult,
@@ -69,11 +68,10 @@ export function registerReplyTool(server: McpServer, ctx: ToolContext): void {
         // Resolve channel name → stream ID for session query
         const channelResult = await ctx.resolveChannel(channel)
         if (channelResult.isErr()) return errorResult(channelResult.error)
-        const streamId = channelResult.value.stream_id as StreamId
+        const { stream_id: streamId } = channelResult.value
 
-        // Session-based unread check for stream topics
-        if (session?.hasUnreads(streamId, topic as TopicName)) {
-          const count = session.getUnreadCount(streamId, topic as TopicName)
+        if (session?.hasUnreads(streamId, topic)) {
+          const count = session.getUnreadCount(streamId, topic)
           return errorResult(
             `You have ${count} unread message(s) in ${channel}/${topic}. Use read or catch-up to catch up first, or use post to skip this check.`,
           )

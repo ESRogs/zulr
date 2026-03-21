@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import type { StreamId, TopicName } from 'zulip-ts'
 import {
   errorResult,
   type ToolContext,
@@ -41,12 +40,12 @@ export function registerTopicStateTool(server: McpServer, ctx: ToolContext): voi
 
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
-      const streamId = channelResult.value.stream_id as StreamId
+      const { stream_id: streamId } = channelResult.value
 
-      const unreadCount = session.getUnreadCount(streamId, topic as TopicName)
-      const visibility = session.getTopicVisibility(streamId, topic as TopicName)
+      const unreadCount = session.getUnreadCount(streamId, topic)
+      const visibility = session.getTopicVisibility(streamId, topic)
       const visibilityLabel = VISIBILITY_LABELS[visibility] ?? `unknown (${visibility})`
-      const followed = session.isFollowed(streamId, topic as TopicName)
+      const followed = session.isFollowed(streamId, topic)
 
       const lines = [
         `${channel}/${topic}`,
