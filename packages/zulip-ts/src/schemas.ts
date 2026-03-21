@@ -261,6 +261,7 @@ export const RegisterQueueResponseSchema = z.object({
   last_event_id: eventId,
   unread_msgs: UnreadMsgsSchema.optional(),
   user_topics: z.array(UserTopicEntrySchema).optional(),
+  subscriptions: z.array(SubscriptionSchema).optional(),
 })
 export type RegisterQueueResponse = z.infer<typeof RegisterQueueResponseSchema>
 
@@ -279,6 +280,20 @@ export const EventSchema = z.object({
   flag: z.string().optional(),
   messages: z.array(messageId).optional(),
   all: z.boolean().optional(),
+  // update_message events (edits, topic moves, stream moves)
+  content: z.string().optional(),
+  orig_content: z.string().optional(),
+  subject: topicName.optional(),
+  orig_subject: topicName.optional(),
+  new_stream_id: streamId.optional(),
+  stream_id: streamId.optional(),
+  rendering_only: z.boolean().optional(),
+  message_ids: z.array(messageId).optional(),
+  // delete_message events
+  message_type: z.string().optional(),
+  topic: topicName.optional(),
+  // subscription events
+  subscriptions: z.array(SubscriptionSchema).optional(),
 })
 export type Event = z.infer<typeof EventSchema>
 
