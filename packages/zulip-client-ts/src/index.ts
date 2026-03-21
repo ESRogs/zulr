@@ -15,6 +15,7 @@ export {
   applyUpdateMessageEvent as cacheApplyUpdateMessage,
   emptyMessageCache,
   getMessage,
+  getTopicMessageCount,
   getTopicMessages,
   removeMessage,
 } from './message-cache.ts'

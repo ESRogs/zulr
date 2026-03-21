@@ -82,6 +82,15 @@ export function getMessage(cache: MessageCache, id: MessageId): Message | undefi
   return cache.messages.get(id)
 }
 
+/** Count of cached messages for a stream topic. */
+export function getTopicMessageCount(
+  cache: MessageCache,
+  streamId: StreamId,
+  topic: TopicName,
+): number {
+  return cache.streamIndex.get(streamId)?.get(topic)?.size ?? 0
+}
+
 /**
  * Get cached messages for a stream topic, sorted by ID (ascending).
  * Returns an empty array if no messages are cached for the topic.

@@ -10,6 +10,7 @@ import type {
   StreamId,
   Subscription,
   TopicName,
+  UnixEpochSeconds,
   UserId,
   UserTopicVisibility,
   ZulipClient,
@@ -30,6 +31,7 @@ import {
   applyMessageEvent as cacheApplyMessage,
   applyUpdateMessageEvent as cacheApplyUpdate,
   getMessage as cacheGetMessage,
+  getTopicMessageCount as cacheGetTopicMessageCount,
   getTopicMessages as cacheGetTopicMessages,
   emptyMessageCache,
   type MessageCache,
@@ -100,7 +102,11 @@ export type ZulipSession = {
   // Message cache
   readonly getMessage: (id: MessageId) => Message | undefined
   readonly getTopicMessages: (streamId: StreamId, topic: TopicName) => readonly Message[]
+  readonly getTopicMessageCount: (streamId: StreamId, topic: TopicName) => number
+  /** Store messages from an API fetch so subsequent reads can hit cache. */
   readonly addMessage: (msg: Message) => void
+  /** Timestamp when the session last registered its event queue. Undefined before start. */
+  readonly getRegisteredAt: () => UnixEpochSeconds | undefined
 
   // Subscriptions
   readonly isSubscribed: (streamId: StreamId) => boolean
@@ -151,6 +157,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   let members: MembersState = emptyMembers()
   let messageCache: MessageCache = emptyMessageCache()
   let subscriptions: SubscriptionState = emptySubscriptionState()
+  let registeredAt: UnixEpochSeconds | undefined
   let stopped = false
 
   async function start(): Promise<void> {
@@ -185,6 +192,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     } = regResult.value
 
     // Initialize state from the register response
+    registeredAt = Math.floor(Date.now() / 1000) as UnixEpochSeconds
     unreads = unread_msgs ? initUnreadState(unread_msgs) : emptyUnreadState()
     topicVisibility = user_topics ? initTopicVisibility(user_topics) : emptyTopicVisibility()
     messageCache = emptyMessageCache()
@@ -262,7 +270,10 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     resolveName: (name) => membersResolveName(members, name),
     getMessage: (id) => cacheGetMessage(messageCache, id),
     getTopicMessages: (streamId, topic) => cacheGetTopicMessages(messageCache, streamId, topic),
+    getTopicMessageCount: (streamId, topic) =>
+      cacheGetTopicMessageCount(messageCache, streamId, topic),
     addMessage: (msg) => addMessage(messageCache, msg),
+    getRegisteredAt: () => registeredAt,
     isSubscribed: (streamId) => subIsSubscribed(subscriptions, streamId),
     getSubscription: (streamId) => subGetById(subscriptions, streamId),
     getSubscriptionByName: (name) => subGetByName(subscriptions, name),
