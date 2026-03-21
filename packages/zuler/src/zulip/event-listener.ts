@@ -40,18 +40,22 @@ type EventListenerManagerOptions = {
 // to the onEvent callback where zuler handles it for inbox delivery.
 const SESSION_EVENT_TYPES = [
   'message',
+  'update_message',
+  'delete_message',
   'update_message_flags',
   'user_topic',
   'realm_user',
   'reaction',
+  'subscription',
 ] as const
 
 /**
- * Handle a reaction event for a specific bot: fetch the reacted-to message,
- * and if this bot authored it, notify them.
+ * Handle a reaction event for a specific bot: look up the reacted-to message
+ * (cache first, then API fallback), and if this bot authored it, notify them.
  */
 async function handleReaction(
   client: ZulipClient,
+  session: ZulipSession,
   teamName: TeamName,
   botName: TeammateName,
   botEmail: Email,
@@ -62,20 +66,26 @@ async function handleReaction(
   onReaction?: EventListenerManagerOptions['onReaction'],
   onError?: (error: unknown) => void,
 ): Promise<void> {
-  const msgResult = await getMessages(client, {
-    anchor: messageId,
-    numBefore: 0,
-    numAfter: 0,
-    narrow: [{ operator: 'id', operand: messageId }],
-    applyMarkdown: false,
-  })
+  // Check session cache first to avoid an API call
+  let msg = session.getMessage(messageId)
 
-  if (msgResult.isErr()) {
-    onError?.(msgResult.error)
-    return
+  if (!msg) {
+    const msgResult = await getMessages(client, {
+      anchor: messageId,
+      numBefore: 0,
+      numAfter: 0,
+      narrow: [{ operator: 'id', operand: messageId }],
+      applyMarkdown: false,
+    })
+
+    if (msgResult.isErr()) {
+      onError?.(msgResult.error)
+      return
+    }
+
+    msg = msgResult.value.messages[0]
   }
 
-  const msg = msgResult.value.messages[0]
   if (!msg) return
 
   const reactorName = resolveUserName(reactorUserId) ?? (`user ${reactorUserId}` as DisplayName)
@@ -188,6 +198,7 @@ function startBotSession(
         ) {
           handleReaction(
             botClient,
+            session,
             teamName,
             botName,
             botEmail,

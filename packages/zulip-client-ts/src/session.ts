@@ -1,12 +1,16 @@
 import { err, ok, type Result } from 'neverthrow'
 import type {
+  ChannelName,
   DisplayName,
   Event,
   EventId,
   Member,
+  Message,
   MessageId,
   StreamId,
+  Subscription,
   TopicName,
+  UnixEpochSeconds,
   UserId,
   UserTopicVisibility,
   ZulipClient,
@@ -21,7 +25,28 @@ import {
   resolveName as membersResolveName,
   resolveUserId as membersResolveUserId,
 } from './members.ts'
+import {
+  addMessage,
+  applyDeleteMessageEvent as cacheApplyDelete,
+  applyMessageEvent as cacheApplyMessage,
+  applyUpdateMessageEvent as cacheApplyUpdate,
+  getMessage as cacheGetMessage,
+  getTopicMessageCount as cacheGetTopicMessageCount,
+  getTopicMessages as cacheGetTopicMessages,
+  emptyMessageCache,
+  type MessageCache,
+} from './message-cache.ts'
 import { evaluateNotification, type NotificationResult } from './notifications.ts'
+import {
+  applySubscriptionEvent,
+  emptySubscriptionState,
+  initSubscriptionState,
+  type SubscriptionState,
+  getAllSubscriptions as subGetAll,
+  getSubscription as subGetById,
+  getSubscriptionByName as subGetByName,
+  isSubscribed as subIsSubscribed,
+} from './subscription-state.ts'
 import {
   applyUserTopicEvent,
   emptyTopicVisibility,
@@ -32,7 +57,6 @@ import {
 } from './topic-visibility.ts'
 import {
   applyFlagsEvent,
-  applyMessageEvent,
   emptyUnreadState,
   getUnreadCount,
   getUnreadDmCount,
@@ -41,6 +65,9 @@ import {
   hasUnreads,
   initUnreadState,
   type UnreadState,
+  applyDeleteMessageEvent as unreadApplyDelete,
+  applyMessageEvent as unreadApplyMessage,
+  applyUpdateMessageEvent as unreadApplyUpdate,
 } from './unread-state.ts'
 
 const RETRY_DELAY_MS = 5000
@@ -72,6 +99,21 @@ export type ZulipSession = {
   readonly resolveUserId: (id: UserId) => DisplayName | undefined
   readonly resolveName: (name: DisplayName) => Member | undefined
 
+  // Message cache
+  readonly getMessage: (id: MessageId) => Message | undefined
+  readonly getTopicMessages: (streamId: StreamId, topic: TopicName) => readonly Message[]
+  readonly getTopicMessageCount: (streamId: StreamId, topic: TopicName) => number
+  /** Store messages from an API fetch so subsequent reads can hit cache. */
+  readonly addMessage: (msg: Message) => void
+  /** Timestamp when the session last registered its event queue. Undefined before start. */
+  readonly getRegisteredAt: () => UnixEpochSeconds | undefined
+
+  // Subscriptions
+  readonly isSubscribed: (streamId: StreamId) => boolean
+  readonly getSubscription: (streamId: StreamId) => Subscription | undefined
+  readonly getSubscriptionByName: (name: ChannelName) => Subscription | undefined
+  readonly getAllSubscriptions: () => readonly Subscription[]
+
   // Notification check
   readonly shouldNotify: (event: Event) => NotificationResult
 
@@ -84,6 +126,8 @@ export type ZulipSession = {
     readonly unreads: UnreadState
     readonly topicVisibility: TopicVisibilityState
     readonly members: MembersState
+    readonly messageCache: MessageCache
+    readonly subscriptions: SubscriptionState
   }
 }
 
@@ -94,7 +138,16 @@ export type CreateSessionParams = {
   readonly signal?: AbortSignal
 }
 
-const DEFAULT_EVENT_TYPES = ['message', 'update_message_flags', 'user_topic', 'realm_user'] as const
+const DEFAULT_EVENT_TYPES = [
+  'message',
+  'update_message',
+  'delete_message',
+  'update_message_flags',
+  'reaction',
+  'user_topic',
+  'realm_user',
+  'subscription',
+] as const
 
 export function createSession(params: CreateSessionParams): ZulipSession {
   const { client, eventTypes = DEFAULT_EVENT_TYPES, handler, signal } = params
@@ -102,6 +155,9 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   let unreads: UnreadState = emptyUnreadState()
   let topicVisibility: TopicVisibilityState = emptyTopicVisibility()
   let members: MembersState = emptyMembers()
+  let messageCache: MessageCache = emptyMessageCache()
+  let subscriptions: SubscriptionState = emptySubscriptionState()
+  let registeredAt: UnixEpochSeconds | undefined
   let stopped = false
 
   async function start(): Promise<void> {
@@ -122,7 +178,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   async function runEventLoop(): Promise<Result<void, ZulipError | string>> {
     const regResult = await registerQueue(client, {
       eventTypes: [...eventTypes],
-      fetchEventTypes: ['message', 'user_topic'],
+      fetchEventTypes: ['message', 'user_topic', 'subscription'],
     })
 
     if (regResult.isErr()) return err(regResult.error)
@@ -132,13 +188,15 @@ export function createSession(params: CreateSessionParams): ZulipSession {
       last_event_id: initialLastEventId,
       unread_msgs,
       user_topics,
+      subscriptions: initialSubs,
     } = regResult.value
 
-    // Initialize unread state from the register response
+    // Initialize state from the register response
+    registeredAt = Math.floor(Date.now() / 1000) as UnixEpochSeconds
     unreads = unread_msgs ? initUnreadState(unread_msgs) : emptyUnreadState()
-
-    // Initialize topic visibility from the register response
     topicVisibility = user_topics ? initTopicVisibility(user_topics) : emptyTopicVisibility()
+    messageCache = emptyMessageCache()
+    subscriptions = initialSubs ? initSubscriptionState(initialSubs) : emptySubscriptionState()
 
     // Fetch members list
     const membersResult = await getMembers(client)
@@ -167,18 +225,30 @@ export function createSession(params: CreateSessionParams): ZulipSession {
         lastEventId = event.id
 
         if (event.type === 'message') {
-          applyMessageEvent(unreads, event)
+          unreadApplyMessage(unreads, event)
+          cacheApplyMessage(messageCache, event)
           const notification = evaluateNotification(event, topicVisibility)
           if (notification.shouldNotify) {
             handler?.onNotification?.(event, notification)
           }
+        } else if (event.type === 'update_message') {
+          unreadApplyUpdate(unreads, event)
+          cacheApplyUpdate(messageCache, event)
+        } else if (event.type === 'delete_message') {
+          unreadApplyDelete(unreads, event)
+          cacheApplyDelete(messageCache, event)
         } else if (event.type === 'update_message_flags') {
           applyFlagsEvent(unreads, event)
         } else if (event.type === 'user_topic') {
           applyUserTopicEvent(topicVisibility, event)
         } else if (event.type === 'realm_user') {
           applyRealmUserEvent(members, event)
+        } else if (event.type === 'subscription') {
+          applySubscriptionEvent(subscriptions, event)
         }
+        // 'reaction' events pass through without session-level processing.
+        // Reactions don't affect unreads, topic visibility, or subscriptions.
+        // The caller handles them via onEvent (e.g. for inbox delivery).
 
         handler?.onEvent?.(event)
       }
@@ -201,10 +271,20 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     isFollowed: (streamId, topic) => tvIsFollowed(topicVisibility, streamId, topic),
     resolveUserId: (id) => membersResolveUserId(members, id),
     resolveName: (name) => membersResolveName(members, name),
+    getMessage: (id) => cacheGetMessage(messageCache, id),
+    getTopicMessages: (streamId, topic) => cacheGetTopicMessages(messageCache, streamId, topic),
+    getTopicMessageCount: (streamId, topic) =>
+      cacheGetTopicMessageCount(messageCache, streamId, topic),
+    addMessage: (msg) => addMessage(messageCache, msg),
+    getRegisteredAt: () => registeredAt,
+    isSubscribed: (streamId) => subIsSubscribed(subscriptions, streamId),
+    getSubscription: (streamId) => subGetById(subscriptions, streamId),
+    getSubscriptionByName: (name) => subGetByName(subscriptions, name),
+    getAllSubscriptions: () => subGetAll(subscriptions),
     shouldNotify: (event) => evaluateNotification(event, topicVisibility),
     start,
     stop,
-    getState: () => ({ unreads, topicVisibility, members }),
+    getState: () => ({ unreads, topicVisibility, members, messageCache, subscriptions }),
   }
 }
 

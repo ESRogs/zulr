@@ -70,6 +70,43 @@ function formatReactionsField(
   return aggregateReactions(reactions, resolveUserId)
 }
 
+/** Convert a raw Zulip Message to FormattedMessage. */
+export function toFormattedMessage(
+  msg: Message,
+  options?: {
+    botUserId?: UserId | null
+    resolveUserId?: (id: UserId) => string | undefined
+  },
+): FormattedMessage {
+  const { botUserId, resolveUserId } = options ?? {}
+  if (msg.type === 'stream') {
+    return {
+      type: 'stream' as const,
+      id: msg.id,
+      stream: msg.display_recipient,
+      topic: msg.subject,
+      sender: msg.sender_full_name,
+      content: msg.content,
+      timestamp: msg.timestamp,
+      reactions: formatReactionsField(msg, resolveUserId),
+    }
+  }
+  const others =
+    botUserId != null
+      ? msg.display_recipient.filter((r) => r.id !== botUserId).map((r) => r.full_name)
+      : msg.display_recipient.map((r) => r.full_name)
+  return {
+    type: 'dm' as const,
+    id: msg.id,
+    sender: msg.sender_full_name,
+    content: msg.content,
+    timestamp: msg.timestamp,
+    dmWith: others.length > 0 ? others.join(', ') : (msg.sender_full_name as string),
+    isGroupDm: msg.display_recipient.length > 2,
+    reactions: formatReactionsField(msg, resolveUserId),
+  }
+}
+
 /** Fetch messages, optionally marking them as read. Shared by `read` and `catch-up` tools. */
 export function fetchMessages(
   client: ZulipClient,

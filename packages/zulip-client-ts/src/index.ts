@@ -7,11 +7,35 @@ export {
   resolveUserId,
 } from './members.ts'
 
+export type { MessageCache } from './message-cache.ts'
+export {
+  addMessage,
+  applyDeleteMessageEvent as cacheApplyDeleteMessage,
+  applyMessageEvent as cacheApplyMessage,
+  applyUpdateMessageEvent as cacheApplyUpdateMessage,
+  emptyMessageCache,
+  getMessage,
+  getTopicMessageCount,
+  getTopicMessages,
+  removeMessage,
+} from './message-cache.ts'
+
 export type { NotificationResult } from './notifications.ts'
 export { evaluateNotification } from './notifications.ts'
 
 export type { CreateSessionParams, SessionEventHandler, ZulipSession } from './session.ts'
 export { createSession } from './session.ts'
+
+export type { SubscriptionState } from './subscription-state.ts'
+export {
+  applySubscriptionEvent,
+  emptySubscriptionState,
+  getAllSubscriptions,
+  getSubscription,
+  getSubscriptionByName,
+  initSubscriptionState,
+  isSubscribed,
+} from './subscription-state.ts'
 
 export type { TopicVisibilityState } from './topic-visibility.ts'
 export {
@@ -24,8 +48,10 @@ export {
 
 export type { UnreadState } from './unread-state.ts'
 export {
+  applyDeleteMessageEvent as unreadApplyDeleteMessage,
   applyFlagsEvent,
-  applyMessageEvent,
+  applyMessageEvent as unreadApplyMessage,
+  applyUpdateMessageEvent as unreadApplyUpdate,
   emptyUnreadState,
   getUnreadCount,
   getUnreadDmCount,

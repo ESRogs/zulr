@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { type ChannelName, markAsRead, type TopicName, type UserId } from 'zulip-ts'
+import type { ZulipSession } from 'zulip-client-ts'
+import { type ChannelName, markAsRead, type StreamId, type TopicName, type UserId } from 'zulip-ts'
 import type { TeammateName } from '../../tagged-types.ts'
 import {
   consumeUnreadDmMessages,
@@ -8,7 +9,12 @@ import {
   inboxToFormattedMessages,
   mergeWithInbox,
 } from '../../zulip/inbox.ts'
-import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
+import {
+  type FormattedMessage,
+  fetchMessages,
+  formatMessages,
+  toFormattedMessage,
+} from '../../zulip/message-reader.ts'
 import {
   buildUserIdResolver,
   errorResult,
@@ -53,6 +59,28 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
   )
 }
 
+/**
+ * Check if the session cache can satisfy a stream topic read request.
+ * Returns formatted messages if cache has enough data, undefined otherwise.
+ */
+function tryReadFromCache(
+  session: ZulipSession | undefined,
+  streamId: StreamId,
+  topic: TopicName,
+  count: number,
+  resolveUserId?: (id: UserId) => string | undefined,
+): readonly FormattedMessage[] | undefined {
+  if (!session) return undefined
+  if (!session.isSubscribed(streamId)) return undefined
+  if (session.getRegisteredAt() === undefined) return undefined
+
+  const cachedCount = session.getTopicMessageCount(streamId, topic)
+  if (cachedCount < count) return undefined
+
+  const cached = session.getTopicMessages(streamId, topic)
+  return cached.map((msg) => toFormattedMessage(msg, { resolveUserId }))
+}
+
 async function readStream(
   ctx: ToolContext,
   sender: TeammateName,
@@ -66,33 +94,50 @@ async function readStream(
   }
 
   const botClient = botClientResult.value.client
-
   const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
-  const fetchResult = await fetchMessages(
-    botClient,
-    {
-      anchor: 'newest',
-      numBefore: count + 1,
-      numAfter: 0,
-      narrow: [
-        { operator: 'stream', operand: stream },
-        { operator: 'topic', operand: topic },
-      ],
-      applyMarkdown: false,
-    },
-    { markRead: false, resolveUserId },
-  )
+  // Try cache first — if the session has enough cached messages, skip the API
+  const session = ctx.getEventListenerManager()?.getSession(sender)
+  const channelResult = await ctx.resolveChannel(stream)
+  const streamId = channelResult.isOk() ? channelResult.value.stream_id : undefined
 
-  if (fetchResult.isErr()) {
-    return errorResult(formatError(fetchResult.error))
+  let allMessages: readonly FormattedMessage[]
+
+  const cached =
+    streamId !== undefined
+      ? tryReadFromCache(session, streamId, topic, count, resolveUserId)
+      : undefined
+
+  if (cached) {
+    // Cache hit — merge with inbox and serve
+    const inboxMessages = consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic)
+    const inboxFormatted = inboxToFormattedMessages(inboxMessages)
+    allMessages = mergeWithInbox([...cached], inboxFormatted)
+  } else {
+    // Cache miss — fetch from API
+    const fetchResult = await fetchMessages(
+      botClient,
+      {
+        anchor: 'newest',
+        numBefore: count + 1,
+        numAfter: 0,
+        narrow: [
+          { operator: 'stream', operand: stream },
+          { operator: 'topic', operand: topic },
+        ],
+        applyMarkdown: false,
+      },
+      { markRead: false, resolveUserId },
+    )
+
+    if (fetchResult.isErr()) {
+      return errorResult(formatError(fetchResult.error))
+    }
+
+    const inboxMessages = consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic)
+    const inboxFormatted = inboxToFormattedMessages(inboxMessages)
+    allMessages = mergeWithInbox([...fetchResult.value], inboxFormatted)
   }
-
-  const inboxMessages = consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic)
-  const inboxFormatted = inboxToFormattedMessages(inboxMessages)
-
-  const zulipMessages = fetchResult.value
-  const allMessages = mergeWithInbox(zulipMessages, inboxFormatted)
 
   if (allMessages.length === 0) {
     return textResult(`(no messages in ${stream}/${topic})`)
