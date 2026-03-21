@@ -246,6 +246,9 @@ export function createSession(params: CreateSessionParams): ZulipSession {
         } else if (event.type === 'subscription') {
           applySubscriptionEvent(subscriptions, event)
         }
+        // 'reaction' events pass through without session-level processing.
+        // Reactions don't affect unreads, topic visibility, or subscriptions.
+        // The caller handles them via onEvent (e.g. for inbox delivery).
 
         handler?.onEvent?.(event)
       }
