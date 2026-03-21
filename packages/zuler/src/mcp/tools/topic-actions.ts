@@ -121,9 +121,19 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
         topic: zTopicName.describe('Topic name'),
         toChannel: z.string().describe('Destination channel name'),
         toTopic: zTopicName.optional().describe('New topic name (defaults to keeping the same)'),
+        notifyOldTopic: z
+          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+          .optional()
+          .default(false)
+          .describe('Send a notification to the old topic (default: false)'),
+        notifyNewTopic: z
+          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+          .optional()
+          .default(true)
+          .describe('Send a notification to the new topic (default: true)'),
       }),
     },
-    async ({ channel, topic, toChannel, toTopic: rawToTopic }) => {
+    async ({ channel, topic, toChannel, toTopic: rawToTopic, notifyOldTopic, notifyNewTopic }) => {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
@@ -138,8 +148,8 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
         streamId: destResult.value.stream_id,
         topic: destTopic,
         propagateMode: 'change_all',
-        sendNotificationToOldThread: true,
-        sendNotificationToNewThread: true,
+        sendNotificationToOldThread: notifyOldTopic,
+        sendNotificationToNewThread: notifyNewTopic,
       })
 
       return result.match(
