@@ -150,6 +150,92 @@ export function applyFlagsEvent(state: UnreadState, event: Event): void {
   // which stream/topic the messages belong to. Skip — state self-corrects on re-register.
 }
 
+/**
+ * Apply an update_message event — handles topic and stream moves.
+ * Moves unread message IDs from the old location to the new one.
+ */
+export function applyUpdateMessageEvent(state: UnreadState, event: Event): void {
+  const ids = event.message_ids
+  if (!ids || ids.length === 0) return
+
+  // Only care about topic or stream moves (not content-only edits)
+  const newSubject = event.subject
+  const newStreamId = event.new_stream_id
+  const hasTopic = newSubject !== undefined && event.orig_subject !== undefined
+  const hasStream = newStreamId !== undefined && event.stream_id !== undefined
+  if (!hasTopic && !hasStream) return
+
+  for (const id of ids) {
+    const loc = state.streamIndex.get(id)
+    if (!loc) continue
+
+    // Remove from old location
+    const oldTopicMap = state.streams.get(loc.streamId)
+    if (oldTopicMap) {
+      const oldSet = oldTopicMap.get(loc.topic)
+      if (oldSet) {
+        oldSet.delete(id)
+        if (oldSet.size === 0) oldTopicMap.delete(loc.topic)
+      }
+      if (oldTopicMap.size === 0) state.streams.delete(loc.streamId)
+    }
+
+    // Compute new location
+    const destStreamId = hasStream ? newStreamId : loc.streamId
+    const destTopic = hasTopic ? newSubject : loc.topic
+
+    // Add to new location
+    let destTopicMap = state.streams.get(destStreamId)
+    if (!destTopicMap) {
+      destTopicMap = new Map()
+      state.streams.set(destStreamId, destTopicMap)
+    }
+    let destSet = destTopicMap.get(destTopic)
+    if (!destSet) {
+      destSet = new Set()
+      destTopicMap.set(destTopic, destSet)
+    }
+    destSet.add(id)
+    state.streamIndex.set(id, { streamId: destStreamId, topic: destTopic })
+  }
+}
+
+/**
+ * Apply a delete_message event — remove from unread state.
+ */
+export function applyDeleteMessageEvent(state: UnreadState, event: Event): void {
+  const id = event.message_id
+  if (id === undefined) return
+
+  // Try stream unreads
+  const loc = state.streamIndex.get(id)
+  if (loc) {
+    const topicMap = state.streams.get(loc.streamId)
+    if (topicMap) {
+      const msgSet = topicMap.get(loc.topic)
+      if (msgSet) {
+        msgSet.delete(id)
+        if (msgSet.size === 0) topicMap.delete(loc.topic)
+      }
+      if (topicMap.size === 0) state.streams.delete(loc.streamId)
+    }
+    state.streamIndex.delete(id)
+  }
+
+  // Try DM unreads
+  const dmUserId = state.dmIndex.get(id)
+  if (dmUserId !== undefined) {
+    const msgSet = state.dms.get(dmUserId)
+    if (msgSet) {
+      msgSet.delete(id)
+      if (msgSet.size === 0) state.dms.delete(dmUserId)
+    }
+    state.dmIndex.delete(id)
+  }
+
+  state.mentions.delete(id)
+}
+
 // --- Query functions ---
 
 export function getUnreadCount(state: UnreadState, streamId: StreamId, topic: TopicName): number {
