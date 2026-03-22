@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import type {
-  Event,
   EventId,
+  MessageEvent,
   MessageId,
   StreamId,
   TopicName,
   UnixEpochSeconds,
   UnreadMsgs,
+  UpdateMessageFlagsEvent,
   UserId,
 } from 'zulip-ts'
 import {
@@ -47,7 +48,7 @@ function makeMessageEvent(overrides: {
   senderId?: number
   type?: 'stream' | 'private'
   flags?: string[]
-}): Event {
+}): MessageEvent {
   const msgType = overrides.type ?? 'stream'
   const base = {
     id: msgId(overrides.msgId ?? 100),
@@ -85,7 +86,7 @@ function makeMessageEvent(overrides: {
     id: eid(overrides.id ?? 1),
     message,
     flags: overrides.flags ?? [],
-  } as Event
+  } as MessageEvent
 }
 
 function makeFlagsEvent(overrides: {
@@ -94,7 +95,7 @@ function makeFlagsEvent(overrides: {
   flag: string
   messages: number[]
   all?: boolean
-}): Event {
+}): UpdateMessageFlagsEvent {
   return {
     type: 'update_message_flags',
     id: eid(overrides.id ?? 1),
@@ -102,7 +103,7 @@ function makeFlagsEvent(overrides: {
     flag: overrides.flag,
     messages: overrides.messages.map(msgId),
     all: overrides.all ?? false,
-  } as Event
+  } as UpdateMessageFlagsEvent
 }
 
 // --- Tests ---

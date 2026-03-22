@@ -1,4 +1,4 @@
-import type { Event, StreamId, TopicName } from 'zulip-ts'
+import type { MessageEvent } from 'zulip-ts'
 import type { TopicVisibilityState } from './topic-visibility.ts'
 import { isFollowed } from './topic-visibility.ts'
 
@@ -17,11 +17,10 @@ export type NotificationResult = {
  * - Otherwise → silent (unread state is still updated)
  */
 export function evaluateNotification(
-  event: Event,
+  event: MessageEvent,
   topicVisibility: TopicVisibilityState,
 ): NotificationResult {
   const msg = event.message
-  if (!msg) return { shouldNotify: false, reason: 'silent' }
 
   // DMs always notify
   if (msg.type === 'private') {
@@ -29,7 +28,7 @@ export function evaluateNotification(
   }
 
   // Check flags for mentions
-  const flags = event.flags ?? []
+  const flags = event.flags
   if (flags.includes('mentioned')) {
     return { shouldNotify: true, reason: 'mentioned' }
   }
@@ -38,9 +37,7 @@ export function evaluateNotification(
   }
 
   // Check topic follow state
-  const streamId = msg.stream_id
-  const topic = msg.subject
-  if (isFollowed(topicVisibility, streamId as StreamId, topic as TopicName)) {
+  if (isFollowed(topicVisibility, msg.stream_id, msg.subject)) {
     return { shouldNotify: true, reason: 'followed_topic' }
   }
 

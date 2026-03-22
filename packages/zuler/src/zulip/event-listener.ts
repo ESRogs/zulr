@@ -1,7 +1,15 @@
 import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
 import { createSession, type ZulipSession } from 'zulip-client-ts'
-import type { DisplayName, Email, EmojiName, MessageId, UserId, ZulipClient } from 'zulip-ts'
+import type {
+  DisplayName,
+  Email,
+  EmojiName,
+  MessageId,
+  ReactionEvent,
+  UserId,
+  ZulipClient,
+} from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
@@ -145,7 +153,6 @@ function startBotSession(
     handler: {
       onNotification: (event, _result) => {
         const msg = event.message
-        if (!msg) return
 
         // Skip messages sent by this bot
         if (msg.sender_email === botEmail) return
@@ -189,26 +196,23 @@ function startBotSession(
       },
 
       onEvent: (event) => {
-        if (
-          event.type === 'reaction' &&
-          event.op === 'add' &&
-          event.message_id != null &&
-          event.user_id != null &&
-          event.emoji_name
-        ) {
-          handleReaction(
-            botClient,
-            session,
-            teamName,
-            botName,
-            botEmail,
-            event.message_id,
-            event.user_id,
-            event.emoji_name,
-            (userId) => session.resolveUserId(userId),
-            onReaction,
-            onError,
-          ).catch((err) => onError?.(err))
+        if (event.type === 'reaction') {
+          const re = event as ReactionEvent
+          if (re.op === 'add') {
+            handleReaction(
+              botClient,
+              session,
+              teamName,
+              botName,
+              botEmail,
+              re.message_id,
+              re.user_id,
+              re.emoji_name,
+              (userId) => session.resolveUserId(userId),
+              onReaction,
+              onError,
+            ).catch((err) => onError?.(err))
+          }
         }
       },
 

@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import type {
-  Event,
+  DeleteMessageEvent,
   EventId,
+  MessageEvent,
   MessageId,
   StreamId,
   TopicName,
   UnixEpochSeconds,
+  UpdateMessageEvent,
   UserId,
 } from 'zulip-ts'
 import {
@@ -41,7 +43,7 @@ function makeMessageEvent(overrides: {
   subject?: string
   senderId?: number
   type?: 'stream' | 'private'
-}): Event {
+}): MessageEvent {
   const msgType = overrides.type ?? 'stream'
   const base = {
     id: msgId(overrides.msgId),
@@ -74,7 +76,7 @@ function makeMessageEvent(overrides: {
           ],
         }
 
-  return { type: 'message', id: eid(overrides.msgId), message, flags: [] } as Event
+  return { type: 'message', id: eid(overrides.msgId), message, flags: [] } as MessageEvent
 }
 
 describe('applyUpdateMessageEvent (topic moves)', () => {
@@ -86,11 +88,12 @@ describe('applyUpdateMessageEvent (topic moves)', () => {
     const event = {
       type: 'update_message',
       id: eid(100),
+      message_id: msgId(1),
       message_ids: [msgId(1), msgId(2)],
       subject: topic('new'),
       orig_subject: topic('old'),
       stream_id: sid(10),
-    } as Event
+    } as UpdateMessageEvent
 
     applyUpdateMessageEvent(state, event)
 
@@ -108,11 +111,12 @@ describe('applyUpdateMessageEvent (topic moves)', () => {
     const event = {
       type: 'update_message',
       id: eid(100),
+      message_id: msgId(1),
       message_ids: [msgId(1), msgId(2)],
       subject: topic('new'),
       orig_subject: topic('old'),
       stream_id: sid(10),
-    } as Event
+    } as UpdateMessageEvent
 
     applyUpdateMessageEvent(state, event)
 
@@ -129,12 +133,13 @@ describe('applyUpdateMessageEvent (stream moves)', () => {
     const event = {
       type: 'update_message',
       id: eid(100),
+      message_id: msgId(1),
       message_ids: [msgId(1)],
       stream_id: sid(10),
       new_stream_id: sid(20),
       subject: topic('topic-a'),
       orig_subject: topic('topic-a'),
-    } as Event
+    } as UpdateMessageEvent
 
     applyUpdateMessageEvent(state, event)
 
@@ -149,12 +154,13 @@ describe('applyUpdateMessageEvent (stream moves)', () => {
     const event = {
       type: 'update_message',
       id: eid(100),
+      message_id: msgId(1),
       message_ids: [msgId(1)],
       stream_id: sid(10),
       new_stream_id: sid(20),
       subject: topic('new-topic'),
       orig_subject: topic('old-topic'),
-    } as Event
+    } as UpdateMessageEvent
 
     applyUpdateMessageEvent(state, event)
 
@@ -171,24 +177,15 @@ describe('applyUpdateMessageEvent (content-only edits)', () => {
     const event = {
       type: 'update_message',
       id: eid(100),
+      message_id: msgId(1),
       message_ids: [msgId(1)],
       content: 'edited content',
       orig_content: 'original content',
-    } as Event
+    } as UpdateMessageEvent
 
     applyUpdateMessageEvent(state, event)
 
     // Unread state unchanged
-    expect(getUnreadCount(state, sid(10), topic('bugs'))).toBe(1)
-  })
-
-  test('ignores event with no message_ids', () => {
-    const state = emptyUnreadState()
-    applyMessageEvent(state, makeMessageEvent({ msgId: 1, streamId: 10, subject: 'bugs' }))
-
-    const event = { type: 'update_message', id: eid(100) } as Event
-    applyUpdateMessageEvent(state, event)
-
     expect(getUnreadCount(state, sid(10), topic('bugs'))).toBe(1)
   })
 })
@@ -206,7 +203,7 @@ describe('applyDeleteMessageEvent', () => {
       message_type: 'stream',
       stream_id: sid(10),
       topic: topic('bugs'),
-    } as Event
+    } as DeleteMessageEvent
 
     applyDeleteMessageEvent(state, event)
 
@@ -222,7 +219,7 @@ describe('applyDeleteMessageEvent', () => {
       id: eid(100),
       message_id: msgId(10),
       message_type: 'private',
-    } as Event
+    } as DeleteMessageEvent
 
     applyDeleteMessageEvent(state, event)
 
@@ -238,7 +235,8 @@ describe('applyDeleteMessageEvent', () => {
       type: 'delete_message',
       id: eid(100),
       message_id: msgId(1),
-    } as Event
+      message_type: 'stream',
+    } as DeleteMessageEvent
 
     applyDeleteMessageEvent(state, event)
 
@@ -265,7 +263,7 @@ describe('applyDeleteMessageEvent', () => {
         reactions: [],
       },
       flags: ['mentioned'],
-    } as Event)
+    } as MessageEvent)
 
     expect(state.mentions.has(msgId(1))).toBe(true)
 
@@ -273,15 +271,8 @@ describe('applyDeleteMessageEvent', () => {
       type: 'delete_message',
       id: eid(100),
       message_id: msgId(1),
-    } as Event)
+      message_type: 'stream',
+    } as DeleteMessageEvent)
     expect(state.mentions.has(msgId(1))).toBe(false)
-  })
-
-  test('no-ops when no message_id', () => {
-    const state = emptyUnreadState()
-    applyMessageEvent(state, makeMessageEvent({ msgId: 1, streamId: 10, subject: 'bugs' }))
-
-    applyDeleteMessageEvent(state, { type: 'delete_message', id: eid(100) } as Event)
-    expect(getUnreadCount(state, sid(10), topic('bugs'))).toBe(1)
   })
 })

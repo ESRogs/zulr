@@ -1,4 +1,4 @@
-import type { ChannelName, Event, StreamId, Subscription } from 'zulip-ts'
+import type { ChannelName, StreamId, Subscription, SubscriptionEvent } from 'zulip-ts'
 
 export type SubscriptionState = {
   /** Subscriptions by stream ID. */
@@ -21,17 +21,14 @@ export function initSubscriptionState(subscriptions: readonly Subscription[]): S
 }
 
 /** Apply a subscription event (add/remove/update). */
-export function applySubscriptionEvent(state: SubscriptionState, event: Event): void {
-  const subs = event.subscriptions
-  if (!subs) return
-
+export function applySubscriptionEvent(state: SubscriptionState, event: SubscriptionEvent): void {
   if (event.op === 'add') {
-    for (const sub of subs) {
+    for (const sub of event.subscriptions) {
       state.byId.set(sub.stream_id, sub)
       state.byName.set(sub.name, sub.stream_id)
     }
   } else if (event.op === 'remove') {
-    for (const sub of subs) {
+    for (const sub of event.subscriptions) {
       const existing = state.byId.get(sub.stream_id)
       if (existing) {
         state.byName.delete(existing.name)

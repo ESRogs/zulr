@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { Event, EventId, StreamId, TopicName, UserTopicEntry } from 'zulip-ts'
+import type { EventId, StreamId, TopicName, UserTopicEntry, UserTopicEvent } from 'zulip-ts'
 import {
   applyUserTopicEvent,
   emptyTopicVisibility,
@@ -22,14 +22,14 @@ function makeUserTopicEvent(overrides: {
   streamId: number
   topicName: string
   visibilityPolicy: number
-}): Event {
+}): UserTopicEvent {
   return {
     type: 'user_topic',
     id: eid(1),
     stream_id: sid(overrides.streamId),
     topic_name: topic(overrides.topicName),
     visibility_policy: overrides.visibilityPolicy,
-  } as unknown as Event
+  } as UserTopicEvent
 }
 
 describe('initTopicVisibility', () => {
@@ -139,12 +139,5 @@ describe('topic visibility', () => {
     expect(isFollowed(state, sid(10), topic('bugs'))).toBe(true)
     expect(isFollowed(state, sid(20), topic('bugs'))).toBe(false)
     expect(getTopicVisibility(state, sid(20), topic('bugs'))).toBe(2)
-  })
-
-  test('ignores non-user_topic events', () => {
-    const state = emptyTopicVisibility()
-    applyUserTopicEvent(state, { type: 'message', id: eid(1) } as Event)
-
-    expect(state.size).toBe(0)
   })
 })

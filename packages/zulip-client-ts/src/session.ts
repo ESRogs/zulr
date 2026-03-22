@@ -1,17 +1,24 @@
 import { err, ok, type Result } from 'neverthrow'
 import type {
   ChannelName,
+  DeleteMessageEvent,
   DisplayName,
   Event,
   EventId,
   Member,
   Message,
+  MessageEvent,
   MessageId,
+  RealmUserEvent,
   StreamId,
   Subscription,
+  SubscriptionEvent,
   TopicName,
   UnixEpochSeconds,
+  UpdateMessageEvent,
+  UpdateMessageFlagsEvent,
   UserId,
+  UserTopicEvent,
   UserTopicVisibility,
   ZulipClient,
   ZulipError,
@@ -76,7 +83,7 @@ export type SessionEventHandler = {
   /** Called for every event received from the queue. */
   readonly onEvent?: (event: Event) => void
   /** Called when a message event triggers a notification. */
-  readonly onNotification?: (event: Event, result: NotificationResult) => void
+  readonly onNotification?: (event: MessageEvent, result: NotificationResult) => void
   /** Called on errors (network, API, validation). Session continues after errors. */
   readonly onError?: (error: ZulipError | string) => void
 }
@@ -115,7 +122,7 @@ export type ZulipSession = {
   readonly getAllSubscriptions: () => readonly Subscription[]
 
   // Notification check
-  readonly shouldNotify: (event: Event) => NotificationResult
+  readonly shouldNotify: (event: MessageEvent) => NotificationResult
 
   // Lifecycle
   readonly start: () => Promise<void>
@@ -225,26 +232,29 @@ export function createSession(params: CreateSessionParams): ZulipSession {
         lastEventId = event.id
 
         if (event.type === 'message') {
-          unreadApplyMessage(unreads, event)
-          cacheApplyMessage(messageCache, event)
-          const notification = evaluateNotification(event, topicVisibility)
+          const e = event as MessageEvent
+          unreadApplyMessage(unreads, e)
+          cacheApplyMessage(messageCache, e)
+          const notification = evaluateNotification(e, topicVisibility)
           if (notification.shouldNotify) {
-            handler?.onNotification?.(event, notification)
+            handler?.onNotification?.(e, notification)
           }
         } else if (event.type === 'update_message') {
-          unreadApplyUpdate(unreads, event)
-          cacheApplyUpdate(messageCache, event)
+          const e = event as UpdateMessageEvent
+          unreadApplyUpdate(unreads, e)
+          cacheApplyUpdate(messageCache, e)
         } else if (event.type === 'delete_message') {
-          unreadApplyDelete(unreads, event)
-          cacheApplyDelete(messageCache, event)
+          const e = event as DeleteMessageEvent
+          unreadApplyDelete(unreads, e)
+          cacheApplyDelete(messageCache, e)
         } else if (event.type === 'update_message_flags') {
-          applyFlagsEvent(unreads, event)
+          applyFlagsEvent(unreads, event as UpdateMessageFlagsEvent)
         } else if (event.type === 'user_topic') {
-          applyUserTopicEvent(topicVisibility, event)
+          applyUserTopicEvent(topicVisibility, event as UserTopicEvent)
         } else if (event.type === 'realm_user') {
-          applyRealmUserEvent(members, event)
+          applyRealmUserEvent(members, event as RealmUserEvent)
         } else if (event.type === 'subscription') {
-          applySubscriptionEvent(subscriptions, event)
+          applySubscriptionEvent(subscriptions, event as SubscriptionEvent)
         }
         // 'reaction' events pass through without session-level processing.
         // Reactions don't affect unreads, topic visibility, or subscriptions.
