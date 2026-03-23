@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
+import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import {
   errorResult,
   formatError,
@@ -12,11 +13,13 @@ import {
 } from '../helpers.ts'
 
 export function registerPostTool(server: McpServer, ctx: ToolContext): void {
+  const { teamName } = ctx.config
+
   server.registerTool(
     'post',
     {
       description:
-        'Send a Zulip message without checking for unreads. Use for new threads or when accumulated unreads aren\'t relevant. For replies in existing conversations, prefer the "reply" tool which checks for unread messages first. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". To @-mention a teammate, use @**full name** (e.g. @**scout**) — this auto-subscribes them to the topic.',
+        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". To @-mention a teammate, use @**full name** (e.g. @**scout**) — this auto-subscribes them to the topic. Checks for unread messages in your teammate inbox before sending — use the read or catch-up tool first if blocked.',
       inputSchema: z.object({
         sender: zTeammateName.describe('Name of the registered teammate sending the message'),
         content: z.string().describe('Message content'),
@@ -29,6 +32,14 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, content, to, channel, topic }) => {
+      // Pre-flight unread checks before any async work
+      if (channel && topic) {
+        const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)
+        if (blocked) {
+          return errorResult(blocked)
+        }
+      }
+
       if (to !== undefined) {
         const resolveResult = await ctx.resolveUser(to)
         if (resolveResult.isErr()) {
@@ -36,15 +47,20 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         }
         const recipient = resolveResult.value
 
-        const clientResult = await ctx.getTeammateClient(sender)
-        if (clientResult.isErr()) {
-          return errorResult(clientResult.error)
+        const dmBlocked = checkUnreadBeforeDm(teamName, sender, recipient.user_id)
+        if (dmBlocked) {
+          return errorResult(dmBlocked)
         }
 
         if (recipient.is_bot) {
           return errorResult(
             'bots cannot DM other bots. Use a channel/topic for bot-to-bot communication.',
           )
+        }
+
+        const clientResult = await ctx.getTeammateClient(sender)
+        if (clientResult.isErr()) {
+          return errorResult(clientResult.error)
         }
 
         const result = await sendDirectMessage(clientResult.value.client, {

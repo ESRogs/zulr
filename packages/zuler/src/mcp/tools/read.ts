@@ -4,6 +4,7 @@ import type { ZulipSession } from 'zulip-client-ts'
 import { type ChannelName, markAsRead, type StreamId, type TopicName, type UserId } from 'zulip-ts'
 import type { TeammateName } from '../../tagged-types.ts'
 import {
+  consumeAllUnreadMessages,
   consumeUnreadDmMessages,
   consumeUnreadInboxMessages,
   inboxToFormattedMessages,
@@ -31,7 +32,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
     'read',
     {
       description:
-        'Fetch recent messages from a Zulip channel/topic or DM conversation. For channel messages, provide "channel" and "topic". For DMs, provide "user" (ID, name, or email). Uses the sender bot API key and marks fetched messages as read.',
+        'Fetch recent messages from a Zulip channel/topic or DM conversation. For channel messages, provide "channel" and "topic". For DMs, provide "user" (ID, name, or email). Uses the sender bot API key and marks fetched messages as read. Set inboxOnly to read just the unread messages in your teammate inbox (optionally filtered by channel/topic) — this clears the posting gate without fetching from Zulip.',
       inputSchema: z.object({
         sender: zTeammateName.describe('Teammate name (uses their bot for read tracking)'),
         channel: zChannelName.optional().describe('Channel name'),
@@ -41,9 +42,19 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
           .optional()
           .describe('User ID, full name, or email (for DM conversations)'),
         count: z.coerce.number().optional().default(10).describe('Number of messages to fetch'),
+        inboxOnly: z
+          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+          .optional()
+          .default(false)
+          .describe(
+            'Read only unread messages from your teammate inbox. Optionally filter by channel/topic. Clears the posting gate.',
+          ),
       }),
     },
-    async ({ sender, channel, topic, user, count }) => {
+    async ({ sender, channel, topic, user, count, inboxOnly }) => {
+      if (inboxOnly) {
+        return readInboxOnly(ctx, sender, channel, topic)
+      }
       if (user !== undefined) {
         const resolveResult = await ctx.resolveUser(user)
         if (resolveResult.isErr()) {
@@ -56,6 +67,35 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
       }
       return errorResult('provide either "channel" and "topic" (for channels) or "user" (for DMs)')
     },
+  )
+}
+
+function readInboxOnly(
+  ctx: ToolContext,
+  sender: TeammateName,
+  channel?: ChannelName,
+  topic?: TopicName,
+) {
+  const { teamName } = ctx.config
+  let consumed: ReturnType<typeof consumeAllUnreadMessages>
+
+  if (channel && topic) {
+    consumed = consumeUnreadInboxMessages(teamName, sender, channel, topic)
+  } else {
+    consumed = consumeAllUnreadMessages(teamName, sender)
+  }
+
+  if (consumed.length === 0) {
+    const scope = channel && topic ? ` in ${channel}/${topic}` : ''
+    return textResult(`(no unread inbox messages${scope})`)
+  }
+
+  const formatted = inboxToFormattedMessages(consumed)
+  const sorted = formatted.toSorted((a, b) => a.timestamp - b.timestamp)
+  const body = formatMessages(sorted, false)
+  const scope = channel && topic ? ` in ${channel}/${topic}` : ''
+  return textResult(
+    `(${consumed.length} unread inbox message${consumed.length === 1 ? '' : 's'}${scope})\n\n${body}`,
   )
 }
 

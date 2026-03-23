@@ -171,4 +171,12 @@ export function mergeWithInbox(
   return [...zulipMessages, ...inboxOnly]
 }
 
+/** Consume all unread messages in a teammate's inbox. */
+export function consumeAllUnreadMessages(
+  teamName: TeamName,
+  teammate: TeammateName,
+): readonly InboxMessage[] {
+  return consumeMatching(inboxPath(teamName, teammate), () => true)
+}
+
 export type { InboxMessage, InboxEntry }
