@@ -1,4 +1,14 @@
-import type { Event, MessageId, StreamId, TopicName, UnreadMsgs, UserId } from 'zulip-ts'
+import type {
+  DeleteMessageEvent,
+  MessageEvent,
+  MessageId,
+  StreamId,
+  TopicName,
+  UnreadMsgs,
+  UpdateMessageEvent,
+  UpdateMessageFlagsEvent,
+  UserId,
+} from 'zulip-ts'
 
 type StreamLocation = { readonly streamId: StreamId; readonly topic: TopicName }
 
@@ -58,11 +68,9 @@ export function emptyUnreadState(): UnreadState {
 }
 
 /** Apply a message event — adds the message ID to the appropriate unread set. */
-export function applyMessageEvent(state: UnreadState, event: Event): void {
+export function applyMessageEvent(state: UnreadState, event: MessageEvent): void {
   const msg = event.message
-  if (!msg) return
-
-  const flags = event.flags ?? []
+  const flags = event.flags
 
   // If already marked read at delivery time, skip
   if (flags.includes('read')) return
@@ -99,7 +107,7 @@ export function applyMessageEvent(state: UnreadState, event: Event): void {
 }
 
 /** Apply an update_message_flags event — adds/removes read flags from unread sets. */
-export function applyFlagsEvent(state: UnreadState, event: Event): void {
+export function applyFlagsEvent(state: UnreadState, event: UpdateMessageFlagsEvent): void {
   if (event.flag !== 'read') return
 
   if (event.op === 'add') {
@@ -113,10 +121,9 @@ export function applyFlagsEvent(state: UnreadState, event: Event): void {
       return
     }
 
-    const messageIds = event.messages
-    if (!messageIds || messageIds.length === 0) return
+    if (event.messages.length === 0) return
 
-    for (const id of messageIds) {
+    for (const id of event.messages) {
       // Remove from stream unreads via reverse index
       const loc = state.streamIndex.get(id)
       if (loc) {
@@ -154,7 +161,7 @@ export function applyFlagsEvent(state: UnreadState, event: Event): void {
  * Apply an update_message event — handles topic and stream moves.
  * Moves unread message IDs from the old location to the new one.
  */
-export function applyUpdateMessageEvent(state: UnreadState, event: Event): void {
+export function applyUpdateMessageEvent(state: UnreadState, event: UpdateMessageEvent): void {
   const ids = event.message_ids
   if (!ids || ids.length === 0) return
 
@@ -203,9 +210,8 @@ export function applyUpdateMessageEvent(state: UnreadState, event: Event): void 
 /**
  * Apply a delete_message event — remove from unread state.
  */
-export function applyDeleteMessageEvent(state: UnreadState, event: Event): void {
+export function applyDeleteMessageEvent(state: UnreadState, event: DeleteMessageEvent): void {
   const id = event.message_id
-  if (id === undefined) return
 
   // Try stream unreads
   const loc = state.streamIndex.get(id)

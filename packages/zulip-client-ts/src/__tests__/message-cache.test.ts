@@ -1,12 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import type {
   ChannelName,
-  Event,
+  DeleteMessageEvent,
   EventId,
+  MessageEvent,
   MessageId,
   StreamId,
   TopicName,
   UnixEpochSeconds,
+  UpdateMessageEvent,
   UserId,
 } from 'zulip-ts'
 import {
@@ -164,16 +166,9 @@ describe('applyMessageEvent', () => {
   test('caches message from event', () => {
     const cache = emptyMessageCache()
     const msg = makeStreamMessage({ id: 1 })
-    const event = { type: 'message', id: eid(1), message: msg, flags: [] } as Event
+    const event = { type: 'message', id: eid(1), message: msg, flags: [] } as MessageEvent
     applyMessageEvent(cache, event)
     expect(getMessage(cache, msgId(1))).toBe(msg)
-  })
-
-  test('no-ops when event has no message', () => {
-    const cache = emptyMessageCache()
-    const event = { type: 'message', id: eid(1) } as Event
-    applyMessageEvent(cache, event)
-    expect(cache.messages.size).toBe(0)
   })
 })
 
@@ -187,25 +182,17 @@ describe('applyUpdateMessageEvent', () => {
     const event = {
       type: 'update_message',
       id: eid(1),
+      message_id: msgId(1),
       message_ids: [msgId(1), msgId(2)],
       subject: topic('new-topic'),
       orig_subject: topic('old-topic'),
       stream_id: sid(10),
-    } as Event
+    } as UpdateMessageEvent
 
     applyUpdateMessageEvent(cache, event)
     expect(getMessage(cache, msgId(1))).toBeUndefined()
     expect(getMessage(cache, msgId(2))).toBeUndefined()
     expect(getMessage(cache, msgId(3))).toBeDefined()
-  })
-
-  test('no-ops when no message_ids', () => {
-    const cache = emptyMessageCache()
-    addMessage(cache, makeStreamMessage({ id: 1 }))
-
-    const event = { type: 'update_message', id: eid(1) } as Event
-    applyUpdateMessageEvent(cache, event)
-    expect(getMessage(cache, msgId(1))).toBeDefined()
   })
 })
 
@@ -221,18 +208,9 @@ describe('applyDeleteMessageEvent', () => {
       message_type: 'stream',
       stream_id: sid(10),
       topic: topic('test-topic'),
-    } as Event
+    } as DeleteMessageEvent
 
     applyDeleteMessageEvent(cache, event)
     expect(getMessage(cache, msgId(1))).toBeUndefined()
-  })
-
-  test('no-ops when no message_id', () => {
-    const cache = emptyMessageCache()
-    addMessage(cache, makeStreamMessage({ id: 1 }))
-
-    const event = { type: 'delete_message', id: eid(1) } as Event
-    applyDeleteMessageEvent(cache, event)
-    expect(getMessage(cache, msgId(1))).toBeDefined()
   })
 })

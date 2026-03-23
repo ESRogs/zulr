@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import type {
-  Event,
   EventId,
+  MessageEvent,
   MessageId,
   StreamId,
   TopicName,
   UnixEpochSeconds,
   UserId,
+  UserTopicEvent,
 } from 'zulip-ts'
 import { evaluateNotification } from '../notifications.ts'
 import { applyUserTopicEvent, emptyTopicVisibility } from '../topic-visibility.ts'
@@ -32,7 +33,7 @@ function makeStreamMessageEvent(overrides: {
   subject?: string
   msgId?: number
   flags?: string[]
-}): Event {
+}): MessageEvent {
   return {
     type: 'message',
     id: eid(1),
@@ -50,10 +51,10 @@ function makeStreamMessageEvent(overrides: {
       subject: topic(overrides.subject ?? 'test-topic'),
     },
     flags: overrides.flags ?? [],
-  } as Event
+  } as MessageEvent
 }
 
-function makeDmMessageEvent(overrides?: { flags?: string[] }): Event {
+function makeDmMessageEvent(overrides?: { flags?: string[] }): MessageEvent {
   return {
     type: 'message',
     id: eid(1),
@@ -71,7 +72,7 @@ function makeDmMessageEvent(overrides?: { flags?: string[] }): Event {
       ],
     },
     flags: overrides?.flags ?? [],
-  } as Event
+  } as MessageEvent
 }
 
 describe('evaluateNotification', () => {
@@ -107,7 +108,7 @@ describe('evaluateNotification', () => {
       stream_id: sid(10),
       topic_name: topic('test-topic'),
       visibility_policy: 3,
-    } as unknown as Event)
+    } as UserTopicEvent)
 
     const result = evaluateNotification(
       makeStreamMessageEvent({ streamId: 10, subject: 'test-topic' }),
@@ -135,7 +136,7 @@ describe('evaluateNotification', () => {
       stream_id: sid(10),
       topic_name: topic('test-topic'),
       visibility_policy: 1,
-    } as unknown as Event)
+    } as UserTopicEvent)
 
     const result = evaluateNotification(
       makeStreamMessageEvent({ streamId: 10, subject: 'test-topic' }),
@@ -153,7 +154,7 @@ describe('evaluateNotification', () => {
       stream_id: sid(10),
       topic_name: topic('test-topic'),
       visibility_policy: 1,
-    } as unknown as Event)
+    } as UserTopicEvent)
 
     const result = evaluateNotification(
       makeStreamMessageEvent({ streamId: 10, subject: 'test-topic', flags: ['mentioned'] }),
@@ -161,13 +162,6 @@ describe('evaluateNotification', () => {
     )
     expect(result.shouldNotify).toBe(true)
     expect(result.reason).toBe('mentioned')
-  })
-
-  test('event without message is silent', () => {
-    const tv = emptyTopicVisibility()
-    const result = evaluateNotification({ type: 'message', id: eid(1) } as Event, tv)
-    expect(result.shouldNotify).toBe(false)
-    expect(result.reason).toBe('silent')
   })
 
   test('mention takes priority over followed topic', () => {
@@ -178,7 +172,7 @@ describe('evaluateNotification', () => {
       stream_id: sid(10),
       topic_name: topic('test-topic'),
       visibility_policy: 3,
-    } as unknown as Event)
+    } as UserTopicEvent)
 
     const result = evaluateNotification(
       makeStreamMessageEvent({ streamId: 10, subject: 'test-topic', flags: ['mentioned'] }),

@@ -265,22 +265,25 @@ export const RegisterQueueResponseSchema = z.object({
 })
 export type RegisterQueueResponse = z.infer<typeof RegisterQueueResponseSchema>
 
-export const EventSchema = z.object({
-  type: z.string(),
+// --- Per-type event schemas ---
+
+const BaseEventFields = {
   id: eventId,
-  // message events
-  message: MessageSchema.optional(),
-  flags: z.array(z.string()).optional(),
-  // reaction events
-  op: z.string().optional(),
-  message_id: messageId.optional(),
-  user_id: userId.optional(),
-  emoji_name: emojiName.optional(),
-  // update_message_flags events
-  flag: z.string().optional(),
-  messages: z.array(messageId).optional(),
-  all: z.boolean().optional(),
-  // update_message events (edits, topic moves, stream moves)
+}
+
+export const MessageEventSchema = z.object({
+  ...BaseEventFields,
+  type: z.literal('message'),
+  message: MessageSchema,
+  flags: z.array(z.string()),
+})
+export type MessageEvent = z.infer<typeof MessageEventSchema>
+
+export const UpdateMessageEventSchema = z.object({
+  ...BaseEventFields,
+  type: z.literal('update_message'),
+  message_id: messageId,
+  message_ids: z.array(messageId),
   content: z.string().optional(),
   orig_content: z.string().optional(),
   subject: topicName.optional(),
@@ -288,14 +291,118 @@ export const EventSchema = z.object({
   new_stream_id: streamId.optional(),
   stream_id: streamId.optional(),
   rendering_only: z.boolean().optional(),
-  message_ids: z.array(messageId).optional(),
-  // delete_message events
-  message_type: z.string().optional(),
-  topic: topicName.optional(),
-  // subscription events
-  subscriptions: z.array(SubscriptionSchema).optional(),
 })
-export type Event = z.infer<typeof EventSchema>
+export type UpdateMessageEvent = z.infer<typeof UpdateMessageEventSchema>
+
+export const DeleteMessageEventSchema = z.object({
+  ...BaseEventFields,
+  type: z.literal('delete_message'),
+  message_id: messageId,
+  message_type: z.string(),
+  stream_id: streamId.optional(),
+  topic: topicName.optional(),
+})
+export type DeleteMessageEvent = z.infer<typeof DeleteMessageEventSchema>
+
+export const UpdateMessageFlagsEventSchema = z.object({
+  ...BaseEventFields,
+  type: z.literal('update_message_flags'),
+  op: z.enum(['add', 'remove']),
+  flag: z.string(),
+  messages: z.array(messageId),
+  all: z.boolean().optional(),
+})
+export type UpdateMessageFlagsEvent = z.infer<typeof UpdateMessageFlagsEventSchema>
+
+export const ReactionEventSchema = z.object({
+  ...BaseEventFields,
+  type: z.literal('reaction'),
+  op: z.enum(['add', 'remove']),
+  message_id: messageId,
+  user_id: userId,
+  emoji_name: emojiName,
+})
+export type ReactionEvent = z.infer<typeof ReactionEventSchema>
+
+export const UserTopicEventSchema = z.object({
+  ...BaseEventFields,
+  type: z.literal('user_topic'),
+  stream_id: streamId,
+  topic_name: topicName,
+  visibility_policy: z.number(),
+})
+export type UserTopicEvent = z.infer<typeof UserTopicEventSchema>
+
+const RealmUserPersonSchema = z
+  .object({
+    user_id: userId,
+    email: email.optional(),
+    full_name: displayName.optional(),
+    is_bot: z.boolean().optional(),
+    delivery_email: email.nullable().optional(),
+  })
+  .passthrough()
+
+export const RealmUserEventSchema = z.object({
+  ...BaseEventFields,
+  type: z.literal('realm_user'),
+  op: z.string(),
+  person: RealmUserPersonSchema,
+})
+export type RealmUserEvent = z.infer<typeof RealmUserEventSchema>
+
+export const SubscriptionEventSchema = z.object({
+  ...BaseEventFields,
+  type: z.literal('subscription'),
+  op: z.string(),
+  subscriptions: z.array(SubscriptionSchema),
+})
+export type SubscriptionEvent = z.infer<typeof SubscriptionEventSchema>
+
+/** Catch-all for event types we don't have specific schemas for. */
+export const UnknownEventSchema = z
+  .object({
+    ...BaseEventFields,
+    type: z.string(),
+  })
+  .passthrough()
+export type UnknownEvent = z.infer<typeof UnknownEventSchema>
+
+/** Discriminated union of known event types — enables TypeScript narrowing on `event.type`. */
+export const KnownEventSchema = z.discriminatedUnion('type', [
+  MessageEventSchema,
+  UpdateMessageEventSchema,
+  DeleteMessageEventSchema,
+  UpdateMessageFlagsEventSchema,
+  ReactionEventSchema,
+  UserTopicEventSchema,
+  RealmUserEventSchema,
+  SubscriptionEventSchema,
+])
+export type KnownEvent = z.infer<typeof KnownEventSchema>
+
+const KNOWN_EVENT_TYPES = new Set<string>([
+  'message',
+  'update_message',
+  'delete_message',
+  'update_message_flags',
+  'reaction',
+  'user_topic',
+  'realm_user',
+  'subscription',
+])
+
+/** Type guard: narrows Event to KnownEvent for discriminated union narrowing on `event.type`. */
+export function isKnownEvent(event: Event): event is KnownEvent {
+  return KNOWN_EVENT_TYPES.has(event.type)
+}
+
+/** Parse an event, trying known types first, falling back to the catch-all. */
+export const EventSchema: z.ZodType<KnownEvent | UnknownEvent> = z.union([
+  KnownEventSchema,
+  UnknownEventSchema,
+])
+export type Event = KnownEvent | UnknownEvent
 
 export const GetEventsResponseSchema = z.object({
   ...SuccessResponseFields,

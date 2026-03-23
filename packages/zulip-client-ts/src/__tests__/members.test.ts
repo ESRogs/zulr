@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { DisplayName, Email, Event, EventId, Member, UserId } from 'zulip-ts'
+import type { DisplayName, Email, EventId, Member, RealmUserEvent, UserId } from 'zulip-ts'
 import {
   applyRealmUserEvent,
   emptyMembers,
@@ -64,7 +64,7 @@ describe('applyRealmUserEvent', () => {
       id: eid(1),
       op: 'add',
       person: makeMember(3, 'Charlie'),
-    } as unknown as Event)
+    } as RealmUserEvent)
 
     expect(resolveUserId(state, uid(3))).toBe('Charlie' as DisplayName)
   })
@@ -76,7 +76,7 @@ describe('applyRealmUserEvent', () => {
       id: eid(1),
       op: 'update',
       person: { user_id: uid(1), full_name: 'Alice Smith' as DisplayName },
-    } as unknown as Event)
+    } as RealmUserEvent)
 
     expect(resolveUserId(state, uid(1))).toBe('Alice Smith' as DisplayName)
     // Email preserved from original
@@ -90,7 +90,7 @@ describe('applyRealmUserEvent', () => {
       id: eid(1),
       op: 'remove',
       person: { user_id: uid(1) },
-    } as unknown as Event)
+    } as RealmUserEvent)
 
     expect(resolveUserId(state, uid(1))).toBeUndefined()
   })
@@ -102,14 +102,7 @@ describe('applyRealmUserEvent', () => {
       id: eid(1),
       op: 'update',
       person: { user_id: uid(99), full_name: 'Ghost' as DisplayName },
-    } as unknown as Event)
-
-    expect(state.size).toBe(0)
-  })
-
-  test('ignores non-realm_user events', () => {
-    const state = emptyMembers()
-    applyRealmUserEvent(state, { type: 'message', id: eid(1) } as Event)
+    } as RealmUserEvent)
 
     expect(state.size).toBe(0)
   })

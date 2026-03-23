@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ChannelName, Event, EventId, StreamId, Subscription } from 'zulip-ts'
+import type { ChannelName, EventId, StreamId, Subscription, SubscriptionEvent } from 'zulip-ts'
 import {
   applySubscriptionEvent,
   emptySubscriptionState,
@@ -62,7 +62,7 @@ describe('applySubscriptionEvent', () => {
       id: eid(1),
       op: 'add',
       subscriptions: [makeSub(10, 'general'), makeSub(20, 'design')],
-    } as Event
+    } as SubscriptionEvent
 
     applySubscriptionEvent(state, event)
     expect(isSubscribed(state, sid(10))).toBe(true)
@@ -78,20 +78,12 @@ describe('applySubscriptionEvent', () => {
       id: eid(1),
       op: 'remove',
       subscriptions: [makeSub(10, 'general')],
-    } as Event
+    } as SubscriptionEvent
 
     applySubscriptionEvent(state, event)
     expect(isSubscribed(state, sid(10))).toBe(false)
     expect(isSubscribed(state, sid(20))).toBe(true)
     expect(getSubscriptionByName(state, chan('general'))).toBeUndefined()
-  })
-
-  test('no-ops when event has no subscriptions', () => {
-    const state = initSubscriptionState([makeSub(10, 'general')])
-
-    const event = { type: 'subscription', id: eid(1), op: 'add' } as Event
-    applySubscriptionEvent(state, event)
-    expect(getAllSubscriptions(state)).toHaveLength(1)
   })
 })
 

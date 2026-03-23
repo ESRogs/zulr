@@ -6,6 +6,7 @@ import type {
   EventId,
   Member,
   Message,
+  MessageEvent,
   MessageId,
   StreamId,
   Subscription,
@@ -16,7 +17,7 @@ import type {
   ZulipClient,
   ZulipError,
 } from 'zulip-ts'
-import { getEvents, getMembers, registerQueue } from 'zulip-ts'
+import { getEvents, getMembers, isKnownEvent, registerQueue } from 'zulip-ts'
 import {
   applyRealmUserEvent,
   emptyMembers,
@@ -76,7 +77,7 @@ export type SessionEventHandler = {
   /** Called for every event received from the queue. */
   readonly onEvent?: (event: Event) => void
   /** Called when a message event triggers a notification. */
-  readonly onNotification?: (event: Event, result: NotificationResult) => void
+  readonly onNotification?: (event: MessageEvent, result: NotificationResult) => void
   /** Called on errors (network, API, validation). Session continues after errors. */
   readonly onError?: (error: ZulipError | string) => void
 }
@@ -115,7 +116,7 @@ export type ZulipSession = {
   readonly getAllSubscriptions: () => readonly Subscription[]
 
   // Notification check
-  readonly shouldNotify: (event: Event) => NotificationResult
+  readonly shouldNotify: (event: MessageEvent) => NotificationResult
 
   // Lifecycle
   readonly start: () => Promise<void>
@@ -224,31 +225,33 @@ export function createSession(params: CreateSessionParams): ZulipSession {
       for (const event of eventsResult.value.events) {
         lastEventId = event.id
 
-        if (event.type === 'message') {
-          unreadApplyMessage(unreads, event)
-          cacheApplyMessage(messageCache, event)
-          const notification = evaluateNotification(event, topicVisibility)
-          if (notification.shouldNotify) {
-            handler?.onNotification?.(event, notification)
+        if (isKnownEvent(event)) {
+          if (event.type === 'message') {
+            unreadApplyMessage(unreads, event)
+            cacheApplyMessage(messageCache, event)
+            const notification = evaluateNotification(event, topicVisibility)
+            if (notification.shouldNotify) {
+              handler?.onNotification?.(event, notification)
+            }
+          } else if (event.type === 'update_message') {
+            unreadApplyUpdate(unreads, event)
+            cacheApplyUpdate(messageCache, event)
+          } else if (event.type === 'delete_message') {
+            unreadApplyDelete(unreads, event)
+            cacheApplyDelete(messageCache, event)
+          } else if (event.type === 'update_message_flags') {
+            applyFlagsEvent(unreads, event)
+          } else if (event.type === 'user_topic') {
+            applyUserTopicEvent(topicVisibility, event)
+          } else if (event.type === 'realm_user') {
+            applyRealmUserEvent(members, event)
+          } else if (event.type === 'subscription') {
+            applySubscriptionEvent(subscriptions, event)
           }
-        } else if (event.type === 'update_message') {
-          unreadApplyUpdate(unreads, event)
-          cacheApplyUpdate(messageCache, event)
-        } else if (event.type === 'delete_message') {
-          unreadApplyDelete(unreads, event)
-          cacheApplyDelete(messageCache, event)
-        } else if (event.type === 'update_message_flags') {
-          applyFlagsEvent(unreads, event)
-        } else if (event.type === 'user_topic') {
-          applyUserTopicEvent(topicVisibility, event)
-        } else if (event.type === 'realm_user') {
-          applyRealmUserEvent(members, event)
-        } else if (event.type === 'subscription') {
-          applySubscriptionEvent(subscriptions, event)
+          // 'reaction' events pass through without session-level processing.
+          // Reactions don't affect unreads, topic visibility, or subscriptions.
+          // The caller handles them via onEvent (e.g. for inbox delivery).
         }
-        // 'reaction' events pass through without session-level processing.
-        // Reactions don't affect unreads, topic visibility, or subscriptions.
-        // The caller handles them via onEvent (e.g. for inbox delivery).
 
         handler?.onEvent?.(event)
       }

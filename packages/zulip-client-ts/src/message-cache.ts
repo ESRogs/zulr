@@ -1,4 +1,12 @@
-import type { Event, Message, MessageId, StreamId, TopicName } from 'zulip-ts'
+import type {
+  DeleteMessageEvent,
+  Message,
+  MessageEvent,
+  MessageId,
+  StreamId,
+  TopicName,
+  UpdateMessageEvent,
+} from 'zulip-ts'
 
 export type MessageCache = {
   /** All cached messages by ID. */
@@ -51,8 +59,7 @@ export function removeMessage(cache: MessageCache, id: MessageId): void {
 }
 
 /** Apply a message event — cache the new message. */
-export function applyMessageEvent(cache: MessageCache, event: Event): void {
-  if (!event.message) return
+export function applyMessageEvent(cache: MessageCache, event: MessageEvent): void {
   addMessage(cache, event.message)
 }
 
@@ -61,20 +68,15 @@ export function applyMessageEvent(cache: MessageCache, event: Event): void {
  * Following the Zulip web app pattern: evict rather than surgically update.
  * The next `read` call will fetch fresh content from the API.
  */
-export function applyUpdateMessageEvent(cache: MessageCache, event: Event): void {
-  const ids = event.message_ids
-  if (!ids) return
-  for (const id of ids) {
+export function applyUpdateMessageEvent(cache: MessageCache, event: UpdateMessageEvent): void {
+  for (const id of event.message_ids) {
     removeMessage(cache, id)
   }
 }
 
 /** Apply a delete_message event — remove the message from cache. */
-export function applyDeleteMessageEvent(cache: MessageCache, event: Event): void {
-  const id = event.message_id
-  if (id !== undefined) {
-    removeMessage(cache, id)
-  }
+export function applyDeleteMessageEvent(cache: MessageCache, event: DeleteMessageEvent): void {
+  removeMessage(cache, event.message_id)
 }
 
 /** Get a cached message by ID. */
