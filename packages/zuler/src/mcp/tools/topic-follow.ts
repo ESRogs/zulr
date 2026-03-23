@@ -1,0 +1,78 @@
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { z } from 'zod'
+import { setUserTopic, TopicVisibility } from 'zulip-ts'
+import {
+  errorResult,
+  formatError,
+  type ToolContext,
+  textResult,
+  zChannelName,
+  zTeammateName,
+  zTopicName,
+} from '../helpers.ts'
+
+export function registerFollowTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'follow',
+    {
+      description:
+        'Follow a Zulip topic to receive notifications for all messages. Posting to a topic auto-follows it, so this is only needed to follow a topic without posting.',
+      inputSchema: z.object({
+        sender: zTeammateName.describe('Teammate name'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName.describe('Topic name'),
+      }),
+    },
+    async ({ sender, channel, topic }) => {
+      const clientResult = await ctx.getTeammateClient(sender)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+
+      const channelResult = await ctx.resolveChannel(channel)
+      if (channelResult.isErr()) return errorResult(channelResult.error)
+
+      const result = await setUserTopic(
+        clientResult.value.client,
+        channelResult.value.stream_id,
+        topic,
+        TopicVisibility.FOLLOWED,
+      )
+      return result.match(
+        () => textResult(`following ${channel}/${topic}`),
+        (err) => errorResult(formatError(err)),
+      )
+    },
+  )
+}
+
+export function registerUnfollowTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'unfollow',
+    {
+      description:
+        'Stop following a Zulip topic. Use this when you no longer need to participate in a conversation (e.g. after answering a specific question).',
+      inputSchema: z.object({
+        sender: zTeammateName.describe('Teammate name'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName.describe('Topic name'),
+      }),
+    },
+    async ({ sender, channel, topic }) => {
+      const clientResult = await ctx.getTeammateClient(sender)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+
+      const channelResult = await ctx.resolveChannel(channel)
+      if (channelResult.isErr()) return errorResult(channelResult.error)
+
+      const result = await setUserTopic(
+        clientResult.value.client,
+        channelResult.value.stream_id,
+        topic,
+        TopicVisibility.INHERIT,
+      )
+      return result.match(
+        () => textResult(`unfollowed ${channel}/${topic}`),
+        (err) => errorResult(formatError(err)),
+      )
+    },
+  )
+}
