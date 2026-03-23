@@ -10,9 +10,6 @@ export {
 export type { MessageCache } from './message-cache.ts'
 export {
   addMessage,
-  applyDeleteMessageEvent as cacheApplyDeleteMessage,
-  applyMessageEvent as cacheApplyMessage,
-  applyUpdateMessageEvent as cacheApplyUpdateMessage,
   emptyMessageCache,
   getMessage,
   getTopicMessageCount,
@@ -48,10 +45,7 @@ export {
 
 export type { UnreadState } from './unread-state.ts'
 export {
-  applyDeleteMessageEvent as unreadApplyDeleteMessage,
   applyFlagsEvent,
-  applyMessageEvent as unreadApplyMessage,
-  applyUpdateMessageEvent as unreadApplyUpdate,
   emptyUnreadState,
   getUnreadCount,
   getUnreadDmCount,
