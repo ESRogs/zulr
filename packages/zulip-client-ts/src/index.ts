@@ -7,18 +7,19 @@ export {
   resolveUserId,
 } from './members.ts'
 
-export type { MessageCache } from './message-cache.ts'
+export type { MessageListDataCache, NarrowKey } from './message-list-data.ts'
 export {
-  addMessage,
-  applyDeleteMessageEvent as cacheApplyDeleteMessage,
-  applyMessageEvent as cacheApplyMessage,
-  applyUpdateMessageEvent as cacheApplyUpdateMessage,
-  emptyMessageCache,
+  addApiMessages,
+  addEventMessage,
+  canServeFromCache,
+  deleteMessage,
+  dmNarrowKey,
+  emptyMessageListDataCache,
+  evictMessages,
   getMessage,
-  getTopicMessageCount,
-  getTopicMessages,
-  removeMessage,
-} from './message-cache.ts'
+  getMessages,
+  streamNarrowKey,
+} from './message-list-data.ts'
 
 export type { NotificationResult } from './notifications.ts'
 export { evaluateNotification } from './notifications.ts'
