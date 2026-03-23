@@ -10,12 +10,7 @@ import {
   readInbox,
   writeToInbox,
 } from './inbox.ts'
-import {
-  checkUnreadBeforeDm,
-  checkUnreadBeforePost,
-  countUnreadDmsFromUser,
-  countUnreadFromTopic,
-} from './unread-check.ts'
+import { checkUnreadBeforeDm, checkUnreadBeforePost } from './unread-check.ts'
 
 let teamName: TeamName
 
@@ -33,11 +28,13 @@ afterEach(() => {
   rmSync(join(homedir(), '.claude', 'teams', teamName), { recursive: true, force: true })
 })
 
-test('returns 0 when inbox does not exist', () => {
-  expect(countUnreadFromTopic(teamName, tm('alice'), ch('general'), tp('greetings'))).toBe(0)
+test('checkUnreadBeforePost returns undefined when inbox does not exist', () => {
+  expect(
+    checkUnreadBeforePost(teamName, tm('alice'), ch('general'), tp('greetings')),
+  ).toBeUndefined()
 })
 
-test('returns 0 when no unread messages from that topic', () => {
+test('checkUnreadBeforePost returns undefined when no unread messages from that topic', () => {
   writeToInbox(teamName, tm('alice'), {
     from: 'zulip:other-stream/other-topic:Bob',
     text: 'hello',
@@ -46,10 +43,12 @@ test('returns 0 when no unread messages from that topic', () => {
     zulipTopic: tp('other-topic'),
     zulipSender: dn('Bob'),
   })
-  expect(countUnreadFromTopic(teamName, tm('alice'), ch('general'), tp('greetings'))).toBe(0)
+  expect(
+    checkUnreadBeforePost(teamName, tm('alice'), ch('general'), tp('greetings')),
+  ).toBeUndefined()
 })
 
-test('counts unread messages from matching topic', () => {
+test('checkUnreadBeforePost returns error when unread messages exist', () => {
   writeToInbox(teamName, tm('alice'), {
     from: 'zulip:general/greetings:Bob',
     text: 'msg1',
@@ -66,10 +65,12 @@ test('counts unread messages from matching topic', () => {
     zulipTopic: tp('greetings'),
     zulipSender: dn('Charlie'),
   })
-  expect(countUnreadFromTopic(teamName, tm('alice'), ch('general'), tp('greetings'))).toBe(2)
+  const result = checkUnreadBeforePost(teamName, tm('alice'), ch('general'), tp('greetings'))
+  expect(result).toContain('2 unread message(s)')
+  expect(result).toContain('general/greetings')
 })
 
-test('ignores messages from different topics in same stream', () => {
+test('checkUnreadBeforePost ignores messages from different topics in same stream', () => {
   writeToInbox(teamName, tm('alice'), {
     from: 'zulip:general/greetings:Bob',
     text: 'msg1',
@@ -86,10 +87,11 @@ test('ignores messages from different topics in same stream', () => {
     zulipTopic: tp('other'),
     zulipSender: dn('Bob'),
   })
-  expect(countUnreadFromTopic(teamName, tm('alice'), ch('general'), tp('greetings'))).toBe(1)
+  const result = checkUnreadBeforePost(teamName, tm('alice'), ch('general'), tp('greetings'))
+  expect(result).toContain('1 unread message(s)')
 })
 
-test('uses exact matching for stream and topic names', () => {
+test('checkUnreadBeforePost uses exact matching for stream and topic names', () => {
   writeToInbox(teamName, tm('alice'), {
     from: 'zulip:General/Greetings:Bob',
     text: 'msg',
@@ -98,27 +100,17 @@ test('uses exact matching for stream and topic names', () => {
     zulipTopic: tp('Greetings'),
     zulipSender: dn('Bob'),
   })
-  expect(countUnreadFromTopic(teamName, tm('alice'), ch('General'), tp('Greetings'))).toBe(1)
-  expect(countUnreadFromTopic(teamName, tm('alice'), ch('general'), tp('greetings'))).toBe(0)
+  expect(checkUnreadBeforePost(teamName, tm('alice'), ch('General'), tp('Greetings'))).toBeDefined()
+  expect(
+    checkUnreadBeforePost(teamName, tm('alice'), ch('general'), tp('greetings')),
+  ).toBeUndefined()
 })
 
-test('ignores non-zulip messages', () => {
+test('checkUnreadBeforePost ignores non-zulip messages', () => {
   writeToInbox(teamName, tm('alice'), { from: 'teammate-bob', text: 'hello', summary: 'hello' })
-  expect(countUnreadFromTopic(teamName, tm('alice'), ch('general'), tp('greetings'))).toBe(0)
-})
-
-test('checkUnreadBeforePost returns error when unread', () => {
-  writeToInbox(teamName, tm('alice'), {
-    from: 'zulip:general/greetings:Bob',
-    text: 'msg',
-    summary: 'msg',
-    zulipStream: ch('general'),
-    zulipTopic: tp('greetings'),
-    zulipSender: dn('Bob'),
-  })
-  const result = checkUnreadBeforePost(teamName, tm('alice'), ch('general'), tp('greetings'))
-  expect(result).toContain('1 unread message(s)')
-  expect(result).toContain('general/greetings')
+  expect(
+    checkUnreadBeforePost(teamName, tm('alice'), ch('general'), tp('greetings')),
+  ).toBeUndefined()
 })
 
 test('checkUnreadBeforePost returns undefined when no unread', () => {
@@ -171,11 +163,11 @@ test('consumeUnreadInboxMessages leaves messages without structured fields alone
 
 // --- DM unread check tests ---
 
-test('countUnreadDmsFromUser returns 0 when inbox does not exist', () => {
-  expect(countUnreadDmsFromUser(teamName, tm('alice'), 42 as UserId)).toBe(0)
+test('checkUnreadBeforeDm returns undefined when inbox does not exist', () => {
+  expect(checkUnreadBeforeDm(teamName, tm('alice'), 42 as UserId)).toBeUndefined()
 })
 
-test('countUnreadDmsFromUser counts DMs from matching sender', () => {
+test('checkUnreadBeforeDm returns error when DMs from matching sender exist', () => {
   writeToInbox(teamName, tm('alice'), {
     from: 'zulip:Bob',
     text: 'dm1',
@@ -192,10 +184,11 @@ test('countUnreadDmsFromUser counts DMs from matching sender', () => {
     zulipSenderId: 42 as UserId,
     zulipSender: dn('Bob'),
   })
-  expect(countUnreadDmsFromUser(teamName, tm('alice'), 42 as UserId)).toBe(2)
+  const result = checkUnreadBeforeDm(teamName, tm('alice'), 42 as UserId)
+  expect(result).toContain('2 unread DM(s)')
 })
 
-test('countUnreadDmsFromUser ignores DMs from other senders', () => {
+test('checkUnreadBeforeDm ignores DMs from other senders', () => {
   writeToInbox(teamName, tm('alice'), {
     from: 'zulip:Bob',
     text: 'dm from bob',
@@ -212,10 +205,11 @@ test('countUnreadDmsFromUser ignores DMs from other senders', () => {
     zulipSenderId: 99 as UserId,
     zulipSender: dn('Charlie'),
   })
-  expect(countUnreadDmsFromUser(teamName, tm('alice'), 42 as UserId)).toBe(1)
+  const result = checkUnreadBeforeDm(teamName, tm('alice'), 42 as UserId)
+  expect(result).toContain('1 unread DM(s)')
 })
 
-test('countUnreadDmsFromUser ignores stream messages from same sender', () => {
+test('checkUnreadBeforeDm ignores stream messages from same sender', () => {
   writeToInbox(teamName, tm('alice'), {
     from: 'zulip:general/greetings:Bob',
     text: 'stream msg',
@@ -226,7 +220,7 @@ test('countUnreadDmsFromUser ignores stream messages from same sender', () => {
     zulipTopic: tp('greetings'),
     zulipSender: dn('Bob'),
   })
-  expect(countUnreadDmsFromUser(teamName, tm('alice'), 42 as UserId)).toBe(0)
+  expect(checkUnreadBeforeDm(teamName, tm('alice'), 42 as UserId)).toBeUndefined()
 })
 
 test('checkUnreadBeforeDm returns error when unread DMs exist', () => {
