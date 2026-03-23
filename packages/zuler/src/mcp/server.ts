@@ -28,6 +28,7 @@ import {
   registerResolveTopicTool,
   registerUnresolveTopicTool,
 } from './tools/topic-actions.ts'
+import { registerFollowTool, registerUnfollowTool } from './tools/topic-follow.ts'
 import { registerTopicStateTool } from './tools/topic-state.ts'
 
 export type { ServerConfig } from './helpers.ts'
@@ -61,6 +62,8 @@ export function createMcpServer(config: ServerConfig) {
   registerResolveTopicTool(server, ctx)
   registerUnresolveTopicTool(server, ctx)
   registerMoveTopicTool(server, ctx)
+  registerFollowTool(server, ctx)
+  registerUnfollowTool(server, ctx)
   registerTopicStateTool(server, ctx)
   registerUploadTool(server, ctx)
   registerDownloadTool(server, ctx)
