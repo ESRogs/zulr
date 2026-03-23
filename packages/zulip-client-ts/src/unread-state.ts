@@ -262,3 +262,8 @@ export function getUnreadDmCount(state: UnreadState, userId: UserId): number {
 export function hasUnreadDms(state: UnreadState, userId: UserId): boolean {
   return getUnreadDmCount(state, userId) > 0
 }
+
+export function getUnreadDmMessageIds(state: UnreadState, userId: UserId): readonly MessageId[] {
+  const set = state.dms.get(userId)
+  return set ? [...set] : []
+}

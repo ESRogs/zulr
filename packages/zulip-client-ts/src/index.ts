@@ -55,6 +55,7 @@ export {
   emptyUnreadState,
   getUnreadCount,
   getUnreadDmCount,
+  getUnreadDmMessageIds,
   getUnreadMessageIds,
   hasUnreadDms,
   hasUnreads,

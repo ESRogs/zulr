@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import type { MessageId } from 'zulip-ts'
 import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
 import {
   errorResult,
@@ -11,15 +12,30 @@ import {
   zTopicName,
 } from '../helpers.ts'
 
+/** Count unread message IDs that are newer than the given anchor. */
+function countUnreadsSince(unreadIds: readonly MessageId[], replyTo: MessageId): number {
+  let count = 0
+  for (const id of unreadIds) {
+    if (id > replyTo) count++
+  }
+  return count
+}
+
 export function registerReplyTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'reply',
     {
       description:
-        'Send a Zulip message after checking for unread messages. If there are unreads in the target topic or DM, returns an error asking you to catch up first. Use "post" instead to skip this check (e.g. for new threads or when accumulated unreads aren\'t relevant).',
+        'Send a Zulip message after checking for unread messages since a given message. Provide replyTo (the message ID you are responding to) — the tool checks for unreads after that message and blocks if any exist. Use "post" instead to skip this check (e.g. for new threads).',
       inputSchema: z.object({
         sender: zTeammateName.describe('Name of the registered teammate sending the message'),
         content: z.string().describe('Message content'),
+        replyTo: z.coerce
+          .number()
+          .transform((n): MessageId => n as MessageId)
+          .describe(
+            'Message ID you are replying to. The tool checks for unreads after this message.',
+          ),
         to: z
           .union([z.number(), z.string()])
           .optional()
@@ -28,7 +44,7 @@ export function registerReplyTool(server: McpServer, ctx: ToolContext): void {
         topic: zTopicName.optional().describe('Topic name'),
       }),
     },
-    async ({ sender, content, to, channel, topic }) => {
+    async ({ sender, content, replyTo, to, channel, topic }) => {
       const manager = ctx.getEventListenerManager()
       const session = manager?.getSession(sender)
 
@@ -43,12 +59,15 @@ export function registerReplyTool(server: McpServer, ctx: ToolContext): void {
           )
         }
 
-        // Session-based unread check for DMs
-        if (session?.hasUnreadDms(recipient.user_id)) {
-          const count = session.getUnreadDmCount(recipient.user_id)
-          return errorResult(
-            `You have ${count} unread DM(s) from ${recipient.full_name}. Use read or catch-up to catch up first, or use post to skip this check.`,
-          )
+        // Check for unread DMs newer than replyTo
+        if (session) {
+          const unreadIds = session.getUnreadDmMessageIds(recipient.user_id)
+          const count = countUnreadsSince(unreadIds, replyTo)
+          if (count > 0) {
+            return errorResult(
+              `You have ${count} unread DM(s) from ${recipient.full_name} since message ${replyTo}. Use read or catch-up to catch up first, or use post to skip this check.`,
+            )
+          }
         }
 
         const clientResult = await ctx.getTeammateClient(sender)
@@ -70,11 +89,15 @@ export function registerReplyTool(server: McpServer, ctx: ToolContext): void {
         if (channelResult.isErr()) return errorResult(channelResult.error)
         const { stream_id: streamId } = channelResult.value
 
-        if (session?.hasUnreads(streamId, topic)) {
-          const count = session.getUnreadCount(streamId, topic)
-          return errorResult(
-            `You have ${count} unread message(s) in ${channel}/${topic}. Use read or catch-up to catch up first, or use post to skip this check.`,
-          )
+        // Check for unreads in the topic newer than replyTo
+        if (session) {
+          const unreadIds = session.getUnreadMessageIds(streamId, topic)
+          const count = countUnreadsSince(unreadIds, replyTo)
+          if (count > 0) {
+            return errorResult(
+              `You have ${count} unread message(s) in ${channel}/${topic} since message ${replyTo}. Use read or catch-up to catch up first, or use post to skip this check.`,
+            )
+          }
         }
 
         const clientResult = await ctx.getTeammateClient(sender)
