@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import type { ZulipSession } from 'zulip-client-ts'
+import { streamNarrowKey, type ZulipSession } from 'zulip-client-ts'
 import { type ChannelName, markAsRead, type StreamId, type TopicName, type UserId } from 'zulip-ts'
 import type { TeammateName } from '../../tagged-types.ts'
 import {
@@ -114,10 +114,10 @@ function tryReadFromCache(
   if (!session.isSubscribed(streamId)) return undefined
   if (session.getRegisteredAt() === undefined) return undefined
 
-  const cachedCount = session.getTopicMessageCount(streamId, topic)
-  if (cachedCount < count) return undefined
+  const key = streamNarrowKey(streamId, topic)
+  if (!session.canServeFromCache(key, count)) return undefined
 
-  const cached = session.getTopicMessages(streamId, topic)
+  const cached = session.getMessages(key, count)
   return cached.map((msg) => toFormattedMessage(msg, { resolveUserId }))
 }
 
