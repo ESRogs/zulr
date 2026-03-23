@@ -1,7 +1,6 @@
 import { err, ok, type Result } from 'neverthrow'
 import type {
   ChannelName,
-  DeleteMessageEvent,
   DisplayName,
   Event,
   EventId,
@@ -9,21 +8,16 @@ import type {
   Message,
   MessageEvent,
   MessageId,
-  RealmUserEvent,
   StreamId,
   Subscription,
-  SubscriptionEvent,
   TopicName,
   UnixEpochSeconds,
-  UpdateMessageEvent,
-  UpdateMessageFlagsEvent,
   UserId,
-  UserTopicEvent,
   UserTopicVisibility,
   ZulipClient,
   ZulipError,
 } from 'zulip-ts'
-import { getEvents, getMembers, registerQueue } from 'zulip-ts'
+import { getEvents, getMembers, isKnownEvent, registerQueue } from 'zulip-ts'
 import {
   applyRealmUserEvent,
   emptyMembers,
@@ -231,34 +225,33 @@ export function createSession(params: CreateSessionParams): ZulipSession {
       for (const event of eventsResult.value.events) {
         lastEventId = event.id
 
-        if (event.type === 'message') {
-          const e = event as MessageEvent
-          unreadApplyMessage(unreads, e)
-          cacheApplyMessage(messageCache, e)
-          const notification = evaluateNotification(e, topicVisibility)
-          if (notification.shouldNotify) {
-            handler?.onNotification?.(e, notification)
+        if (isKnownEvent(event)) {
+          if (event.type === 'message') {
+            unreadApplyMessage(unreads, event)
+            cacheApplyMessage(messageCache, event)
+            const notification = evaluateNotification(event, topicVisibility)
+            if (notification.shouldNotify) {
+              handler?.onNotification?.(event, notification)
+            }
+          } else if (event.type === 'update_message') {
+            unreadApplyUpdate(unreads, event)
+            cacheApplyUpdate(messageCache, event)
+          } else if (event.type === 'delete_message') {
+            unreadApplyDelete(unreads, event)
+            cacheApplyDelete(messageCache, event)
+          } else if (event.type === 'update_message_flags') {
+            applyFlagsEvent(unreads, event)
+          } else if (event.type === 'user_topic') {
+            applyUserTopicEvent(topicVisibility, event)
+          } else if (event.type === 'realm_user') {
+            applyRealmUserEvent(members, event)
+          } else if (event.type === 'subscription') {
+            applySubscriptionEvent(subscriptions, event)
           }
-        } else if (event.type === 'update_message') {
-          const e = event as UpdateMessageEvent
-          unreadApplyUpdate(unreads, e)
-          cacheApplyUpdate(messageCache, e)
-        } else if (event.type === 'delete_message') {
-          const e = event as DeleteMessageEvent
-          unreadApplyDelete(unreads, e)
-          cacheApplyDelete(messageCache, e)
-        } else if (event.type === 'update_message_flags') {
-          applyFlagsEvent(unreads, event as UpdateMessageFlagsEvent)
-        } else if (event.type === 'user_topic') {
-          applyUserTopicEvent(topicVisibility, event as UserTopicEvent)
-        } else if (event.type === 'realm_user') {
-          applyRealmUserEvent(members, event as RealmUserEvent)
-        } else if (event.type === 'subscription') {
-          applySubscriptionEvent(subscriptions, event as SubscriptionEvent)
+          // 'reaction' events pass through without session-level processing.
+          // Reactions don't affect unreads, topic visibility, or subscriptions.
+          // The caller handles them via onEvent (e.g. for inbox delivery).
         }
-        // 'reaction' events pass through without session-level processing.
-        // Reactions don't affect unreads, topic visibility, or subscriptions.
-        // The caller handles them via onEvent (e.g. for inbox delivery).
 
         handler?.onEvent?.(event)
       }

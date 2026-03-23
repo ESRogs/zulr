@@ -368,8 +368,8 @@ export const UnknownEventSchema = z
   .passthrough()
 export type UnknownEvent = z.infer<typeof UnknownEventSchema>
 
-/** Parse an event, trying known types first, falling back to the catch-all. */
-export const EventSchema = z.union([
+/** Discriminated union of known event types — enables TypeScript narrowing on `event.type`. */
+export const KnownEventSchema = z.discriminatedUnion('type', [
   MessageEventSchema,
   UpdateMessageEventSchema,
   DeleteMessageEventSchema,
@@ -378,9 +378,31 @@ export const EventSchema = z.union([
   UserTopicEventSchema,
   RealmUserEventSchema,
   SubscriptionEventSchema,
+])
+export type KnownEvent = z.infer<typeof KnownEventSchema>
+
+const KNOWN_EVENT_TYPES = new Set<string>([
+  'message',
+  'update_message',
+  'delete_message',
+  'update_message_flags',
+  'reaction',
+  'user_topic',
+  'realm_user',
+  'subscription',
+])
+
+/** Type guard: narrows Event to KnownEvent for discriminated union narrowing on `event.type`. */
+export function isKnownEvent(event: Event): event is KnownEvent {
+  return KNOWN_EVENT_TYPES.has(event.type)
+}
+
+/** Parse an event, trying known types first, falling back to the catch-all. */
+export const EventSchema: z.ZodType<KnownEvent | UnknownEvent> = z.union([
+  KnownEventSchema,
   UnknownEventSchema,
 ])
-export type Event = z.infer<typeof EventSchema>
+export type Event = KnownEvent | UnknownEvent
 
 export const GetEventsResponseSchema = z.object({
   ...SuccessResponseFields,

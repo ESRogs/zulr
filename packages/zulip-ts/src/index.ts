@@ -37,6 +37,7 @@ export type {
   GetMessagesResponse,
   GetStreamsResponse,
   GetSubscriptionsResponse,
+  KnownEvent,
   Member,
   Message,
   MessageEvent,
@@ -64,6 +65,7 @@ export type {
   UserTopicEntry,
   UserTopicEvent,
 } from './schemas.ts'
+export { isKnownEvent } from './schemas.ts'
 export type { CreateChannelParams, UpdateChannelParams, UserTopicVisibility } from './streams.ts'
 export {
   archiveStream,
