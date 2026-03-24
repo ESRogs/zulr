@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { sendDirectMessage, sendStreamMessage } from 'zulip-ts'
+import { getTopics, sendDirectMessage, sendStreamMessage } from 'zulip-ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import {
   errorResult,
@@ -19,7 +19,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
     'post',
     {
       description:
-        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". To @-mention a teammate, use @**full name** (e.g. @**scout**) — this auto-subscribes them to the topic. Checks for unread messages in your teammate inbox before sending — use the read or catch-up tool first if blocked.',
+        'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". To @-mention a teammate, use @**full name** (e.g. @**scout**) — this auto-subscribes them to the topic. By default, posting to a non-existent topic is blocked — set createTopic: true to create a new topic. Checks for unread messages in your teammate inbox before sending — use the read or catch-up tool first if blocked.',
       inputSchema: z.object({
         sender: zTeammateName.describe('Name of the registered teammate sending the message'),
         content: z.string().describe('Message content'),
@@ -29,9 +29,16 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
           .describe('User ID, full name, or email for DMs'),
         channel: zChannelName.optional().describe('Channel name'),
         topic: zTopicName.optional().describe('Topic name'),
+        createTopic: z
+          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+          .optional()
+          .default(false)
+          .describe(
+            'Set to true to allow posting to a topic that does not yet exist (default: false)',
+          ),
       }),
     },
-    async ({ sender, content, to, channel, topic }) => {
+    async ({ sender, content, to, channel, topic, createTopic }) => {
       // Pre-flight unread checks before any async work
       if (channel && topic) {
         const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)
@@ -78,6 +85,33 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
         }
+
+        if (!createTopic) {
+          const channelResult = await ctx.resolveChannel(channel)
+          if (channelResult.isErr()) {
+            return errorResult(channelResult.error)
+          }
+          const topicsResult = await getTopics(
+            clientResult.value.client,
+            channelResult.value.stream_id,
+          )
+          if (topicsResult.isErr()) {
+            return errorResult(formatError(topicsResult.error))
+          }
+          const topicLower = topic.toLowerCase()
+          const exists = topicsResult.value.topics.some((t) => t.name.toLowerCase() === topicLower)
+          if (!exists) {
+            const existing = topicsResult.value.topics.map((t) => t.name)
+            const topicList =
+              existing.length > 0
+                ? `Existing topics:\n${existing.map((n) => `  - ${n}`).join('\n')}`
+                : 'This channel has no topics yet.'
+            return errorResult(
+              `Topic "${topic}" does not exist in #${channel}. Set createTopic: true to create it, or check the topic name.\n\n${topicList}`,
+            )
+          }
+        }
+
         const result = await sendStreamMessage(clientResult.value.client, {
           to: channel,
           topic,
