@@ -101,6 +101,12 @@ export const SendMessageResponseSchema = z.object({
 })
 export type SendMessageResponse = z.infer<typeof SendMessageResponseSchema>
 
+export const GetMessageResponseSchema = z.object({
+  ...SuccessResponseFields,
+  message: MessageSchema,
+})
+export type GetMessageResponse = z.infer<typeof GetMessageResponseSchema>
+
 export const GetMessagesResponseSchema = z.object({
   ...SuccessResponseFields,
   messages: z.array(MessageSchema),

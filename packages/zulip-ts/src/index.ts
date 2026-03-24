@@ -15,6 +15,7 @@ export type {
 } from './messages.ts'
 export {
   addReaction,
+  getMessage,
   getMessages,
   markAsRead,
   removeReaction,
@@ -34,6 +35,7 @@ export type {
   GetBotsResponse,
   GetEventsResponse,
   GetMembersResponse,
+  GetMessageResponse,
   GetMessagesResponse,
   GetStreamsResponse,
   GetSubscriptionsResponse,

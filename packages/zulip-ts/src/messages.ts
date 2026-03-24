@@ -1,6 +1,8 @@
 import type { ResultAsync } from 'neverthrow'
 import type { ZulipClient, ZulipError } from './client.ts'
 import {
+  type GetMessageResponse,
+  GetMessageResponseSchema,
   type GetMessagesResponse,
   GetMessagesResponseSchema,
   type SendMessageResponse,
@@ -163,6 +165,21 @@ export function removeReaction(
       body: { emoji_name: emojiName },
     },
     SuccessResponseSchema,
+  )
+}
+
+/** Fetch a single message by ID. */
+export function getMessage(
+  client: ZulipClient,
+  messageId: MessageId,
+): ResultAsync<GetMessageResponse, ZulipError> {
+  return client.request(
+    {
+      method: 'GET',
+      path: `/messages/${messageId}`,
+      params: { apply_markdown: false },
+    },
+    GetMessageResponseSchema,
   )
 }
 
