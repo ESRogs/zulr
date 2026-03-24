@@ -172,12 +172,13 @@ export function removeReaction(
 export function getMessage(
   client: ZulipClient,
   messageId: MessageId,
+  options?: { readonly applyMarkdown?: boolean },
 ): ResultAsync<GetMessageResponse, ZulipError> {
   return client.request(
     {
       method: 'GET',
       path: `/messages/${messageId}`,
-      params: { apply_markdown: false },
+      params: { apply_markdown: options?.applyMarkdown ?? false },
     },
     GetMessageResponseSchema,
   )
