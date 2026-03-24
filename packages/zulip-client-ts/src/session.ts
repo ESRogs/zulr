@@ -1,6 +1,7 @@
 import { err, ok, type Result } from 'neverthrow'
 import type {
   ChannelName,
+  DeleteMessageEvent,
   DisplayName,
   Event,
   EventId,
@@ -12,6 +13,7 @@ import type {
   Subscription,
   TopicName,
   UnixEpochSeconds,
+  UpdateMessageEvent,
   UserId,
   UserTopicVisibility,
   ZulipClient,
@@ -27,16 +29,19 @@ import {
   resolveUserId as membersResolveUserId,
 } from './members.ts'
 import {
-  addMessage,
-  applyDeleteMessageEvent as cacheApplyDelete,
-  applyMessageEvent as cacheApplyMessage,
-  applyUpdateMessageEvent as cacheApplyUpdate,
+  addApiMessages,
+  addEventMessage,
+  deleteMessage as cacheDeleteMessage,
   getMessage as cacheGetMessage,
-  getTopicMessageCount as cacheGetTopicMessageCount,
-  getTopicMessages as cacheGetTopicMessages,
-  emptyMessageCache,
-  type MessageCache,
-} from './message-cache.ts'
+  getMessages as cacheGetMessages,
+  canServeFromCache,
+  dmNarrowKey,
+  emptyMessageListDataCache,
+  evictMessages,
+  type MessageListDataCache,
+  type NarrowKey,
+  streamNarrowKey,
+} from './message-list-data.ts'
 import { evaluateNotification, type NotificationResult } from './notifications.ts'
 import {
   applySubscriptionEvent,
@@ -102,10 +107,14 @@ export type ZulipSession = {
 
   // Message cache
   readonly getMessage: (id: MessageId) => Message | undefined
-  readonly getTopicMessages: (streamId: StreamId, topic: TopicName) => readonly Message[]
-  readonly getTopicMessageCount: (streamId: StreamId, topic: TopicName) => number
+  readonly getMessages: (key: NarrowKey, count: number) => readonly Message[]
+  readonly canServeFromCache: (key: NarrowKey, count: number) => boolean
   /** Store messages from an API fetch so subsequent reads can hit cache. */
-  readonly addMessage: (msg: Message) => void
+  readonly addApiMessages: (
+    key: NarrowKey,
+    messages: readonly Message[],
+    flags: { readonly foundOldest: boolean; readonly foundNewest: boolean },
+  ) => void
   /** Timestamp when the session last registered its event queue. Undefined before start. */
   readonly getRegisteredAt: () => UnixEpochSeconds | undefined
 
@@ -127,7 +136,7 @@ export type ZulipSession = {
     readonly unreads: UnreadState
     readonly topicVisibility: TopicVisibilityState
     readonly members: MembersState
-    readonly messageCache: MessageCache
+    readonly messageCache: MessageListDataCache
     readonly subscriptions: SubscriptionState
   }
 }
@@ -156,7 +165,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   let unreads: UnreadState = emptyUnreadState()
   let topicVisibility: TopicVisibilityState = emptyTopicVisibility()
   let members: MembersState = emptyMembers()
-  let messageCache: MessageCache = emptyMessageCache()
+  let messageCache: MessageListDataCache = emptyMessageListDataCache()
   let subscriptions: SubscriptionState = emptySubscriptionState()
   let registeredAt: UnixEpochSeconds | undefined
   let stopped = false
@@ -196,7 +205,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     registeredAt = Math.floor(Date.now() / 1000) as UnixEpochSeconds
     unreads = unread_msgs ? initUnreadState(unread_msgs) : emptyUnreadState()
     topicVisibility = user_topics ? initTopicVisibility(user_topics) : emptyTopicVisibility()
-    messageCache = emptyMessageCache()
+    messageCache = emptyMessageListDataCache()
     subscriptions = initialSubs ? initSubscriptionState(initialSubs) : emptySubscriptionState()
 
     // Fetch members list
@@ -228,17 +237,18 @@ export function createSession(params: CreateSessionParams): ZulipSession {
         if (isKnownEvent(event)) {
           if (event.type === 'message') {
             unreadApplyMessage(unreads, event)
-            cacheApplyMessage(messageCache, event)
+            const key = narrowKeyForMessage(event.message)
+            addEventMessage(messageCache, key, event.message)
             const notification = evaluateNotification(event, topicVisibility)
             if (notification.shouldNotify) {
               handler?.onNotification?.(event, notification)
             }
           } else if (event.type === 'update_message') {
             unreadApplyUpdate(unreads, event)
-            cacheApplyUpdate(messageCache, event)
+            handleUpdateMessageEvent(messageCache, event)
           } else if (event.type === 'delete_message') {
             unreadApplyDelete(unreads, event)
-            cacheApplyDelete(messageCache, event)
+            handleDeleteMessageEvent(messageCache, event)
           } else if (event.type === 'update_message_flags') {
             applyFlagsEvent(unreads, event)
           } else if (event.type === 'user_topic') {
@@ -275,10 +285,9 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     resolveUserId: (id) => membersResolveUserId(members, id),
     resolveName: (name) => membersResolveName(members, name),
     getMessage: (id) => cacheGetMessage(messageCache, id),
-    getTopicMessages: (streamId, topic) => cacheGetTopicMessages(messageCache, streamId, topic),
-    getTopicMessageCount: (streamId, topic) =>
-      cacheGetTopicMessageCount(messageCache, streamId, topic),
-    addMessage: (msg) => addMessage(messageCache, msg),
+    getMessages: (key, count) => cacheGetMessages(messageCache, key, count),
+    canServeFromCache: (key, count) => canServeFromCache(messageCache, key, count),
+    addApiMessages: (key, messages, flags) => addApiMessages(messageCache, key, messages, flags),
     getRegisteredAt: () => registeredAt,
     isSubscribed: (streamId) => subIsSubscribed(subscriptions, streamId),
     getSubscription: (streamId) => subGetById(subscriptions, streamId),
@@ -289,6 +298,34 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     stop,
     getState: () => ({ unreads, topicVisibility, members, messageCache, subscriptions }),
   }
+}
+
+function narrowKeyForMessage(msg: Message): NarrowKey {
+  if (msg.type === 'stream') {
+    return streamNarrowKey(msg.stream_id, msg.subject)
+  }
+  return dmNarrowKey(msg.sender_id)
+}
+
+function handleUpdateMessageEvent(cache: MessageListDataCache, event: UpdateMessageEvent): void {
+  // For topic moves, evict from old narrow. For content edits, evict from current narrow.
+  if (event.orig_subject && event.stream_id) {
+    evictMessages(cache, streamNarrowKey(event.stream_id, event.orig_subject), event.message_ids)
+  } else if (event.stream_id && event.subject) {
+    evictMessages(cache, streamNarrowKey(event.stream_id, event.subject), event.message_ids)
+  }
+  // For stream moves (new_stream_id), also evict from old stream
+  if (event.new_stream_id && event.stream_id && event.subject) {
+    evictMessages(cache, streamNarrowKey(event.stream_id, event.subject), event.message_ids)
+  }
+}
+
+function handleDeleteMessageEvent(cache: MessageListDataCache, event: DeleteMessageEvent): void {
+  if (event.stream_id && event.topic) {
+    cacheDeleteMessage(cache, streamNarrowKey(event.stream_id, event.topic), event.message_id)
+  }
+  // For DM deletes, we don't have the sender_id — the message may or may not be cached.
+  // The global messageIndex is cleaned up by deleteMessage if the narrow is found.
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
