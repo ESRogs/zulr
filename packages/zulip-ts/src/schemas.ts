@@ -167,6 +167,18 @@ export const CreateChannelResponseSchema = z.object({
 })
 export type CreateChannelResponse = z.infer<typeof CreateChannelResponseSchema>
 
+export const GetStreamResponseSchema = z.object({
+  ...SuccessResponseFields,
+  stream: StreamSchema,
+})
+export type GetStreamResponse = z.infer<typeof GetStreamResponseSchema>
+
+export const GetStreamMembersResponseSchema = z.object({
+  ...SuccessResponseFields,
+  subscribers: z.array(userId),
+})
+export type GetStreamMembersResponse = z.infer<typeof GetStreamMembersResponseSchema>
+
 export const TopicSchema = z.object({
   name: topicName,
   max_id: messageId,
