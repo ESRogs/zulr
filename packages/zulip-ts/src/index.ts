@@ -35,6 +35,8 @@ export type {
   GetEventsResponse,
   GetMembersResponse,
   GetMessagesResponse,
+  GetStreamMembersResponse,
+  GetStreamResponse,
   GetStreamsResponse,
   GetSubscriptionsResponse,
   KnownEvent,
@@ -70,6 +72,8 @@ export type { CreateChannelParams, UpdateChannelParams, UserTopicVisibility } fr
 export {
   archiveStream,
   createChannel,
+  getStream,
+  getStreamMembers,
   getStreams,
   getSubscriptions,
   getTopics,

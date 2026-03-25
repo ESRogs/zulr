@@ -3,6 +3,10 @@ import type { ZulipClient, ZulipError } from './client.ts'
 import {
   type CreateChannelResponse,
   CreateChannelResponseSchema,
+  type GetStreamMembersResponse,
+  GetStreamMembersResponseSchema,
+  type GetStreamResponse,
+  GetStreamResponseSchema,
   type GetStreamsResponse,
   GetStreamsResponseSchema,
   type GetSubscriptionsResponse,
@@ -22,6 +26,23 @@ import type { ChannelName, StreamId, TopicName, UserId } from './tagged-types.ts
 
 export function getStreams(client: ZulipClient): ResultAsync<GetStreamsResponse, ZulipError> {
   return client.request({ method: 'GET', path: '/streams' }, GetStreamsResponseSchema)
+}
+
+export function getStream(
+  client: ZulipClient,
+  streamId: StreamId,
+): ResultAsync<GetStreamResponse, ZulipError> {
+  return client.request({ method: 'GET', path: `/streams/${streamId}` }, GetStreamResponseSchema)
+}
+
+export function getStreamMembers(
+  client: ZulipClient,
+  streamId: StreamId,
+): ResultAsync<GetStreamMembersResponse, ZulipError> {
+  return client.request(
+    { method: 'GET', path: `/streams/${streamId}/members` },
+    GetStreamMembersResponseSchema,
+  )
 }
 
 export function getTopics(
