@@ -44,6 +44,71 @@ export function registerFollowTool(server: McpServer, ctx: ToolContext): void {
   )
 }
 
+export function registerMuteTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'mute',
+    {
+      description: 'Mute a Zulip topic to suppress notifications.',
+      inputSchema: z.object({
+        sender: zTeammateName.describe('Teammate name'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName.describe('Topic name'),
+      }),
+    },
+    async ({ sender, channel, topic }) => {
+      const clientResult = await ctx.getTeammateClient(sender)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+
+      const channelResult = await ctx.resolveChannel(channel)
+      if (channelResult.isErr()) return errorResult(channelResult.error)
+
+      const result = await setUserTopic(
+        clientResult.value.client,
+        channelResult.value.stream_id,
+        topic,
+        TopicVisibility.MUTED,
+      )
+      return result.match(
+        () => textResult(`muted ${channel}/${topic}`),
+        (err) => errorResult(formatError(err)),
+      )
+    },
+  )
+}
+
+export function registerUnmuteTool(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    'unmute',
+    {
+      description:
+        'Unmute a Zulip topic (overrides channel-level mute). Use this to restore notifications for a previously muted topic.',
+      inputSchema: z.object({
+        sender: zTeammateName.describe('Teammate name'),
+        channel: zChannelName.describe('Channel name'),
+        topic: zTopicName.describe('Topic name'),
+      }),
+    },
+    async ({ sender, channel, topic }) => {
+      const clientResult = await ctx.getTeammateClient(sender)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+
+      const channelResult = await ctx.resolveChannel(channel)
+      if (channelResult.isErr()) return errorResult(channelResult.error)
+
+      const result = await setUserTopic(
+        clientResult.value.client,
+        channelResult.value.stream_id,
+        topic,
+        TopicVisibility.UNMUTED,
+      )
+      return result.match(
+        () => textResult(`unmuted ${channel}/${topic}`),
+        (err) => errorResult(formatError(err)),
+      )
+    },
+  )
+}
+
 export function registerUnfollowTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'unfollow',
