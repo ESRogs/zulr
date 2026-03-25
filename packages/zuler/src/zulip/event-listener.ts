@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
 import { createSession, type ZulipSession } from 'zulip-client-ts'
 import type { DisplayName, Email, EmojiName, MessageId, UserId, ZulipClient } from 'zulip-ts'
-import { getMessages, isKnownEvent, markAsRead } from 'zulip-ts'
+import { getMessage, isKnownEvent, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates, type StateError, type Teammate } from '../state/teammates.ts'
@@ -70,20 +70,14 @@ async function handleReaction(
   let msg = session.getMessage(messageId)
 
   if (!msg) {
-    const msgResult = await getMessages(client, {
-      anchor: messageId,
-      numBefore: 0,
-      numAfter: 0,
-      narrow: [{ operator: 'id', operand: messageId }],
-      applyMarkdown: false,
-    })
+    const msgResult = await getMessage(client, messageId)
 
     if (msgResult.isErr()) {
       onError?.(msgResult.error)
       return
     }
 
-    msg = msgResult.value.messages[0]
+    msg = msgResult.value.message
   }
 
   if (!msg) return
