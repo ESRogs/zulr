@@ -70,7 +70,12 @@ export type {
   UserTopicEvent,
 } from './schemas.ts'
 export { isKnownEvent } from './schemas.ts'
-export type { CreateChannelParams, UpdateChannelParams, UserTopicVisibility } from './streams.ts'
+export type {
+  CreateChannelParams,
+  StreamPostPolicy,
+  UpdateChannelParams,
+  UserTopicVisibility,
+} from './streams.ts'
 export {
   archiveStream,
   createChannel,
@@ -79,6 +84,7 @@ export {
   getStreams,
   getSubscriptions,
   getTopics,
+  PostPolicy,
   setUserTopic,
   subscribe,
   TopicVisibility,

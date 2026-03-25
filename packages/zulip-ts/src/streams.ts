@@ -79,9 +79,29 @@ export function createChannel(
   )
 }
 
+export type StreamPostPolicy = 1 | 2 | 3 | 4
+
+/** Named constants for StreamPostPolicy values. */
+export const PostPolicy = {
+  /** Any user can post. */
+  ANY: 1,
+  /** Only admins can post. */
+  ADMINS_ONLY: 2,
+  /** Only full members can post. */
+  FULL_MEMBERS_ONLY: 3,
+  /** Only moderators can post. */
+  MODERATORS_ONLY: 4,
+} as const satisfies Record<string, StreamPostPolicy>
+
 export type UpdateChannelParams = {
   readonly newName?: ChannelName
   readonly description?: string
+  readonly isPrivate?: boolean
+  readonly isWebPublic?: boolean
+  readonly isDefaultStream?: boolean
+  readonly streamPostPolicy?: StreamPostPolicy
+  readonly messageRetentionDays?: number | 'realm_default' | 'unlimited'
+  readonly canRemoveSubscribersGroup?: number
 }
 
 export function updateChannel(
@@ -92,6 +112,14 @@ export function updateChannel(
   const body: Record<string, unknown> = {}
   if (params.newName !== undefined) body.new_name = params.newName
   if (params.description !== undefined) body.description = params.description
+  if (params.isPrivate !== undefined) body.is_private = params.isPrivate
+  if (params.isWebPublic !== undefined) body.is_web_public = params.isWebPublic
+  if (params.isDefaultStream !== undefined) body.is_default_stream = params.isDefaultStream
+  if (params.streamPostPolicy !== undefined) body.stream_post_policy = params.streamPostPolicy
+  if (params.messageRetentionDays !== undefined)
+    body.message_retention_days = params.messageRetentionDays
+  if (params.canRemoveSubscribersGroup !== undefined)
+    body.can_remove_subscribers_group = params.canRemoveSubscribersGroup
   return client.request(
     { method: 'PATCH', path: `/streams/${streamId}`, body },
     UpdateChannelResponseSchema,
