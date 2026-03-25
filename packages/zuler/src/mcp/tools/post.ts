@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { getTopics, sendDirectMessage, sendStreamMessage } from 'zulip-ts'
+import { getTopics, sendDirectMessage, sendStreamMessage, setUserTopic, TopicVisibility } from 'zulip-ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import {
   errorResult,
@@ -117,6 +117,18 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
           topic,
           content,
         })
+        if (result.isOk()) {
+          // Explicitly follow the topic so the bot receives notifications for future messages
+          const resolveResult = await ctx.resolveChannel(channel)
+          if (resolveResult.isOk()) {
+            await setUserTopic(
+              clientResult.value.client,
+              resolveResult.value.stream_id,
+              topic,
+              TopicVisibility.FOLLOWED,
+            )
+          }
+        }
         return result.match(
           (res) => textResult(`posted to ${channel}/${topic} (id: ${res.id})`),
           (err) => errorResult(formatError(err)),

@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
 import { createSession, type ZulipSession } from 'zulip-client-ts'
 import type { DisplayName, Email, EmojiName, MessageId, UserId, ZulipClient } from 'zulip-ts'
-import { getMessage, isKnownEvent, markAsRead } from 'zulip-ts'
+import { getMessage, isKnownEvent, markAsRead, setUserTopic, TopicVisibility } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates, type StateError, type Teammate } from '../state/teammates.ts'
@@ -137,7 +137,7 @@ function startBotSession(
     eventTypes: [...SESSION_EVENT_TYPES],
     signal,
     handler: {
-      onNotification: (event, _result) => {
+      onNotification: (event, result) => {
         const msg = event.message
 
         // Skip messages sent by this bot
@@ -148,8 +148,8 @@ function startBotSession(
           if (allBotEmails.has(msg.sender_email)) return
 
           routeDm(db, teamName, msg, botName).match(
-            (result) => {
-              if (result.delivered.length > 0) {
+            (dmResult) => {
+              if (dmResult.delivered.length > 0) {
                 onRoute?.({ sender: msg.sender_full_name, botName })
                 markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
               }
@@ -175,6 +175,12 @@ function startBotSession(
             zulipTopic: topic,
             zulipSender: senderName,
           })
+
+          // Explicitly follow the topic when this bot is @-mentioned
+          if (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') {
+            setUserTopic(botClient, msg.stream_id, topic, TopicVisibility.FOLLOWED)
+              .mapErr((err) => onError?.(err))
+          }
 
           onRoute?.({ stream, topic, sender: senderName, botName })
           markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
