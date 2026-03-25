@@ -245,6 +245,18 @@ export function deleteMessage(
   if (idx !== -1) data.messages.splice(idx, 1)
 }
 
+/** Update message content in-place for all cached copies. No-op if the message is not cached. */
+export function updateMessageContent(
+  cache: MessageListDataCache,
+  messageId: MessageId,
+  content: string,
+): void {
+  const msg = cache.messageIndex.get(messageId)
+  if (!msg) return
+  const mutable = msg as { content: string }
+  mutable.content = content
+}
+
 /** Apply a reaction event to a cached message. No-op if the message is not cached. */
 export function applyReactionEvent(cache: MessageListDataCache, event: ReactionEvent): void {
   const msg = cache.messageIndex.get(event.message_id)

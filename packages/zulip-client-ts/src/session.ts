@@ -46,6 +46,7 @@ import {
   type MessageListDataCache,
   type NarrowKey,
   streamNarrowKey,
+  updateMessageContent,
 } from './message-list-data.ts'
 import { evaluateNotification, type NotificationResult } from './notifications.ts'
 import {
@@ -316,15 +317,22 @@ function narrowKeyForMessage(msg: Message): NarrowKey {
 }
 
 function handleUpdateMessageEvent(cache: MessageListDataCache, event: UpdateMessageEvent): void {
-  // For topic moves, evict from old narrow. For content edits, evict from current narrow.
-  if (event.orig_subject && event.stream_id) {
-    evictMessages(cache, streamNarrowKey(event.stream_id, event.orig_subject), event.message_ids)
-  } else if (event.stream_id && event.subject) {
-    evictMessages(cache, streamNarrowKey(event.stream_id, event.subject), event.message_ids)
-  }
-  // For stream moves (new_stream_id), also evict from old stream
-  if (event.new_stream_id && event.stream_id && event.subject) {
-    evictMessages(cache, streamNarrowKey(event.stream_id, event.subject), event.message_ids)
+  const isTopicMove = !!event.orig_subject
+  const isStreamMove = !!event.new_stream_id
+
+  if (isTopicMove || isStreamMove) {
+    // Topic or stream move — evict from old narrow
+    if (event.orig_subject && event.stream_id) {
+      evictMessages(cache, streamNarrowKey(event.stream_id, event.orig_subject), event.message_ids)
+    }
+    if (isStreamMove && event.stream_id && event.subject) {
+      evictMessages(cache, streamNarrowKey(event.stream_id, event.subject), event.message_ids)
+    }
+  } else if (event.content !== undefined) {
+    // Content-only edit — update in-place
+    for (const id of event.message_ids) {
+      updateMessageContent(cache, id, event.content)
+    }
   }
 }
 
