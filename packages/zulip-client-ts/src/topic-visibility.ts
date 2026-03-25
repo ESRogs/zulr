@@ -65,3 +65,16 @@ export function isFollowed(
 ): boolean {
   return getTopicVisibility(state, streamId, topic) === 3
 }
+
+export type FollowedTopic = { readonly streamId: StreamId; readonly topic: TopicName }
+
+/** Return all topics with visibility policy FOLLOWED (3). */
+export function getFollowedTopics(state: TopicVisibilityState): readonly FollowedTopic[] {
+  const result: FollowedTopic[] = []
+  for (const [streamId, topicMap] of state) {
+    for (const [topic, policy] of topicMap) {
+      if (policy === 3) result.push({ streamId, topic })
+    }
+  }
+  return result
+}

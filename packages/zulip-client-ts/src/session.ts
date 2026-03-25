@@ -62,8 +62,10 @@ import {
 import {
   applyUserTopicEvent,
   emptyTopicVisibility,
+  type FollowedTopic,
   initTopicVisibility,
   type TopicVisibilityState,
+  getFollowedTopics as tvGetFollowedTopics,
   getTopicVisibility as tvGetTopicVisibility,
   isFollowed as tvIsFollowed,
 } from './topic-visibility.ts'
@@ -106,6 +108,7 @@ export type ZulipSession = {
   // Topic visibility
   readonly getTopicVisibility: (streamId: StreamId, topic: TopicName) => UserTopicVisibility
   readonly isFollowed: (streamId: StreamId, topic: TopicName) => boolean
+  readonly getFollowedTopics: () => readonly FollowedTopic[]
 
   // Members
   readonly resolveUserId: (id: UserId) => DisplayName | undefined
@@ -289,6 +292,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     hasUnreadDms: (userId) => hasUnreadDms(unreads, userId),
     getTopicVisibility: (streamId, topic) => tvGetTopicVisibility(topicVisibility, streamId, topic),
     isFollowed: (streamId, topic) => tvIsFollowed(topicVisibility, streamId, topic),
+    getFollowedTopics: () => tvGetFollowedTopics(topicVisibility),
     resolveUserId: (id) => membersResolveUserId(members, id),
     resolveName: (name) => membersResolveName(members, name),
     getMessage: (id) => cacheGetMessage(messageCache, id),

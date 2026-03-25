@@ -41,10 +41,11 @@ export {
   isSubscribed,
 } from './subscription-state.ts'
 
-export type { TopicVisibilityState } from './topic-visibility.ts'
+export type { FollowedTopic, TopicVisibilityState } from './topic-visibility.ts'
 export {
   applyUserTopicEvent,
   emptyTopicVisibility,
+  getFollowedTopics,
   getTopicVisibility,
   initTopicVisibility,
   isFollowed,
