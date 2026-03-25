@@ -11,6 +11,7 @@ export type { MessageListDataCache, NarrowKey } from './message-list-data.ts'
 export {
   addApiMessages,
   addEventMessage,
+  applyReactionEvent,
   canServeFromCache,
   deleteMessage,
   dmNarrowKey,
@@ -18,6 +19,8 @@ export {
   evictMessages,
   getMessage,
   getMessages,
+  getReactionCount,
+  getReactions,
   streamNarrowKey,
 } from './message-list-data.ts'
 

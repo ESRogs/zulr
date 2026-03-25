@@ -3,12 +3,14 @@ import type {
   ChannelName,
   DeleteMessageEvent,
   DisplayName,
+  EmojiName,
   Event,
   EventId,
   Member,
   Message,
   MessageEvent,
   MessageId,
+  Reaction,
   StreamId,
   Subscription,
   TopicName,
@@ -31,9 +33,12 @@ import {
 import {
   addApiMessages,
   addEventMessage,
+  applyReactionEvent,
   deleteMessage as cacheDeleteMessage,
   getMessage as cacheGetMessage,
   getMessages as cacheGetMessages,
+  getReactionCount as cacheGetReactionCount,
+  getReactions as cacheGetReactions,
   canServeFromCache,
   dmNarrowKey,
   emptyMessageListDataCache,
@@ -109,6 +114,8 @@ export type ZulipSession = {
   readonly getMessage: (id: MessageId) => Message | undefined
   readonly getMessages: (key: NarrowKey, count: number) => readonly Message[]
   readonly canServeFromCache: (key: NarrowKey, count: number) => boolean
+  readonly getReactions: (id: MessageId) => readonly Reaction[]
+  readonly getReactionCount: (id: MessageId, emojiName: EmojiName) => number
   /** Store messages from an API fetch so subsequent reads can hit cache. */
   readonly addApiMessages: (
     key: NarrowKey,
@@ -257,10 +264,9 @@ export function createSession(params: CreateSessionParams): ZulipSession {
             applyRealmUserEvent(members, event)
           } else if (event.type === 'subscription') {
             applySubscriptionEvent(subscriptions, event)
+          } else if (event.type === 'reaction') {
+            applyReactionEvent(messageCache, event)
           }
-          // 'reaction' events pass through without session-level processing.
-          // Reactions don't affect unreads, topic visibility, or subscriptions.
-          // The caller handles them via onEvent (e.g. for inbox delivery).
         }
 
         handler?.onEvent?.(event)
@@ -287,6 +293,8 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     getMessage: (id) => cacheGetMessage(messageCache, id),
     getMessages: (key, count) => cacheGetMessages(messageCache, key, count),
     canServeFromCache: (key, count) => canServeFromCache(messageCache, key, count),
+    getReactions: (id) => cacheGetReactions(messageCache, id),
+    getReactionCount: (id, emojiName) => cacheGetReactionCount(messageCache, id, emojiName),
     addApiMessages: (key, messages, flags) => addApiMessages(messageCache, key, messages, flags),
     getRegisteredAt: () => registeredAt,
     isSubscribed: (streamId) => subIsSubscribed(subscriptions, streamId),
