@@ -351,6 +351,9 @@ export const UserTopicEventSchema = z.object({
 })
 export type UserTopicEvent = z.infer<typeof UserTopicEventSchema>
 
+// passthrough() because Zulip includes different fields in the person object
+// depending on which user attribute changed (avatar, timezone, custom profile
+// fields, etc.). We parse the fields we use and preserve the rest unvalidated.
 const RealmUserPersonSchema = z
   .object({
     user_id: userId,

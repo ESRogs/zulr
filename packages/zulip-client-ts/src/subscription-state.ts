@@ -7,10 +7,12 @@ export type SubscriptionState = {
   readonly byName: Map<ChannelName, StreamId>
 }
 
+/** Create an empty subscription state. */
 export function emptySubscriptionState(): SubscriptionState {
   return { byId: new Map(), byName: new Map() }
 }
 
+/** Build subscription state from the /register response's subscriptions list. */
 export function initSubscriptionState(subscriptions: readonly Subscription[]): SubscriptionState {
   const state = emptySubscriptionState()
   for (const sub of subscriptions) {
@@ -38,10 +40,12 @@ export function applySubscriptionEvent(state: SubscriptionState, event: Subscrip
   }
 }
 
+/** Check whether the user is subscribed to a stream. */
 export function isSubscribed(state: SubscriptionState, streamId: StreamId): boolean {
   return state.byId.has(streamId)
 }
 
+/** Look up a subscription by stream ID. */
 export function getSubscription(
   state: SubscriptionState,
   streamId: StreamId,
@@ -49,6 +53,7 @@ export function getSubscription(
   return state.byId.get(streamId)
 }
 
+/** Look up a subscription by channel name. */
 export function getSubscriptionByName(
   state: SubscriptionState,
   name: ChannelName,
@@ -57,6 +62,7 @@ export function getSubscriptionByName(
   return id !== undefined ? state.byId.get(id) : undefined
 }
 
+/** Return all current subscriptions. */
 export function getAllSubscriptions(state: SubscriptionState): readonly Subscription[] {
   return [...state.byId.values()]
 }
