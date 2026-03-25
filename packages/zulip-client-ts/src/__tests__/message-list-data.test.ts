@@ -20,6 +20,7 @@ import {
   getMessages,
   type NarrowKey,
   streamNarrowKey,
+  updateMessageContent,
 } from '../message-list-data.ts'
 
 // --- Helpers ---
@@ -678,5 +679,43 @@ describe('narrow key delimiter', () => {
     // Also verify the key is stable
     const key1b = streamNarrowKey(sid(10), topic('topic:with:colons'))
     expect(key1).toBe(key1b)
+  })
+})
+
+describe('updateMessageContent', () => {
+  test('updates content of a cached message in-place', () => {
+    const cache = emptyMessageListDataCache()
+    const key = streamNarrow(10, 'test-topic')
+    const msg = makeStreamMessage({ id: 1, content: 'original' })
+    addEventMessage(cache, key, msg)
+
+    updateMessageContent(cache, msgId(1), 'edited')
+
+    const retrieved = getMessage(cache, msgId(1))
+    expect(retrieved?.content).toBe('edited')
+
+    // Also visible via getMessages
+    const messages = getMessages(cache, key, 10)
+    expect(messages[0].content).toBe('edited')
+  })
+
+  test('no-op for uncached message ID', () => {
+    const cache = emptyMessageListDataCache()
+    // Should not throw
+    updateMessageContent(cache, msgId(999), 'edited')
+    expect(getMessage(cache, msgId(999))).toBeUndefined()
+  })
+
+  test('updates message visible in multiple narrows via messageIndex', () => {
+    const cache = emptyMessageListDataCache()
+    const key = streamNarrow(10, 'test-topic')
+    const msg = makeStreamMessage({ id: 1, content: 'original' })
+    addEventMessage(cache, key, msg)
+
+    // The messageIndex and narrow share the same object reference
+    updateMessageContent(cache, msgId(1), 'edited')
+
+    expect(getMessage(cache, msgId(1))?.content).toBe('edited')
+    expect(getMessages(cache, key, 10)[0].content).toBe('edited')
   })
 })
