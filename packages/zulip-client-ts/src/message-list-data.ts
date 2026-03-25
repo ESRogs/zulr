@@ -1,4 +1,13 @@
-import type { Message, MessageId, StreamId, TopicName, UserId } from 'zulip-ts'
+import type {
+  EmojiName,
+  Message,
+  MessageId,
+  Reaction,
+  ReactionEvent,
+  StreamId,
+  TopicName,
+  UserId,
+} from 'zulip-ts'
 
 /** Opaque key for a narrow — e.g. "stream:10:topic-name" or "dm:5". */
 export type NarrowKey = string & { readonly __brand: 'NarrowKey' }
@@ -234,4 +243,39 @@ export function deleteMessage(
   cache.messageIndex.delete(messageId)
   const idx = data.messages.findIndex((m) => m.id === messageId)
   if (idx !== -1) data.messages.splice(idx, 1)
+}
+
+/** Apply a reaction event to a cached message. No-op if the message is not cached. */
+export function applyReactionEvent(cache: MessageListDataCache, event: ReactionEvent): void {
+  const msg = cache.messageIndex.get(event.message_id)
+  if (!msg) return
+  if (event.op === 'add') {
+    const already = msg.reactions.some(
+      (r) => r.emoji_name === event.emoji_name && r.user_id === event.user_id,
+    )
+    if (!already) {
+      msg.reactions.push({ emoji_name: event.emoji_name, user_id: event.user_id })
+    }
+  } else {
+    const idx = msg.reactions.findIndex(
+      (r) => r.emoji_name === event.emoji_name && r.user_id === event.user_id,
+    )
+    if (idx !== -1) msg.reactions.splice(idx, 1)
+  }
+}
+
+/** Get reactions for a cached message. Returns empty array if message is not cached. */
+export function getReactions(cache: MessageListDataCache, id: MessageId): readonly Reaction[] {
+  return cache.messageIndex.get(id)?.reactions ?? []
+}
+
+/** Count reactions with a specific emoji on a cached message. */
+export function getReactionCount(
+  cache: MessageListDataCache,
+  id: MessageId,
+  emojiName: EmojiName,
+): number {
+  const msg = cache.messageIndex.get(id)
+  if (!msg) return 0
+  return msg.reactions.filter((r) => r.emoji_name === emojiName).length
 }
