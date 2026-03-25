@@ -139,21 +139,15 @@ export function registerFollowedTopicsTool(server: McpServer, ctx: ToolContext):
       const followed = session.getFollowedTopics()
       if (followed.length === 0) return textResult('Not following any topics.')
 
-      // Group by stream, resolve channel names
-      const byStream = new Map<number, { name: string; topics: string[] }>()
-      for (const f of followed) {
-        let entry = byStream.get(f.streamId)
-        if (!entry) {
-          const sub = session.getSubscription(f.streamId)
-          const name = sub?.name ?? `stream ${f.streamId}`
-          entry = { name, topics: [] }
-          byStream.set(f.streamId, entry)
-        }
-        entry.topics.push(f.topic)
-      }
+      const grouped = Map.groupBy(followed, (f) => f.streamId)
+      const byStream = [...grouped.entries()].map(([streamId, topics]) => {
+        const sub = session.getSubscription(streamId)
+        const name = sub?.name ?? `stream ${streamId}`
+        return { name, topics: topics.map((t) => t.topic) }
+      })
 
       const lines = [`Following ${followed.length} topic(s):`]
-      for (const entry of byStream.values()) {
+      for (const entry of byStream) {
         for (const topic of entry.topics) {
           lines.push(`  ${entry.name}/${topic}`)
         }
