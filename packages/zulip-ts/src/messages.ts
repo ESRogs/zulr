@@ -16,6 +16,7 @@ import {
 } from './schemas.ts'
 import type {
   ChannelName,
+  Email,
   EmojiName,
   MessageId,
   StreamId,
@@ -202,4 +203,28 @@ export function getMessages(
     },
     GetMessagesResponseSchema,
   )
+}
+
+export type GetSentMessagesParams = {
+  readonly sender: Email | UserId
+  readonly anchor?: GetMessagesParams['anchor']
+  readonly numBefore?: number
+  readonly numAfter?: number
+  readonly narrow?: readonly NarrowFilter[]
+  readonly applyMarkdown?: boolean
+}
+
+/** Fetch messages sent by a specific user. Wraps `getMessages` with a `sender` narrow. */
+export function getSentMessages(
+  client: ZulipClient,
+  params: GetSentMessagesParams,
+): ResultAsync<GetMessagesResponse, ZulipError> {
+  const senderFilter: NarrowFilter = { operator: 'sender', operand: params.sender }
+  return getMessages(client, {
+    anchor: params.anchor ?? 'newest',
+    numBefore: params.numBefore ?? 100,
+    numAfter: params.numAfter ?? 0,
+    narrow: [senderFilter, ...(params.narrow ?? [])],
+    applyMarkdown: params.applyMarkdown,
+  })
 }
