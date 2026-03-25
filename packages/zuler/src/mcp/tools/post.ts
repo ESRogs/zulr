@@ -1,6 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { getTopics, sendDirectMessage, sendStreamMessage, setUserTopic, TopicVisibility } from 'zulip-ts'
+import {
+  getTopics,
+  sendDirectMessage,
+  sendStreamMessage,
+  setUserTopic,
+  TopicVisibility,
+} from 'zulip-ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import {
   errorResult,
@@ -119,18 +125,27 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         })
         if (result.isOk()) {
           // Explicitly follow the topic so the bot receives notifications for future messages
-          const resolveResult = await ctx.resolveChannel(channel)
-          if (resolveResult.isOk()) {
-            await setUserTopic(
-              clientResult.value.client,
-              resolveResult.value.stream_id,
-              topic,
-              TopicVisibility.FOLLOWED,
+          const followErr = await ctx
+            .resolveChannel(channel)
+            .andThen((stream) =>
+              setUserTopic(
+                clientResult.value.client,
+                stream.stream_id,
+                topic,
+                TopicVisibility.FOLLOWED,
+              ).mapErr(formatError),
             )
-          }
+            .match(
+              () => undefined,
+              (err) => err,
+            )
+          const msg = `posted to ${channel}/${topic} (id: ${result.value.id})`
+          return textResult(
+            followErr ? `${msg} — warning: failed to follow topic: ${followErr}` : msg,
+          )
         }
         return result.match(
-          (res) => textResult(`posted to ${channel}/${topic} (id: ${res.id})`),
+          () => textResult(`posted to ${channel}/${topic}`),
           (err) => errorResult(formatError(err)),
         )
       }
