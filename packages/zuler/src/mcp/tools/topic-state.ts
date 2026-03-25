@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { getTopics } from 'zulip-ts'
+import { getTopics, TopicVisibility } from 'zulip-ts'
 import {
   errorResult,
   formatError,
@@ -103,9 +103,9 @@ export function registerChannelTopicStatesTool(server: McpServer, ctx: ToolConte
         const unread = session.getUnreadCount(streamId, t.name)
         const vis = session.getTopicVisibility(streamId, t.name)
         const flags: string[] = []
-        if (vis === 3) flags.push('followed')
-        else if (vis === 1) flags.push('muted')
-        else if (vis === 2) flags.push('unmuted')
+        if (vis === TopicVisibility.FOLLOWED) flags.push('followed')
+        else if (vis === TopicVisibility.MUTED) flags.push('muted')
+        else if (vis === TopicVisibility.UNMUTED) flags.push('unmuted')
         if (unread > 0) flags.push(`${unread} unread`)
         const suffix = flags.length > 0 ? ` (${flags.join(', ')})` : ''
         lines.push(`  ${t.name}${suffix}`)
