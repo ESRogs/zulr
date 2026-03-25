@@ -43,6 +43,7 @@ export type MessageListDataCache = {
 
 const DEFAULT_MAX_NARROWS = 100
 
+/** Create an empty message list data cache with LRU eviction. */
 export function emptyMessageListDataCache(maxNarrows?: number): MessageListDataCache {
   return {
     narrows: new Map(),

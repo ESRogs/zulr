@@ -8,6 +8,7 @@ import type {
 
 export type TopicVisibilityState = Map<StreamId, Map<TopicName, UserTopicVisibility>>
 
+/** Create an empty topic visibility state. */
 export function emptyTopicVisibility(): TopicVisibilityState {
   return new Map()
 }
@@ -50,6 +51,7 @@ export function applyUserTopicEvent(state: TopicVisibilityState, event: UserTopi
   topicMap.set(event.topic_name, visibilityPolicy)
 }
 
+/** Get the visibility policy for a topic. Returns 0 (INHERIT) if no override is set. */
 export function getTopicVisibility(
   state: TopicVisibilityState,
   streamId: StreamId,
@@ -58,6 +60,7 @@ export function getTopicVisibility(
   return state.get(streamId)?.get(topic) ?? 0
 }
 
+/** Check whether a topic has FOLLOWED visibility policy. */
 export function isFollowed(
   state: TopicVisibilityState,
   streamId: StreamId,

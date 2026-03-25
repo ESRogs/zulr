@@ -28,7 +28,8 @@ describe('initMembers', () => {
     const members = [makeMember(1, 'Alice'), makeMember(2, 'Bob')]
     const state = initMembers(members)
 
-    expect(state.size).toBe(2)
+    expect(state.byId.size).toBe(2)
+    expect(state.byName.size).toBe(2)
     expect(resolveUserId(state, uid(1))).toBe('Alice' as DisplayName)
     expect(resolveUserId(state, uid(2))).toBe('Bob' as DisplayName)
   })
@@ -67,6 +68,7 @@ describe('applyRealmUserEvent', () => {
     } as RealmUserEvent)
 
     expect(resolveUserId(state, uid(3))).toBe('Charlie' as DisplayName)
+    expect(resolveName(state, 'Charlie' as DisplayName)?.user_id).toBe(uid(3))
   })
 
   test('updates existing user on op=update', () => {
@@ -80,7 +82,20 @@ describe('applyRealmUserEvent', () => {
 
     expect(resolveUserId(state, uid(1))).toBe('Alice Smith' as DisplayName)
     // Email preserved from original
-    expect(state.get(uid(1))!.email).toBe('alice@example.com' as Email)
+    expect(state.byId.get(uid(1))!.email).toBe('alice@example.com' as Email)
+  })
+
+  test('updates reverse index on name change', () => {
+    const state = initMembers([makeMember(1, 'Alice')])
+    applyRealmUserEvent(state, {
+      type: 'realm_user',
+      id: eid(1),
+      op: 'update',
+      person: { user_id: uid(1), full_name: 'Alice Smith' as DisplayName },
+    } as RealmUserEvent)
+
+    expect(resolveName(state, 'Alice' as DisplayName)).toBeUndefined()
+    expect(resolveName(state, 'Alice Smith' as DisplayName)?.user_id).toBe(uid(1))
   })
 
   test('removes user on op=remove', () => {
@@ -93,6 +108,7 @@ describe('applyRealmUserEvent', () => {
     } as RealmUserEvent)
 
     expect(resolveUserId(state, uid(1))).toBeUndefined()
+    expect(resolveName(state, 'Alice' as DisplayName)).toBeUndefined()
   })
 
   test('ignores update for unknown user', () => {
@@ -104,6 +120,7 @@ describe('applyRealmUserEvent', () => {
       person: { user_id: uid(99), full_name: 'Ghost' as DisplayName },
     } as RealmUserEvent)
 
-    expect(state.size).toBe(0)
+    expect(state.byId.size).toBe(0)
+    expect(state.byName.size).toBe(0)
   })
 })

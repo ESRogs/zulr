@@ -244,14 +244,17 @@ export function applyDeleteMessageEvent(state: UnreadState, event: DeleteMessage
 
 // --- Query functions ---
 
+/** Get the count of unread messages in a stream topic. */
 export function getUnreadCount(state: UnreadState, streamId: StreamId, topic: TopicName): number {
   return state.streams.get(streamId)?.get(topic)?.size ?? 0
 }
 
+/** Check whether a stream topic has any unread messages. */
 export function hasUnreads(state: UnreadState, streamId: StreamId, topic: TopicName): boolean {
   return getUnreadCount(state, streamId, topic) > 0
 }
 
+/** Get the IDs of all unread messages in a stream topic. */
 export function getUnreadMessageIds(
   state: UnreadState,
   streamId: StreamId,
@@ -261,10 +264,12 @@ export function getUnreadMessageIds(
   return set ? [...set] : []
 }
 
+/** Get the count of unread DMs from a specific user. */
 export function getUnreadDmCount(state: UnreadState, userId: UserId): number {
   return state.dms.get(userId)?.size ?? 0
 }
 
+/** Check whether there are any unread DMs from a specific user. */
 export function hasUnreadDms(state: UnreadState, userId: UserId): boolean {
   return getUnreadDmCount(state, userId) > 0
 }
