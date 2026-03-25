@@ -8,6 +8,7 @@ export type { DownloadFileResponse, UploadFileResponse } from './files.ts'
 export { downloadFile, uploadFile } from './files.ts'
 export type {
   GetMessagesParams,
+  GetSentMessagesParams,
   NarrowFilter,
   SendDirectMessageParams,
   SendStreamMessageParams,
@@ -17,6 +18,7 @@ export {
   addReaction,
   getMessage,
   getMessages,
+  getSentMessages,
   markAsRead,
   removeReaction,
   sendDirectMessage,
