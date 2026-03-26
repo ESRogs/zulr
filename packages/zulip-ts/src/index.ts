@@ -88,7 +88,7 @@ export {
   getSubscriptions,
   getTopics,
   PostPolicy,
-  setUserTopic,
+  setTopicVisibility,
   subscribe,
   TopicVisibility,
   unsubscribe,
