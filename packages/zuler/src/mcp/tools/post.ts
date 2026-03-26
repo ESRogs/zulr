@@ -125,16 +125,24 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         })
         if (result.isOk()) {
           // Follow the topic so the bot receives notifications for future messages
-          const channelResult = await ctx.resolveChannel(channel)
-          if (channelResult.isOk()) {
-            setTopicVisibility(
-              clientResult.value.client,
-              channelResult.value.stream_id,
-              topic,
-              TopicVisibility.FOLLOWED,
-            ) // fire-and-forget; errors are silently ignored
-          }
-          return textResult(`posted to ${channel}/${topic} (id: ${result.value.id})`)
+          const followErr = await ctx
+            .resolveChannel(channel)
+            .andThen((stream) =>
+              setTopicVisibility(
+                clientResult.value.client,
+                stream.stream_id,
+                topic,
+                TopicVisibility.FOLLOWED,
+              ).mapErr(formatError),
+            )
+            .match(
+              () => undefined,
+              (err) => err,
+            )
+          const msg = `posted to ${channel}/${topic} (id: ${result.value.id})`
+          return textResult(
+            followErr ? `${msg} — warning: failed to follow topic: ${followErr}` : msg,
+          )
         }
         return result.match(
           () => textResult(`posted to ${channel}/${topic}`),
