@@ -17,11 +17,7 @@ import { registerReadTool } from './tools/read.ts'
 import { registerRegisterTool } from './tools/register.ts'
 
 import { registerSearchTool } from './tools/search.ts'
-import {
-  registerSubscribeTool,
-  registerSubscriptionsTool,
-  registerUnsubscribeTool,
-} from './tools/subscriptions.ts'
+import { registerSubscriptionsTool } from './tools/subscriptions.ts'
 import { registerTeammatesTool } from './tools/teammates.ts'
 import {
   registerMoveTopicTool,
@@ -59,8 +55,6 @@ export function createMcpServer(config: ServerConfig) {
   registerReactTool(server, ctx)
   registerReadTool(server, ctx)
   registerSearchTool(server, ctx)
-  registerSubscribeTool(server, ctx)
-  registerUnsubscribeTool(server, ctx)
   registerSubscriptionsTool(server, ctx)
   registerCatchUpTool(server, ctx)
   registerCreateChannelTool(server, ctx)

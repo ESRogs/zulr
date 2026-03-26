@@ -13,6 +13,8 @@ export type RegisterQueueParams = {
   readonly narrow?: readonly [string, string][]
   /** Event types whose initial state to include in the response (e.g. ['subscription', 'message']). */
   readonly fetchEventTypes?: readonly string[]
+  /** If true, receive events for all public channels, not just subscribed ones. */
+  readonly allPublicStreams?: boolean
 }
 
 export function registerQueue(
@@ -27,6 +29,7 @@ export function registerQueue(
         event_types: params.eventTypes,
         ...(params.narrow ? { narrow: params.narrow } : {}),
         ...(params.fetchEventTypes ? { fetch_event_types: params.fetchEventTypes } : {}),
+        ...(params.allPublicStreams ? { all_public_streams: true } : {}),
       },
     },
     RegisterQueueResponseSchema,
