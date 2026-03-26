@@ -19,6 +19,7 @@ export {
   evictMessages,
   getMessage,
   getMessages,
+  getMessagesBySender,
   getReactionCount,
   getReactions,
   streamNarrowKey,

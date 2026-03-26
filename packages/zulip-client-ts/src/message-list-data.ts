@@ -37,6 +37,8 @@ export type MessageListDataCache = {
   readonly narrows: Map<NarrowKey, NarrowData>
   /** Global message index for O(1) lookup by ID across all narrows. */
   readonly messageIndex: Map<MessageId, Message>
+  /** Sender index: maps each user ID to the set of message IDs they sent. */
+  readonly senderIndex: Map<UserId, Set<MessageId>>
   readonly maxNarrows: number
   accessCounter: number
 }
@@ -48,8 +50,28 @@ export function emptyMessageListDataCache(maxNarrows?: number): MessageListDataC
   return {
     narrows: new Map(),
     messageIndex: new Map(),
+    senderIndex: new Map(),
     maxNarrows: maxNarrows ?? DEFAULT_MAX_NARROWS,
     accessCounter: 0,
+  }
+}
+
+function addToSenderIndex(cache: MessageListDataCache, msg: Message): void {
+  let ids = cache.senderIndex.get(msg.sender_id)
+  if (!ids) {
+    ids = new Set()
+    cache.senderIndex.set(msg.sender_id, ids)
+  }
+  ids.add(msg.id)
+}
+
+function removeFromSenderIndex(cache: MessageListDataCache, id: MessageId): void {
+  const msg = cache.messageIndex.get(id)
+  if (!msg) return
+  const ids = cache.senderIndex.get(msg.sender_id)
+  if (ids) {
+    ids.delete(id)
+    if (ids.size === 0) cache.senderIndex.delete(msg.sender_id)
   }
 }
 
@@ -87,6 +109,7 @@ function evictIfNeeded(cache: MessageListDataCache): void {
       const evicted = cache.narrows.get(oldestKey)
       if (evicted) {
         for (const id of evicted.messageIds) {
+          removeFromSenderIndex(cache, id)
           cache.messageIndex.delete(id)
         }
       }
@@ -101,6 +124,7 @@ function insertSorted(cache: MessageListDataCache, data: NarrowData, msg: Messag
   if (data.messageIds.has(msg.id)) return // deduplicate
   data.messageIds.add(msg.id)
   cache.messageIndex.set(msg.id, msg)
+  addToSenderIndex(cache, msg)
   // Fast path: message is newest (common for event-delivered)
   if (data.messages.length === 0 || msg.id > data.messages[data.messages.length - 1].id) {
     data.messages.push(msg)
@@ -225,6 +249,7 @@ export function evictMessages(
   for (const id of messageIds) {
     if (!data.messageIds.has(id)) continue
     data.messageIds.delete(id)
+    removeFromSenderIndex(cache, id)
     cache.messageIndex.delete(id)
     const idx = data.messages.findIndex((m) => m.id === id)
     if (idx !== -1) data.messages.splice(idx, 1)
@@ -241,6 +266,7 @@ export function deleteMessage(
   if (!data) return
   if (!data.messageIds.has(messageId)) return
   data.messageIds.delete(messageId)
+  removeFromSenderIndex(cache, messageId)
   cache.messageIndex.delete(messageId)
   const idx = data.messages.findIndex((m) => m.id === messageId)
   if (idx !== -1) data.messages.splice(idx, 1)
@@ -256,6 +282,33 @@ export function updateMessageContent(
   if (!msg) return
   const mutable = msg as { content: string }
   mutable.content = content
+}
+
+/**
+ * Get cached messages sent by a specific user, sorted by ID ascending.
+ * Optionally scoped to a narrow (stream/topic or DM). Without a narrow key,
+ * returns all cached messages by that sender across all narrows.
+ */
+export function getMessagesBySender(
+  cache: MessageListDataCache,
+  senderId: UserId,
+  narrowKey?: NarrowKey,
+): readonly Message[] {
+  const ids = cache.senderIndex.get(senderId)
+  if (!ids || ids.size === 0) return []
+
+  if (narrowKey) {
+    const data = cache.narrows.get(narrowKey)
+    if (!data) return []
+    return data.messages.filter((m) => m.sender_id === senderId)
+  }
+
+  const messages: Message[] = []
+  for (const id of ids) {
+    const msg = cache.messageIndex.get(id)
+    if (msg) messages.push(msg)
+  }
+  return messages.sort((a, b) => a.id - b.id)
 }
 
 /** Apply a reaction event to a cached message. No-op if the message is not cached. */
