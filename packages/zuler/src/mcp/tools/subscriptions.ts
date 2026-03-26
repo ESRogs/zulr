@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { getSubscriptions, setUserTopic, subscribe, TopicVisibility, unsubscribe } from 'zulip-ts'
+import { getSubscriptions, setTopicVisibility, subscribe, TopicVisibility, unsubscribe } from 'zulip-ts'
 import { subscribeAndFollow } from '../../zulip/follow.ts'
 import {
   errorResult,
@@ -78,7 +78,7 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
         const channelResult = await ctx.resolveChannel(channel)
         if (channelResult.isErr()) return errorResult(channelResult.error)
 
-        const result = await setUserTopic(
+        const result = await setTopicVisibility(
           client,
           channelResult.value.stream_id,
           topic,

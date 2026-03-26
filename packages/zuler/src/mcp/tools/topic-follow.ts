@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { setUserTopic, TopicVisibility } from 'zulip-ts'
+import { setTopicVisibility, TopicVisibility } from 'zulip-ts'
 import { subscribeAndFollow } from '../../zulip/follow.ts'
 import {
   errorResult,
@@ -63,7 +63,7 @@ export function registerMuteTool(server: McpServer, ctx: ToolContext): void {
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
-      const result = await setUserTopic(
+      const result = await setTopicVisibility(
         clientResult.value.client,
         channelResult.value.stream_id,
         topic,
@@ -96,7 +96,7 @@ export function registerUnmuteTool(server: McpServer, ctx: ToolContext): void {
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
-      const result = await setUserTopic(
+      const result = await setTopicVisibility(
         clientResult.value.client,
         channelResult.value.stream_id,
         topic,
@@ -129,7 +129,7 @@ export function registerUnfollowTool(server: McpServer, ctx: ToolContext): void 
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
-      const result = await setUserTopic(
+      const result = await setTopicVisibility(
         clientResult.value.client,
         channelResult.value.stream_id,
         topic,

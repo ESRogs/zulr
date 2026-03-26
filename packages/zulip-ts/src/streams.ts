@@ -184,7 +184,7 @@ export const TopicVisibility = {
   FOLLOWED: 3,
 } as const satisfies Record<string, UserTopicVisibility>
 
-export function setUserTopic(
+export function setTopicVisibility(
   client: ZulipClient,
   streamId: StreamId,
   topic: TopicName,
