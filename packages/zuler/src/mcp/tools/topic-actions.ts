@@ -6,10 +6,10 @@ import { getMessages, updateMessage } from 'zulip-ts'
 import {
   errorResult,
   formatError,
-  notConfiguredResult,
   type ToolContext,
   textResult,
   zChannelName,
+  zTeammateName,
   zTopicName,
 } from '../helpers.ts'
 
@@ -45,17 +45,19 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
     {
       description: 'Mark a Zulip topic as resolved (adds ✔ prefix). Use unresolve-topic to undo.',
       inputSchema: z.object({
+        sender: zTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name'),
       }),
     },
-    async ({ channel, topic }) => {
+    async ({ sender, channel, topic }) => {
       if (topic.startsWith(RESOLVED_PREFIX)) {
         return errorResult('topic is already resolved')
       }
 
-      const client = ctx.getAdminClient()
-      if (!client) return notConfiguredResult()
+      const clientResult = await ctx.getTeammateClient(sender)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+      const { client } = clientResult.value
 
       const found = await findMessageIdInTopic(client, channel, topic)
       if (found.isErr()) return errorResult(found.error)
@@ -79,13 +81,15 @@ export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext):
     {
       description: 'Remove the resolved (✔) prefix from a Zulip topic.',
       inputSchema: z.object({
+        sender: zTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name (with or without ✔ prefix)'),
       }),
     },
-    async ({ channel, topic }) => {
-      const client = ctx.getAdminClient()
-      if (!client) return notConfiguredResult()
+    async ({ sender, channel, topic }) => {
+      const clientResult = await ctx.getTeammateClient(sender)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+      const { client } = clientResult.value
 
       const resolvedTopic = (
         topic.startsWith(RESOLVED_PREFIX) ? topic : `${RESOLVED_PREFIX}${topic}`
@@ -117,6 +121,7 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       description:
         'Move all messages in a topic to a different channel. Optionally rename the topic during the move via "toTopic".',
       inputSchema: z.object({
+        sender: zTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Source channel name'),
         topic: zTopicName.describe('Topic name'),
         toChannel: z.string().describe('Destination channel name'),
@@ -133,9 +138,18 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
           .describe('Send a notification to the new topic (default: true)'),
       }),
     },
-    async ({ channel, topic, toChannel, toTopic: rawToTopic, notifyOldTopic, notifyNewTopic }) => {
-      const client = ctx.getAdminClient()
-      if (!client) return notConfiguredResult()
+    async ({
+      sender,
+      channel,
+      topic,
+      toChannel,
+      toTopic: rawToTopic,
+      notifyOldTopic,
+      notifyNewTopic,
+    }) => {
+      const clientResult = await ctx.getTeammateClient(sender)
+      if (clientResult.isErr()) return errorResult(clientResult.error)
+      const { client } = clientResult.value
 
       const destResult = await ctx.resolveChannel(toChannel)
       if (destResult.isErr()) return errorResult(destResult.error)
