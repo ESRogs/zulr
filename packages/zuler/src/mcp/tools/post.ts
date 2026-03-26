@@ -132,7 +132,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
               channelResult.value.stream_id,
               topic,
               TopicVisibility.FOLLOWED,
-            ).mapErr((err) => err) // fire-and-forget
+            ) // fire-and-forget; errors are silently ignored
           }
           return textResult(`posted to ${channel}/${topic} (id: ${result.value.id})`)
         }
