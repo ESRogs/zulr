@@ -1,14 +1,13 @@
 import { appendFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import type { ChannelName, TopicName, UserId } from 'zulip-ts'
+import { stateDir } from '../state/db.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { type InboxMessage, readInbox } from './inbox.ts'
 
 function debugLog(msg: string): void {
   const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
-  const slug = resolve(repoRoot).replace(/\//g, '-')
-  const logFile = join(homedir(), '.zuler', slug, 'zuler.log')
+  const logFile = join(stateDir(repoRoot), 'zuler.log')
   const line = `[${new Date().toISOString()}] [unread-check] ${msg}\n`
   try {
     appendFileSync(logFile, line)
