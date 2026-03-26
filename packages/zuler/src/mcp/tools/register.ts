@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { updateSettings } from 'zulip-ts'
 import { registerBot } from '../../bot-manager.ts'
 import {
   errorResult,
@@ -29,15 +28,6 @@ export function registerRegisterTool(server: McpServer, ctx: ToolContext): void 
       const result = await registerBot(adminClient, ctx.config.db, name)
       if (result.isOk()) {
         ctx.invalidateMembersCache()
-
-        // Set sensible defaults on the bot's Zulip account
-        const botClientResult = await ctx.getTeammateClient(name)
-        if (botClientResult.isOk()) {
-          await updateSettings(botClientResult.value.client, {
-            automatically_follow_topics_where_mentioned: true,
-            automatically_follow_topics_policy: 2, // topics the bot sends a message to
-          })
-        }
 
         // Start an event listener for this bot
         const manager = ctx.getEventListenerManager()
