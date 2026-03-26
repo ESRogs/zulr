@@ -277,6 +277,8 @@ export const RegisterQueueResponseSchema = z.object({
   ...SuccessResponseFields,
   queue_id: queueId,
   last_event_id: eventId,
+  /** The authenticated user's ID. Returned by Zulip on every /register call. */
+  user_id: userId.optional(),
   unread_msgs: UnreadMsgsSchema.optional(),
   user_topics: z.array(UserTopicEntrySchema).optional(),
   subscriptions: z.array(SubscriptionSchema).optional(),

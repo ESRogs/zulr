@@ -1,4 +1,4 @@
-import { err, ok, type Result } from 'neverthrow'
+import { err, errAsync, ok, type Result, type ResultAsync } from 'neverthrow'
 import type {
   ChannelName,
   DeleteMessageEvent,
@@ -6,6 +6,8 @@ import type {
   EmojiName,
   Event,
   EventId,
+  GetMessagesResponse,
+  GetSentMessagesParams,
   Member,
   Message,
   MessageEvent,
@@ -21,7 +23,7 @@ import type {
   ZulipClient,
   ZulipError,
 } from 'zulip-ts'
-import { getEvents, getMembers, isKnownEvent, registerQueue } from 'zulip-ts'
+import { getEvents, getMembers, getSentMessages, isKnownEvent, registerQueue } from 'zulip-ts'
 import {
   applyRealmUserEvent,
   emptyMembers,
@@ -135,6 +137,14 @@ export type ZulipSession = {
   readonly getSubscriptionByName: (name: ChannelName) => Subscription | undefined
   readonly getAllSubscriptions: () => readonly Subscription[]
 
+  // Self-user identity
+  /** The authenticated user's ID, populated from the /register response. Undefined before start. */
+  readonly getOwnUserId: () => UserId | undefined
+  /** Fetch messages sent by this session's user. Uses the stored user ID as the sender narrow. */
+  readonly getOwnSentMessages: (
+    params?: Omit<GetSentMessagesParams, 'sender'>,
+  ) => ResultAsync<GetMessagesResponse, ZulipError | string>
+
   // Notification check
   readonly shouldNotify: (event: MessageEvent) => NotificationResult
 
@@ -179,6 +189,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   let messageCache: MessageListDataCache = emptyMessageListDataCache()
   let subscriptions: SubscriptionState = emptySubscriptionState()
   let registeredAt: UnixEpochSeconds | undefined
+  let ownUserId: UserId | undefined
   let stopped = false
 
   async function start(): Promise<void> {
@@ -207,12 +218,14 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     const {
       queue_id: queueId,
       last_event_id: initialLastEventId,
+      user_id: regUserId,
       unread_msgs,
       user_topics,
       subscriptions: initialSubs,
     } = regResult.value
 
     // Initialize state from the register response
+    if (regUserId) ownUserId = regUserId
     registeredAt = Math.floor(Date.now() / 1000) as UnixEpochSeconds
     unreads = unread_msgs ? initUnreadState(unread_msgs) : emptyUnreadState()
     topicVisibility = user_topics ? initTopicVisibility(user_topics) : emptyTopicVisibility()
@@ -306,6 +319,13 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     getSubscription: (streamId) => subGetById(subscriptions, streamId),
     getSubscriptionByName: (name) => subGetByName(subscriptions, name),
     getAllSubscriptions: () => subGetAll(subscriptions),
+    getOwnUserId: () => ownUserId,
+    getOwnSentMessages: (params) => {
+      if (!ownUserId) {
+        return errAsync('session has not started yet — own user ID is not available')
+      }
+      return getSentMessages(client, { sender: ownUserId, ...params })
+    },
     shouldNotify: (event) => evaluateNotification(event, topicVisibility),
     start,
     stop,
