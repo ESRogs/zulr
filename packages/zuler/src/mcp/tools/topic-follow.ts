@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { setUserTopic, TopicVisibility } from 'zulip-ts'
+import { subscribeAndFollow } from '../../zulip/follow.ts'
 import {
   errorResult,
   formatError,
@@ -30,11 +31,11 @@ export function registerFollowTool(server: McpServer, ctx: ToolContext): void {
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
-      const result = await setUserTopic(
+      const result = await subscribeAndFollow(
         clientResult.value.client,
+        channel,
         channelResult.value.stream_id,
         topic,
-        TopicVisibility.FOLLOWED,
       )
       return result.match(
         () => textResult(`following ${channel}/${topic}`),

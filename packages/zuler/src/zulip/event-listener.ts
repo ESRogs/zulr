@@ -2,11 +2,12 @@ import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
 import { createSession, type ZulipSession } from 'zulip-client-ts'
 import type { DisplayName, Email, EmojiName, MessageId, UserId, ZulipClient } from 'zulip-ts'
-import { getMessage, isKnownEvent, markAsRead, setUserTopic, TopicVisibility } from 'zulip-ts'
+import { getMessage, isKnownEvent, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates, type StateError, type Teammate } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
+import { subscribeAndFollow } from './follow.ts'
 import { writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
 import { routeDm, sanitizeSummary, truncate } from './routing.ts'
@@ -176,10 +177,11 @@ function startBotSession(
             zulipSender: senderName,
           })
 
-          // Explicitly follow the topic when this bot is @-mentioned
+          // Subscribe to the channel and follow the topic when this bot is @-mentioned
           if (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') {
-            setUserTopic(botClient, msg.stream_id, topic, TopicVisibility.FOLLOWED)
-              .mapErr((err) => onError?.(err))
+            subscribeAndFollow(botClient, stream, msg.stream_id, topic).mapErr((err) =>
+              onError?.(err),
+            )
           }
 
           onRoute?.({ stream, topic, sender: senderName, botName })
