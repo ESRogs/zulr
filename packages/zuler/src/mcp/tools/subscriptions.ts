@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getSubscriptions, setUserTopic, subscribe, TopicVisibility, unsubscribe } from 'zulip-ts'
+import { subscribeAndFollow } from '../../zulip/follow.ts'
 import {
   errorResult,
   formatError,
@@ -15,14 +16,13 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
   server.registerTool(
     'subscribe',
     {
-      description:
-        'Subscribe a teammate to a channel, or follow a specific topic within a channel the teammate is already subscribed to.',
+      description: 'Subscribe a teammate to a channel, or subscribe and follow a specific topic.',
       inputSchema: z.object({
         teammate: zTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName
           .optional()
-          .describe('Topic name (follow this topic — requires channel subscription)'),
+          .describe('Topic name (subscribe to the channel and follow this topic)'),
       }),
     },
     async ({ teammate, channel, topic }) => {
@@ -31,16 +31,14 @@ export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void
       const { client } = clientResult.value
 
       if (topic) {
-        // Follow a specific topic — bot must already be subscribed to the channel.
-        // Resolve channel to stream_id first.
         const channelResult = await ctx.resolveChannel(channel)
         if (channelResult.isErr()) return errorResult(channelResult.error)
 
-        const result = await setUserTopic(
+        const result = await subscribeAndFollow(
           client,
+          channel,
           channelResult.value.stream_id,
           topic,
-          TopicVisibility.FOLLOWED,
         )
         return result.match(
           () => textResult(`following ${channel}/${topic}`),
