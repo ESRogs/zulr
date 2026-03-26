@@ -18,6 +18,7 @@ import {
   evictMessages,
   getMessage,
   getMessages,
+  getMessagesBySender,
   type NarrowKey,
   streamNarrowKey,
   updateMessageContent,
@@ -52,6 +53,7 @@ function makeStreamMessage(overrides: {
   subject?: string
   content?: string
   timestamp?: number
+  senderId?: number
 }): Message {
   return {
     id: msgId(overrides.id),
@@ -59,7 +61,7 @@ function makeStreamMessage(overrides: {
     stream_id: sid(overrides.streamId ?? 10),
     display_recipient: 'general' as ChannelName,
     subject: topic(overrides.subject ?? 'test-topic'),
-    sender_id: uid(1),
+    sender_id: uid(overrides.senderId ?? 1),
     sender_email: 'user@example.com' as never,
     sender_full_name: 'User' as never,
     content: overrides.content ?? `message ${overrides.id}`,
@@ -717,5 +719,75 @@ describe('updateMessageContent', () => {
 
     expect(getMessage(cache, msgId(1))?.content).toBe('edited')
     expect(getMessages(cache, key, 10)[0].content).toBe('edited')
+  })
+})
+
+describe('getMessagesBySender', () => {
+  test('returns messages by a specific sender across narrows', () => {
+    const cache = emptyMessageListDataCache()
+    const key1 = streamNarrow(10, 'topic-a')
+    const key2 = streamNarrow(10, 'topic-b')
+
+    addEventMessage(cache, key1, makeStreamMessage({ id: 1, senderId: 5, subject: 'topic-a' }))
+    addEventMessage(cache, key1, makeStreamMessage({ id: 2, senderId: 7, subject: 'topic-a' }))
+    addEventMessage(cache, key2, makeStreamMessage({ id: 3, senderId: 5, subject: 'topic-b' }))
+
+    const result = getMessagesBySender(cache, uid(5))
+    expect(result.map((m) => m.id)).toEqual([msgId(1), msgId(3)])
+  })
+
+  test('scoped to a narrow returns only messages in that narrow', () => {
+    const cache = emptyMessageListDataCache()
+    const key1 = streamNarrow(10, 'topic-a')
+    const key2 = streamNarrow(10, 'topic-b')
+
+    addEventMessage(cache, key1, makeStreamMessage({ id: 1, senderId: 5, subject: 'topic-a' }))
+    addEventMessage(cache, key2, makeStreamMessage({ id: 2, senderId: 5, subject: 'topic-b' }))
+
+    const result = getMessagesBySender(cache, uid(5), key1)
+    expect(result.map((m) => m.id)).toEqual([msgId(1)])
+  })
+
+  test('returns empty array for unknown sender', () => {
+    const cache = emptyMessageListDataCache()
+    expect(getMessagesBySender(cache, uid(99))).toEqual([])
+  })
+
+  test('updates when messages are deleted', () => {
+    const cache = emptyMessageListDataCache()
+    const key = streamNarrow(10, 'test-topic')
+
+    addEventMessage(cache, key, makeStreamMessage({ id: 1, senderId: 5 }))
+    addEventMessage(cache, key, makeStreamMessage({ id: 2, senderId: 5 }))
+    expect(getMessagesBySender(cache, uid(5)).length).toBe(2)
+
+    deleteMessage(cache, key, msgId(1))
+    expect(getMessagesBySender(cache, uid(5)).map((m) => m.id)).toEqual([msgId(2)])
+  })
+
+  test('updates when messages are evicted', () => {
+    const cache = emptyMessageListDataCache()
+    const key = streamNarrow(10, 'test-topic')
+
+    addEventMessage(cache, key, makeStreamMessage({ id: 1, senderId: 5 }))
+    addEventMessage(cache, key, makeStreamMessage({ id: 2, senderId: 5 }))
+
+    evictMessages(cache, key, [msgId(1)])
+    expect(getMessagesBySender(cache, uid(5)).map((m) => m.id)).toEqual([msgId(2)])
+  })
+
+  test('cleans up sender index when narrow is LRU-evicted', () => {
+    const cache = emptyMessageListDataCache(1) // max 1 narrow
+
+    const key1 = streamNarrow(10, 'topic-a')
+    addEventMessage(cache, key1, makeStreamMessage({ id: 1, senderId: 5, subject: 'topic-a' }))
+    expect(getMessagesBySender(cache, uid(5)).length).toBe(1)
+
+    // Adding a second narrow evicts the first
+    const key2 = streamNarrow(10, 'topic-b')
+    addEventMessage(cache, key2, makeStreamMessage({ id: 2, senderId: 7, subject: 'topic-b' }))
+
+    expect(getMessagesBySender(cache, uid(5))).toEqual([])
+    expect(getMessagesBySender(cache, uid(7)).length).toBe(1)
   })
 })

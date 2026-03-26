@@ -39,6 +39,7 @@ import {
   deleteMessage as cacheDeleteMessage,
   getMessage as cacheGetMessage,
   getMessages as cacheGetMessages,
+  getMessagesBySender as cacheGetMessagesBySender,
   getReactionCount as cacheGetReactionCount,
   getReactions as cacheGetReactions,
   canServeFromCache,
@@ -122,6 +123,8 @@ export type ZulipSession = {
   readonly canServeFromCache: (key: NarrowKey, count: number) => boolean
   readonly getReactions: (id: MessageId) => readonly Reaction[]
   readonly getReactionCount: (id: MessageId, emojiName: EmojiName) => number
+  /** Get cached messages sent by a user, optionally scoped to a narrow. */
+  readonly getMessagesBySender: (senderId: UserId, narrowKey?: NarrowKey) => readonly Message[]
   /** Store messages from an API fetch so subsequent reads can hit cache. */
   readonly addApiMessages: (
     key: NarrowKey,
@@ -313,6 +316,8 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     canServeFromCache: (key, count) => canServeFromCache(messageCache, key, count),
     getReactions: (id) => cacheGetReactions(messageCache, id),
     getReactionCount: (id, emojiName) => cacheGetReactionCount(messageCache, id, emojiName),
+    getMessagesBySender: (senderId, narrowKey) =>
+      cacheGetMessagesBySender(messageCache, senderId, narrowKey),
     addApiMessages: (key, messages, flags) => addApiMessages(messageCache, key, messages, flags),
     getRegisteredAt: () => registeredAt,
     isSubscribed: (streamId) => subIsSubscribed(subscriptions, streamId),
