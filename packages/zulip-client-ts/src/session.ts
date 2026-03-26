@@ -170,6 +170,8 @@ export type CreateSessionParams = {
   readonly eventTypes?: readonly string[]
   readonly handler?: SessionEventHandler
   readonly signal?: AbortSignal
+  /** If true, receive events for all public channels, not just subscribed ones. */
+  readonly allPublicStreams?: boolean
 }
 
 const DEFAULT_EVENT_TYPES = [
@@ -184,7 +186,7 @@ const DEFAULT_EVENT_TYPES = [
 ] as const
 
 export function createSession(params: CreateSessionParams): ZulipSession {
-  const { client, eventTypes = DEFAULT_EVENT_TYPES, handler, signal } = params
+  const { client, eventTypes = DEFAULT_EVENT_TYPES, handler, signal, allPublicStreams } = params
 
   let unreads: UnreadState = emptyUnreadState()
   let topicVisibility: TopicVisibilityState = emptyTopicVisibility()
@@ -214,6 +216,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     const regResult = await registerQueue(client, {
       eventTypes: [...eventTypes],
       fetchEventTypes: ['message', 'user_topic', 'subscription'],
+      allPublicStreams,
     })
 
     if (regResult.isErr()) return err(regResult.error)
