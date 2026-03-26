@@ -1,6 +1,21 @@
+import { appendFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 import type { ChannelName, TopicName, UserId } from 'zulip-ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { type InboxMessage, readInbox } from './inbox.ts'
+
+function debugLog(msg: string): void {
+  const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
+  const slug = resolve(repoRoot).replace(/\//g, '-')
+  const logFile = join(homedir(), '.zuler', slug, 'zuler.log')
+  const line = `[${new Date().toISOString()}] [unread-check] ${msg}\n`
+  try {
+    appendFileSync(logFile, line)
+  } catch {
+    // Silently ignore if log file isn't writable
+  }
+}
 
 /**
  * Check whether a teammate is allowed to post to a stream/topic.
@@ -14,6 +29,25 @@ export function checkUnreadBeforePost(
 ): string | undefined {
   const messages = readInbox(teamName, sender)
   const unread = countUnreadFromTopic(messages, stream, topic)
+
+  // Debug logging to diagnose unread gate bypass
+  const unreadMessages = messages.filter((msg) => !msg.read)
+  const topicMatches = messages.filter(
+    (msg) => !msg.read && msg.zulipStream === stream && msg.zulipTopic === topic,
+  )
+  debugLog(
+    `checkUnreadBeforePost: sender=${sender} target=${stream}/${topic} ` +
+      `total=${messages.length} unread=${unreadMessages.length} topicMatch=${topicMatches.length}`,
+  )
+  if (unreadMessages.length > 0) {
+    for (const msg of unreadMessages) {
+      debugLog(
+        `  unread: stream=${msg.zulipStream ?? '(dm)'} topic=${msg.zulipTopic ?? '(none)'} ` +
+          `from=${msg.from} read=${msg.read}`,
+      )
+    }
+  }
+
   if (unread > 0) {
     return `you have ${unread} unread message(s) in ${stream}/${topic}. Use the read or catch-up tool first.`
   }
