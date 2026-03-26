@@ -1,4 +1,12 @@
-import type { ChannelName, StreamId, TopicName, ZulipClient } from 'zulip-ts'
+import type { ResultAsync } from 'neverthrow'
+import type {
+  ChannelName,
+  StreamId,
+  SuccessResponse,
+  TopicName,
+  ZulipClient,
+  ZulipError,
+} from 'zulip-ts'
 import { setUserTopic, subscribe, TopicVisibility } from 'zulip-ts'
 
 /**
@@ -15,7 +23,7 @@ export function subscribeAndFollow(
   channel: ChannelName,
   streamId: StreamId,
   topic: TopicName,
-) {
+): ResultAsync<SuccessResponse, ZulipError> {
   return subscribe(client, [{ name: channel }]).andThen(() =>
     setUserTopic(client, streamId, topic, TopicVisibility.FOLLOWED),
   )
