@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { getSubscriptions, setTopicVisibility, subscribe, TopicVisibility, unsubscribe } from 'zulip-ts'
-import { subscribeAndFollow } from '../../zulip/follow.ts'
+import { getSubscriptions, subscribe, unsubscribe } from 'zulip-ts'
 import {
   errorResult,
   formatError,
@@ -9,44 +8,24 @@ import {
   textResult,
   zChannelName,
   zTeammateName,
-  zTopicName,
 } from '../helpers.ts'
 
 export function registerSubscribeTool(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'subscribe',
     {
-      description: 'Subscribe a teammate to a channel, or subscribe and follow a specific topic.',
+      description:
+        'Subscribe a teammate to a Zulip channel. To follow a specific topic, use the follow tool instead.',
       inputSchema: z.object({
         teammate: zTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
-        topic: zTopicName
-          .optional()
-          .describe('Topic name (subscribe to the channel and follow this topic)'),
       }),
     },
-    async ({ teammate, channel, topic }) => {
+    async ({ teammate, channel }) => {
       const clientResult = await ctx.getTeammateClient(teammate)
       if (clientResult.isErr()) return errorResult(clientResult.error)
-      const { client } = clientResult.value
 
-      if (topic) {
-        const channelResult = await ctx.resolveChannel(channel)
-        if (channelResult.isErr()) return errorResult(channelResult.error)
-
-        const result = await subscribeAndFollow(
-          client,
-          channel,
-          channelResult.value.stream_id,
-          topic,
-        )
-        return result.match(
-          () => textResult(`following ${channel}/${topic}`),
-          (err) => errorResult(formatError(err)),
-        )
-      }
-
-      const result = await subscribe(client, [{ name: channel }])
+      const result = await subscribe(clientResult.value.client, [{ name: channel }])
       return result.match(
         () => textResult(`subscribed to ${channel}`),
         (err) => errorResult(formatError(err)),
@@ -60,37 +39,17 @@ export function registerUnsubscribeTool(server: McpServer, ctx: ToolContext): vo
     'unsubscribe',
     {
       description:
-        'Unsubscribe a teammate from a channel, or unfollow a specific topic within a channel.',
+        'Unsubscribe a teammate from a Zulip channel. To unfollow a specific topic (keeping the channel subscription), use the unfollow tool instead.',
       inputSchema: z.object({
         teammate: zTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
-        topic: zTopicName
-          .optional()
-          .describe('Topic name (unfollow this topic — keeps channel subscription)'),
       }),
     },
-    async ({ teammate, channel, topic }) => {
+    async ({ teammate, channel }) => {
       const clientResult = await ctx.getTeammateClient(teammate)
       if (clientResult.isErr()) return errorResult(clientResult.error)
-      const { client } = clientResult.value
 
-      if (topic) {
-        const channelResult = await ctx.resolveChannel(channel)
-        if (channelResult.isErr()) return errorResult(channelResult.error)
-
-        const result = await setTopicVisibility(
-          client,
-          channelResult.value.stream_id,
-          topic,
-          TopicVisibility.INHERIT,
-        )
-        return result.match(
-          () => textResult(`unfollowed ${channel}/${topic}`),
-          (err) => errorResult(formatError(err)),
-        )
-      }
-
-      const result = await unsubscribe(client, [channel])
+      const result = await unsubscribe(clientResult.value.client, [channel])
       return result.match(
         () => textResult(`unsubscribed from ${channel}`),
         (err) => errorResult(formatError(err)),
