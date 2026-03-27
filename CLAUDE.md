@@ -114,7 +114,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 ### Libraries
 
-- **neverthrow** for error handling — use `Result`/`ResultAsync` and `err`/`ok` instead of try/catch. Errors are values in the return type.
+- **neverthrow** for error handling — use `Result`/`ResultAsync` and `err`/`ok` instead of try/catch. Errors are values in the return type. See "Error Handling" section below.
 - **zod** for runtime validation and schema definition — use at all external boundaries (API responses, env vars, config files, MCP tool inputs).
 - **type-fest** for utility types — prefer its types over rolling your own (`JsonValue`, `Simplify`, `SetOptional`, etc.).
 
@@ -126,4 +126,33 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Type annotations at all function boundaries. No `any`.
 - Single quotes in TypeScript files.
 - **Biome** for linting and formatting. Run `bunx biome check --fix` to auto-fix.
+- **ESLint** for neverthrow's `must-use-result` rule only. Run `bunx eslint` to check. See "Error Handling" below.
 - File names lowercase kebab-case (e.g., `zulip-client.ts`, not `ZulipClient.ts`).
+
+### Error Handling
+
+Every `Result` and `ResultAsync` must be explicitly handled. Never silently discard errors.
+
+**Preferred: use `.match()` to handle both paths in one expression:**
+```ts
+return result.match(
+  (value) => textResult(value),
+  (err) => errorResult(formatError(err)),
+)
+```
+
+**Also acceptable: `.isErr()` guard pattern** when the error path returns early:
+```ts
+const result = await someCall()
+if (result.isErr()) return errorResult(result.error)
+// result.value is narrowed to the success type here
+```
+
+**For fire-and-forget side effects**, use `.mapErr()` to log errors:
+```ts
+markAsRead(client, [id]).mapErr((err) => onError?.(err))
+```
+
+**Other valid handlers:** `.andThen()`, `.orElse()`, `.map()`, `.mapErr()` chains, `.unwrapOr()`.
+
+**ESLint `must-use-result` rule:** The `neverthrow/must-use-result` rule catches unhandled Results. It only recognizes `.match()`, `.unwrapOr()`, and `._unsafeUnwrap()` as "handled" — the `.isErr()` guard pattern and `.mapErr()` fire-and-forget require `// eslint-disable-next-line neverthrow/must-use-result` comments. Before adding a suppression, confirm that errors are returned, logged, or intentionally discarded — never silently swallowed.
