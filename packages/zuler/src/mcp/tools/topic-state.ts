@@ -44,6 +44,7 @@ export function registerTopicStateTool(server: McpServer, ctx: ToolContext): voi
         )
       }
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
       const { stream_id: streamId } = channelResult.value
@@ -85,13 +86,16 @@ export function registerChannelTopicStatesTool(server: McpServer, ctx: ToolConte
         )
       }
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
       const { stream_id: streamId } = channelResult.value
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const topicsResult = await getTopics(clientResult.value.client, streamId)
       if (topicsResult.isErr()) return errorResult(formatError(topicsResult.error))
 

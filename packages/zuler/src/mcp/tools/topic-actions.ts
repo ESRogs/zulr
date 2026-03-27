@@ -55,10 +55,12 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
         return errorResult('topic is already resolved')
       }
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const found = await findMessageIdInTopic(client, channel, topic)
       if (found.isErr()) return errorResult(found.error)
 
@@ -87,6 +89,7 @@ export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext):
       }),
     },
     async ({ sender, channel, topic }) => {
+      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
@@ -98,6 +101,7 @@ export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext):
         topic.startsWith(RESOLVED_PREFIX) ? topic.slice(RESOLVED_PREFIX.length) : topic
       ) as TopicName
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const found = await findMessageIdInTopic(client, channel, resolvedTopic)
       if (found.isErr()) return errorResult(found.error)
 
@@ -147,13 +151,16 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       notifyOldTopic,
       notifyNewTopic,
     }) => {
+      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const destResult = await ctx.resolveChannel(toChannel)
       if (destResult.isErr()) return errorResult(destResult.error)
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const found = await findMessageIdInTopic(client, channel, topic)
       if (found.isErr()) return errorResult(found.error)
 

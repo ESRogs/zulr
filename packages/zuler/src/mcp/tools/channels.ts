@@ -25,6 +25,7 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
       if (!client) return notConfiguredResult()
 
       // Zulip API requires at least one subscriber; use the admin user
+      // eslint-disable-next-line neverthrow/must-use-result
       const adminResult = await ctx.resolveUser(client.config.email)
       if (adminResult.isErr()) return errorResult(adminResult.error)
 
@@ -64,6 +65,7 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const streamResult = await ctx.resolveChannel(channel)
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
@@ -128,6 +130,7 @@ export function registerTopicsTool(server: McpServer, ctx: ToolContext): void {
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const streamResult = await ctx.resolveChannel(channel)
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
@@ -157,6 +160,7 @@ export function registerArchiveChannelTool(server: McpServer, ctx: ToolContext):
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const streamResult = await ctx.resolveChannel(channel)
       if (streamResult.isErr()) return errorResult(streamResult.error)
 

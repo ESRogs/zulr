@@ -56,6 +56,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
         return readInboxOnly(ctx, sender, channel, topic)
       }
       if (user !== undefined) {
+        // eslint-disable-next-line neverthrow/must-use-result
         const resolveResult = await ctx.resolveUser(user)
         if (resolveResult.isErr()) {
           return errorResult(resolveResult.error)
@@ -128,16 +129,19 @@ async function readStream(
   topic: TopicName,
   count: number,
 ) {
+  // eslint-disable-next-line neverthrow/must-use-result
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)
   }
 
   const botClient = botClientResult.value.client
+  // eslint-disable-next-line neverthrow/must-use-result
   const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
   // Try cache first — if the session has enough cached messages, skip the API
   const session = ctx.getEventListenerManager()?.getSession(sender)
+  // eslint-disable-next-line neverthrow/must-use-result
   const channelResult = await ctx.resolveChannel(stream)
   const streamId = channelResult.isOk() ? channelResult.value.stream_id : undefined
 
@@ -155,6 +159,7 @@ async function readStream(
     allMessages = mergeWithInbox([...cached], inboxFormatted)
   } else {
     // Cache miss — fetch from API
+    // eslint-disable-next-line neverthrow/must-use-result
     const fetchResult = await fetchMessages(
       botClient,
       {
@@ -195,6 +200,7 @@ async function readStream(
 
   const displayedZulipIds = displayed.filter((m) => m.id > 0).map((m) => m.id)
   if (displayedZulipIds.length > 0) {
+    // eslint-disable-next-line neverthrow/must-use-result
     const markResult = await markAsRead(botClient, displayedZulipIds)
     if (markResult.isErr()) {
       return textResult(`(warning: failed to mark messages as read)\n${body}`)
@@ -205,6 +211,7 @@ async function readStream(
 }
 
 async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, count: number) {
+  // eslint-disable-next-line neverthrow/must-use-result
   const botClientResult = await ctx.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)
@@ -212,8 +219,10 @@ async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, c
 
   const { client: botClient, botUserId } = botClientResult.value
 
+  // eslint-disable-next-line neverthrow/must-use-result
   const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
+  // eslint-disable-next-line neverthrow/must-use-result
   const fetchResult = await fetchMessages(
     botClient,
     {
@@ -251,6 +260,7 @@ async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, c
 
   const displayedZulipIds = displayed.filter((m) => m.id > 0).map((m) => m.id)
   if (displayedZulipIds.length > 0) {
+    // eslint-disable-next-line neverthrow/must-use-result
     const markResult = await markAsRead(botClient, displayedZulipIds)
     if (markResult.isErr()) {
       return textResult(`(warning: failed to mark messages as read)\n${body}`)

@@ -87,6 +87,7 @@ function createNewBot(
   adminClient: ZulipClient,
   name: TeammateName,
 ): ResultAsync<BotCredentials, BotManagerError> {
+  // eslint-disable-next-line neverthrow/must-use-result
   const displayNameResult = teammateToDisplayName(name)
   if (displayNameResult.isErr()) {
     return errAsync({

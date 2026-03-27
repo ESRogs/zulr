@@ -70,6 +70,7 @@ async function handleReaction(
   let msg = session.getMessage(messageId)
 
   if (!msg) {
+    // eslint-disable-next-line neverthrow/must-use-result
     const msgResult = await getMessage(client, messageId)
 
     if (msgResult.isErr()) {
@@ -152,6 +153,7 @@ function startBotSession(
             (dmResult) => {
               if (dmResult.delivered.length > 0) {
                 onRoute?.({ sender: msg.sender_full_name, botName })
+                // eslint-disable-next-line neverthrow/must-use-result
                 markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
               }
             },
@@ -179,12 +181,14 @@ function startBotSession(
 
           // Follow the topic when this bot is @-mentioned
           if (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') {
+            // eslint-disable-next-line neverthrow/must-use-result
             setTopicVisibility(botClient, msg.stream_id, topic, TopicVisibility.FOLLOWED).mapErr(
               (err) => onError?.(err),
             )
           }
 
           onRoute?.({ stream, topic, sender: senderName, botName })
+          // eslint-disable-next-line neverthrow/must-use-result
           markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
         }
       },
@@ -251,6 +255,7 @@ export function createEventListenerManager(
   async function startBot(name: TeammateName): Promise<void> {
     if (running.has(name)) return
 
+    // eslint-disable-next-line neverthrow/must-use-result
     const clientResult = await clientForTeammate(options.db, options.site, name)
     if (clientResult.isErr()) {
       options.onError?.(
@@ -259,6 +264,7 @@ export function createEventListenerManager(
       return
     }
 
+    // eslint-disable-next-line neverthrow/must-use-result
     const teammatesResult = await refreshBotEmails()
     if (teammatesResult.isErr()) {
       options.onError?.(teammatesResult.error)
@@ -283,6 +289,7 @@ export function createEventListenerManager(
   }
 
   async function startAll(): Promise<void> {
+    // eslint-disable-next-line neverthrow/must-use-result
     const teammatesResult = await refreshBotEmails()
     if (teammatesResult.isErr()) {
       options.onError?.(teammatesResult.error)

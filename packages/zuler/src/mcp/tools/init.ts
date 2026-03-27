@@ -28,6 +28,7 @@ Zulip credentials are not configured. Ask the user which option they prefer:
 Present both options to the user and wait for their choice before proceeding.`)
       }
 
+      // eslint-disable-next-line neverthrow/must-use-result
       const teammatesResult = await listTeammates(ctx.config.db)
       if (teammatesResult.isErr()) {
         return errorResult(formatError(teammatesResult.error))

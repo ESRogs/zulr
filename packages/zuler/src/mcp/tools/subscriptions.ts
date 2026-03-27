@@ -19,6 +19,7 @@ export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): 
       }),
     },
     async ({ teammate }) => {
+      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(teammate)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
