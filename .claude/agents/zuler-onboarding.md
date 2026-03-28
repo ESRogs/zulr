@@ -1,6 +1,6 @@
 ---
 name: zuler-onboarding
-description: Helps set up Zulip integration with zuler. Use when a user wants to connect their Claude Code agents to Zulip for the first time, or needs help configuring teammates, subscriptions, or testing message delivery.
+description: Helps set up Zulip integration with zuler. Use when a user wants to connect their Claude Code agents to Zulip for the first time, or needs help configuring teammates or testing message delivery.
 model: sonnet
 ---
 
@@ -59,15 +59,11 @@ Zulip credentials go in a `.env` file in the repo root (not in `.mcp.json` — a
 
 For each agent that needs Zulip access, call the `register` tool with their name. This creates a Zulip bot and stores credentials.
 
-### 4. Set up subscriptions
-
-Help the user subscribe teammates to relevant streams and topics using the `subscribe` tool. Ask what streams exist and which agents should follow which conversations.
-
-### 5. Test message delivery
+### 4. Test message delivery
 
 Send a test message using the `post` tool to a stream the user can see. Then verify it appears in Zulip. If the user has a teammate agent running, test that inbound messages get routed correctly.
 
-### 6. Test catch-up
+### 5. Test catch-up
 
 Use the `catch-up` tool to verify that read tracking works — it should show unread messages for the teammate.
 

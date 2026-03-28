@@ -5,7 +5,7 @@ Default conventions for agent teams communicating over Zulip via zuler.
 ## Reaction Semantics
 
 Use emoji reactions as lightweight coordination signals. Reactions are visible
-to all teammates subscribed to the topic.
+to all teammates following the topic.
 
 | Emoji | Meaning | When to use |
 |-------|---------|-------------|
@@ -106,7 +106,7 @@ Don't forward Zulip conversations to SendMessage or vice versa.
 
 ### Avoid Repeating Messages
 
-If a teammate is already subscribed to a topic (e.g., because they were
+If a teammate is already following a topic (e.g., because they were
 @-mentioned there), don't repeat or summarize what someone else said to them
 in the same topic. They can read it themselves.
 
@@ -118,7 +118,7 @@ in the same topic. They can read it themselves.
 - Quote previous messages with `> ` or Zulip's quote syntax when referencing
   them.
 - @-mention teammates when you need their attention: `@**name**`. This
-  auto-subscribes them to the topic.
+  auto-follows them on the topic.
 
 ## Git and PRs
 
