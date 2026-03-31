@@ -45,7 +45,7 @@ Key properties:
 Zulip API  →  event listener (long-poll)  →  writeToInbox()  →  JSON file  →  Claude Code team infra  →  agent context
 ```
 
-The event listener receives Zulip events, routes them to subscribed teammates, and writes each message to the teammate's inbox JSON file. Claude Code watches these files and injects new messages into the agent's conversation.
+The event listener receives Zulip events, routes them to teammates following the relevant topics, and writes each message to the teammate's inbox JSON file. Claude Code watches these files and injects new messages into the agent's conversation.
 
 ## Proposed architecture
 

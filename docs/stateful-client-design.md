@@ -4,13 +4,13 @@
 
 Zuler currently treats the Zulip API as a request-response service: each MCP tool call makes fresh API requests, and the event listener is a simple message forwarder. This creates several problems:
 
-1. **Inbox flooding**: The per-bot event listener delivers ALL messages from subscribed channels to the Claude Code inbox, even when the bot isn't following the topic and wasn't mentioned. Agents get overwhelmed with irrelevant messages.
+1. **Inbox flooding**: The per-bot event listener delivers ALL messages from all public channels (via `all_public_streams`) to the Claude Code inbox, even when the bot isn't following the topic and wasn't mentioned. Agents get overwhelmed with irrelevant messages.
 
-2. **No unread awareness at post time**: The old unread-check system relied on the Claude Code inbox (blocking posts if there were unconsumed inbox messages). With inbox delivery now tied to Zulip subscriptions, this check doesn't work for topics where the bot is subscribed but not following — messages arrive via events but aren't in the inbox, so there's nothing to check against.
+2. **No unread awareness at post time**: The old unread-check system relied on the Claude Code inbox (blocking posts if there were unconsumed inbox messages). With bots receiving all public channel events via `all_public_streams`, this check doesn't work for topics where the bot receives events but isn't following — messages arrive via events but aren't in the inbox, so there's nothing to check against.
 
 3. **Redundant API calls**: Every `read`, `catch-up`, or `search` call hits the Zulip API directly. The event listener already receives all messages but discards them after writing to the inbox.
 
-4. **No notification intelligence**: The system can't distinguish between "you were @-mentioned" and "someone posted in a channel you happen to be subscribed to."
+4. **No notification intelligence**: The system can't distinguish between "you were @-mentioned" and "someone posted in a channel you receive events from."
 
 ## Conventions
 
@@ -38,7 +38,7 @@ zuler             — MCP server + Claude Code integration (exists, uses the abo
 Each registered bot gets one `ZulipSession` instance that manages:
 
 **Event queue + long-poll loop**
-- Registers with `message`, `update_message_flags`, `update_message`, `reaction`, `user_topic`, `realm_user`, and `subscription` event types
+- Registers with `message`, `update_message_flags`, `update_message`, `reaction`, `user_topic`, and `realm_user` event types
 - Initial state from `register` includes `unread_msgs` (message IDs grouped by stream/topic)
 - Long-polls for events and updates local state
 - On queue expiration (BAD_EVENT_QUEUE_ID), re-registers and fully resets local state from the new initial state. Events during the re-register gap are recovered via the fresh `unread_msgs` snapshot.
@@ -48,7 +48,7 @@ Each registered bot gets one `ZulipSession` instance that manages:
 - **Unread map (DMs)**: `Map<UserId, Set<MessageId>>` — same update pattern, from the `pms` section of `unread_msgs`
 - **Topic visibility**: `Map<StreamId, Map<TopicName, VisibilityPolicy>>` — updated from `user_topic` events. Values: 0=inherit, 1=muted, 2=unmuted, 3=followed
 - **Members cache**: `Map<UserId, Member>` — populated via `getMembers` API call on start (not included in `registerQueue` initial state), updated on `realm_user` events
-- **Subscriptions**: channel list from initial state (via `fetch_event_types: ['subscription']`), updated on `subscription` events
+- **Channels**: bots receive events from all public channels via `all_public_streams` — no per-channel subscription management needed
 
 **Notification trigger evaluation**
 
@@ -114,7 +114,7 @@ Unread count and visibility come from local session state. Additional context (l
 
 **`read` tool**: Can optionally query local state instead of hitting the Zulip API when recent messages are cached.
 
-**`catch-up` tool**: Uses `session.getSubscriptions()` and unread state to prioritize which topics to fetch.
+**`catch-up` tool**: Uses unread state to prioritize which topics to fetch.
 
 ## Implementation Plan
 
@@ -133,7 +133,7 @@ New zulip-ts API additions:
 - Tagged ID types already in place (PR #61): `MessageId`, `StreamId`, `UserId`, `TopicName`, `ChannelName`, etc.
 
 Session startup sequence:
-1. `registerQueue` with `fetch_event_types: ['subscription']` to get initial subscriptions and `unread_msgs`
+1. `registerQueue` with `all_public_streams: true` to get `unread_msgs`
 2. `getMembers` API call to populate the members cache (not available from `registerQueue` initial state)
 3. Start long-poll loop
 
@@ -152,7 +152,7 @@ Replace the current "deliver everything to inbox" with:
 - `EventListenerManager` creates `ZulipSession` per bot (replaces `runBotListener`)
 - Session calls zuler-provided callback on notification-worthy messages
 - Non-notification messages update session state silently
-- Remove `automatically_follow_topics_where_mentioned` default from registration
+- Bots explicitly follow topics via `setTopicVisibility(FOLLOWED)` when posting or being @-mentioned
 
 ### Step 4: `reply` and `topic-state` tools
 
