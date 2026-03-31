@@ -16,6 +16,7 @@ import {
   dmNarrowKey,
   emptyMessageListDataCache,
   evictMessages,
+  getEditHistory,
   getMessage,
   getMessages,
   getMessagesBySender,
@@ -439,7 +440,7 @@ describe('deleteMessage', () => {
 describe('LRU eviction', () => {
   test('evicts least recently accessed narrow when exceeding max narrows', () => {
     const maxNarrows = 3
-    const cache = emptyMessageListDataCache(maxNarrows)
+    const cache = emptyMessageListDataCache({ maxNarrows })
 
     // Add 3 narrows — all fit
     const key1 = streamNarrow(10, 'topic-1')
@@ -467,7 +468,7 @@ describe('LRU eviction', () => {
 
   test('accessing a narrow updates its recency', () => {
     const maxNarrows = 3
-    const cache = emptyMessageListDataCache(maxNarrows)
+    const cache = emptyMessageListDataCache({ maxNarrows })
 
     const key1 = streamNarrow(10, 'topic-1')
     const key2 = streamNarrow(10, 'topic-2')
@@ -565,7 +566,7 @@ describe('getMessage (global index)', () => {
   })
 
   test('removes from global index on LRU eviction', () => {
-    const cache = emptyMessageListDataCache(2)
+    const cache = emptyMessageListDataCache({ maxNarrows: 2 })
 
     const key1 = streamNarrow(10, 'topic-1')
     const key2 = streamNarrow(10, 'topic-2')
@@ -777,7 +778,7 @@ describe('getMessagesBySender', () => {
   })
 
   test('cleans up sender index when narrow is LRU-evicted', () => {
-    const cache = emptyMessageListDataCache(1) // max 1 narrow
+    const cache = emptyMessageListDataCache({ maxNarrows: 1 }) // max 1 narrow
 
     const key1 = streamNarrow(10, 'topic-a')
     addEventMessage(cache, key1, makeStreamMessage({ id: 1, senderId: 5, subject: 'topic-a' }))
@@ -789,5 +790,127 @@ describe('getMessagesBySender', () => {
 
     expect(getMessagesBySender(cache, uid(5))).toEqual([])
     expect(getMessagesBySender(cache, uid(7)).length).toBe(1)
+  })
+})
+
+// --- Edit History ---
+
+describe('edit history', () => {
+  const ts = (n: number) => n as UnixEpochSeconds
+
+  test('records edit entries when trackEditHistory is enabled', () => {
+    const cache = emptyMessageListDataCache({ trackEditHistory: true })
+    const key = streamNarrow(10, 'test-topic')
+    addEventMessage(cache, key, makeStreamMessage({ id: 1, content: 'original' }))
+
+    updateMessageContent(cache, msgId(1), 'edited', {
+      prevContent: 'original',
+      editTimestamp: ts(2000),
+    })
+
+    const history = getEditHistory(cache, msgId(1))
+    expect(history).toEqual([{ prevContent: 'original', editTimestamp: ts(2000) }])
+    expect(getMessage(cache, msgId(1))?.content).toBe('edited')
+  })
+
+  test('does not record edit entries when trackEditHistory is disabled', () => {
+    const cache = emptyMessageListDataCache()
+    const key = streamNarrow(10, 'test-topic')
+    addEventMessage(cache, key, makeStreamMessage({ id: 1, content: 'original' }))
+
+    updateMessageContent(cache, msgId(1), 'edited', {
+      prevContent: 'original',
+      editTimestamp: ts(2000),
+    })
+
+    expect(getEditHistory(cache, msgId(1))).toEqual([])
+    expect(getMessage(cache, msgId(1))?.content).toBe('edited')
+  })
+
+  test('accumulates multiple edits in order', () => {
+    const cache = emptyMessageListDataCache({ trackEditHistory: true })
+    const key = streamNarrow(10, 'test-topic')
+    addEventMessage(cache, key, makeStreamMessage({ id: 1, content: 'v1' }))
+
+    updateMessageContent(cache, msgId(1), 'v2', {
+      prevContent: 'v1',
+      editTimestamp: ts(2000),
+    })
+    updateMessageContent(cache, msgId(1), 'v3', {
+      prevContent: 'v2',
+      editTimestamp: ts(3000),
+    })
+
+    const history = getEditHistory(cache, msgId(1))
+    expect(history).toEqual([
+      { prevContent: 'v1', editTimestamp: ts(2000) },
+      { prevContent: 'v2', editTimestamp: ts(3000) },
+    ])
+    expect(getMessage(cache, msgId(1))?.content).toBe('v3')
+  })
+
+  test('does not record history when edit info is omitted', () => {
+    const cache = emptyMessageListDataCache({ trackEditHistory: true })
+    const key = streamNarrow(10, 'test-topic')
+    addEventMessage(cache, key, makeStreamMessage({ id: 1, content: 'original' }))
+
+    updateMessageContent(cache, msgId(1), 'edited')
+
+    expect(getEditHistory(cache, msgId(1))).toEqual([])
+    expect(getMessage(cache, msgId(1))?.content).toBe('edited')
+  })
+
+  test('returns empty array for unknown message', () => {
+    const cache = emptyMessageListDataCache({ trackEditHistory: true })
+    expect(getEditHistory(cache, msgId(999))).toEqual([])
+  })
+
+  test('cleans up edit history on deleteMessage', () => {
+    const cache = emptyMessageListDataCache({ trackEditHistory: true })
+    const key = streamNarrow(10, 'test-topic')
+    addEventMessage(cache, key, makeStreamMessage({ id: 1, content: 'original' }))
+
+    updateMessageContent(cache, msgId(1), 'edited', {
+      prevContent: 'original',
+      editTimestamp: ts(2000),
+    })
+    expect(getEditHistory(cache, msgId(1)).length).toBe(1)
+
+    deleteMessage(cache, key, msgId(1))
+    expect(getEditHistory(cache, msgId(1))).toEqual([])
+  })
+
+  test('cleans up edit history on evictMessages', () => {
+    const cache = emptyMessageListDataCache({ trackEditHistory: true })
+    const key = streamNarrow(10, 'test-topic')
+    addEventMessage(cache, key, makeStreamMessage({ id: 1, content: 'original' }))
+
+    updateMessageContent(cache, msgId(1), 'edited', {
+      prevContent: 'original',
+      editTimestamp: ts(2000),
+    })
+    expect(getEditHistory(cache, msgId(1)).length).toBe(1)
+
+    evictMessages(cache, key, [msgId(1)])
+    expect(getEditHistory(cache, msgId(1))).toEqual([])
+  })
+
+  test('cleans up edit history on LRU eviction', () => {
+    const cache = emptyMessageListDataCache({ maxNarrows: 1, trackEditHistory: true })
+    const key1 = streamNarrow(10, 'topic-a')
+    addEventMessage(cache, key1, makeStreamMessage({ id: 1, subject: 'topic-a', content: 'v1' }))
+
+    updateMessageContent(cache, msgId(1), 'v2', {
+      prevContent: 'v1',
+      editTimestamp: ts(2000),
+    })
+    expect(getEditHistory(cache, msgId(1)).length).toBe(1)
+
+    // Adding a second narrow triggers LRU eviction of the first
+    const key2 = streamNarrow(10, 'topic-b')
+    addEventMessage(cache, key2, makeStreamMessage({ id: 2, subject: 'topic-b' }))
+
+    expect(getEditHistory(cache, msgId(1))).toEqual([])
+    expect(getMessage(cache, msgId(1))).toBeUndefined()
   })
 })

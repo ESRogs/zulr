@@ -306,6 +306,7 @@ export const UpdateMessageEventSchema = z.object({
   message_ids: z.array(messageId),
   content: z.string().optional(),
   orig_content: z.string().optional(),
+  edit_timestamp: unixEpochSeconds.optional(),
   subject: topicName.optional(),
   orig_subject: topicName.optional(),
   new_stream_id: streamId.optional(),
