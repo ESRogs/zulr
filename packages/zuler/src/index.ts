@@ -20,6 +20,43 @@ function formatError(err: unknown): string {
   return err instanceof Error ? (err.stack ?? err.message) : String(err)
 }
 
+/** Pick the most useful params for each tool to keep log lines concise. */
+function summarizeToolParams(tool: string, params: Record<string, unknown>): string {
+  const parts: string[] = []
+  const pick = (key: string) => {
+    if (params[key] !== undefined) parts.push(`${key}=${params[key]}`)
+  }
+  pick('sender')
+  if (tool === 'post') {
+    pick('channel')
+    pick('topic')
+    pick('to')
+  } else if (tool === 'read' || tool === 'catch-up') {
+    pick('channel')
+    pick('topic')
+  } else if (tool === 'search') {
+    pick('query')
+  } else if (tool === 'react') {
+    pick('messageId')
+    pick('emoji')
+  } else if (tool === 'follow' || tool === 'unfollow' || tool === 'mute' || tool === 'unmute') {
+    pick('channel')
+    pick('topic')
+  } else if (tool === 'register') {
+    pick('name')
+  } else {
+    // For other tools, include all string/number params (skip long content)
+    for (const [k, v] of Object.entries(params)) {
+      if (k === 'sender') continue
+      if (typeof v === 'string' && v.length > 80) continue
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+        parts.push(`${k}=${v}`)
+      }
+    }
+  }
+  return parts.join(' ')
+}
+
 function log(msg: string): void {
   const line = `[${new Date().toISOString()}] ${msg}\n`
   console.error(line.trimEnd())
@@ -41,6 +78,11 @@ const { server, ctx } = createMcpServer({ db, teamName, repoRoot })
 const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
+ctx.setOnToolCall((name, params) => {
+  const keyParams = summarizeToolParams(name, params)
+  log(`tool:${name}${keyParams ? ` ${keyParams}` : ''}`)
+})
+
 function bootEventListeners(): void {
   const creds = ctx.getCredentials()
   if (!creds) return
@@ -59,6 +101,9 @@ function bootEventListeners(): void {
       log(
         `:${info.emoji}: from ${info.reactorName} on msg ${info.messageId} → ${info.deliveredTo.join(', ')}`,
       )
+    },
+    onInboxWrite: (info) => {
+      log(`[${info.botName}] inbox: ${info.summary}`)
     },
     onError: (err) => log(`event listener error: ${formatError(err)}`),
   })

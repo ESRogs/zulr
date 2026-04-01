@@ -107,6 +107,12 @@ export type ToolContext = {
   readonly setEventListenerManager: (manager: EventListenerManager) => void
   /** Get the event listener manager, if set. */
   readonly getEventListenerManager: () => EventListenerManager | undefined
+  /** Set a callback for when an MCP tool is invoked (for logging). */
+  readonly setOnToolCall: (cb: (name: string, params: Record<string, unknown>) => void) => void
+  /** Get the tool call callback, if set. */
+  readonly getOnToolCall: () =>
+    | ((name: string, params: Record<string, unknown>) => void)
+    | undefined
 }
 
 /**
@@ -259,6 +265,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     })
   }
 
+  let onToolCallCallback: ((name: string, params: Record<string, unknown>) => void) | undefined
   let credentialsLoadedCallback: (() => void) | null = null
   let eventListenerStarted = false
 
@@ -310,5 +317,9 @@ export function createToolContext(config: ServerConfig): ToolContext {
       eventListenerManager = manager
     },
     getEventListenerManager: () => eventListenerManager,
+    setOnToolCall: (cb) => {
+      onToolCallCallback = cb
+    },
+    getOnToolCall: () => onToolCallCallback,
   }
 }
