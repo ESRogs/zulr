@@ -18,12 +18,21 @@ import type {
   TopicName,
   UnixEpochSeconds,
   UpdateMessageEvent,
+  UpdateMessageParams,
+  UpdateMessageResponse,
   UserId,
   UserTopicVisibility,
   ZulipClient,
   ZulipError,
 } from 'zulip-ts'
-import { getEvents, getMembers, getSentMessages, isKnownEvent, registerQueue } from 'zulip-ts'
+import {
+  getEvents,
+  getMembers,
+  getSentMessages,
+  isKnownEvent,
+  registerQueue,
+  updateMessage,
+} from 'zulip-ts'
 import {
   applyRealmUserEvent,
   emptyMembers,
@@ -135,6 +144,11 @@ export type ZulipSession = {
     messages: readonly Message[],
     flags: { readonly foundOldest: boolean; readonly foundNewest: boolean },
   ) => void
+  /** Edit a message via the API. Cache is updated when the resulting event arrives. */
+  readonly editMessage: (
+    messageId: MessageId,
+    params: UpdateMessageParams,
+  ) => ResultAsync<UpdateMessageResponse, ZulipError>
   /** Timestamp when the session last registered its event queue. Undefined before start. */
   readonly getRegisteredAt: () => UnixEpochSeconds | undefined
 
@@ -339,6 +353,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     getMessagesBySender: (senderId, narrowKey) =>
       cacheGetMessagesBySender(messageCache, senderId, narrowKey),
     addApiMessages: (key, messages, flags) => addApiMessages(messageCache, key, messages, flags),
+    editMessage: (messageId, params) => updateMessage(client, messageId, params),
     getRegisteredAt: () => registeredAt,
     isSubscribed: (streamId) => subIsSubscribed(subscriptions, streamId),
     getSubscription: (streamId) => subGetById(subscriptions, streamId),
