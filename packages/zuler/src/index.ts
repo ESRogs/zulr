@@ -31,6 +31,11 @@ function summarizeToolParams(tool: string, params: Record<string, unknown>): str
     pick('channel')
     pick('topic')
     pick('to')
+    if (typeof params.content === 'string') {
+      const preview =
+        params.content.length > 60 ? `${params.content.slice(0, 60)}...` : params.content
+      parts.push(`content="${preview}"`)
+    }
   } else if (tool === 'read' || tool === 'catch-up') {
     pick('channel')
     pick('topic')
