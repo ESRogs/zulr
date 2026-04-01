@@ -13,6 +13,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zBool,
   zChannelName,
   zTeammateName,
   zTopicName,
@@ -35,8 +36,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
           .describe('User ID, full name, or email for DMs'),
         channel: zChannelName.optional().describe('Channel name'),
         topic: zTopicName.optional().describe('Topic name'),
-        createTopic: z
-          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+        createTopic: zBool
           .optional()
           .default(false)
           .describe(

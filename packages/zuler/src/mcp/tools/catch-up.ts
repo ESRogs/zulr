@@ -14,6 +14,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zBool,
   zTeammateName,
 } from '../helpers.ts'
 
@@ -35,8 +36,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
           .optional()
           .default(24)
           .describe('Maximum lookback time in hours (default: 24)'),
-        unreadOnly: z
-          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+        unreadOnly: zBool
           .optional()
           .default(false)
           .describe('If true, fetch only unread messages and mark them as read'),

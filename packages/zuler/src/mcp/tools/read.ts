@@ -22,6 +22,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zBool,
   zChannelName,
   zTeammateName,
   zTopicName,
@@ -42,8 +43,7 @@ export function registerReadTool(server: McpServer, ctx: ToolContext): void {
           .optional()
           .describe('User ID, full name, or email (for DM conversations)'),
         count: z.coerce.number().optional().default(10).describe('Number of messages to fetch'),
-        inboxOnly: z
-          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+        inboxOnly: zBool
           .optional()
           .default(false)
           .describe(

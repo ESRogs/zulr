@@ -8,6 +8,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zBool,
   zChannelName,
   zTeammateName,
   zTopicName,
@@ -130,13 +131,11 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
         topic: zTopicName.describe('Topic name'),
         toChannel: z.string().describe('Destination channel name'),
         toTopic: zTopicName.optional().describe('New topic name (defaults to keeping the same)'),
-        notifyOldTopic: z
-          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+        notifyOldTopic: zBool
           .optional()
           .default(false)
           .describe('Send a notification to the old topic (default: false)'),
-        notifyNewTopic: z
-          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+        notifyNewTopic: zBool
           .optional()
           .default(true)
           .describe('Send a notification to the new topic (default: true)'),

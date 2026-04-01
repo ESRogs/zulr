@@ -6,6 +6,7 @@ import {
   formatError,
   type ToolContext,
   textResult,
+  zBool,
   zEmojiName,
   zTeammateName,
 } from '../helpers.ts'
@@ -23,8 +24,7 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
           .transform((n): MessageId => n as MessageId)
           .describe('Zulip message ID to react to'),
         emoji: zEmojiName.describe('Emoji name (e.g. "thumbs_up", "check", "eyes")'),
-        remove: z
-          .union([z.boolean(), z.string().transform((s) => s === 'true')])
+        remove: zBool
           .optional()
           .default(false)
           .describe('If true, remove the reaction instead of adding it'),
