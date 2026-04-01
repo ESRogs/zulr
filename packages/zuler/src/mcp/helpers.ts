@@ -26,6 +26,9 @@ export const zChannelName = z.string().transform((s): ChannelName => s as Channe
 export const zTopicName = z.string().transform((s): TopicName => s as TopicName)
 export const zEmojiName = z.string().transform((s): EmojiName => s as EmojiName)
 
+/** Boolean schema that accepts string "true"/"false" from MCP transport. Produces `{ type: "boolean" }` in JSON Schema. */
+export const zBool = z.preprocess((v) => (typeof v === 'string' ? v === 'true' : v), z.boolean())
+
 /** MCP tool response helpers */
 export function textResult(text: string) {
   return { content: [{ type: 'text' as const, text }] }
