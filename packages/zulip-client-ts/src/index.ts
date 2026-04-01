@@ -7,7 +7,7 @@ export {
   resolveUserId,
 } from './members.ts'
 
-export type { MessageListDataCache, NarrowKey } from './message-list-data.ts'
+export type { EditEntry, MessageListDataCache, NarrowKey } from './message-list-data.ts'
 export {
   addApiMessages,
   addEventMessage,
@@ -17,6 +17,7 @@ export {
   dmNarrowKey,
   emptyMessageListDataCache,
   evictMessages,
+  getEditHistory,
   getMessage,
   getMessages,
   getMessagesBySender,

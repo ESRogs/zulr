@@ -37,6 +37,7 @@ import {
   addEventMessage,
   applyReactionEvent,
   deleteMessage as cacheDeleteMessage,
+  getEditHistory as cacheGetEditHistory,
   getMessage as cacheGetMessage,
   getMessages as cacheGetMessages,
   getMessagesBySender as cacheGetMessagesBySender,
@@ -44,6 +45,7 @@ import {
   getReactions as cacheGetReactions,
   canServeFromCache,
   dmNarrowKey,
+  type EditEntry,
   emptyMessageListDataCache,
   evictMessages,
   type MessageListDataCache,
@@ -123,6 +125,8 @@ export type ZulipSession = {
   readonly canServeFromCache: (key: NarrowKey, count: number) => boolean
   readonly getReactions: (id: MessageId) => readonly Reaction[]
   readonly getReactionCount: (id: MessageId, emojiName: EmojiName) => number
+  /** Get the edit history for a cached message. Only populated when trackEditHistory is enabled. */
+  readonly getEditHistory: (id: MessageId) => readonly EditEntry[]
   /** Get cached messages sent by a user, optionally scoped to a narrow. */
   readonly getMessagesBySender: (senderId: UserId, narrowKey?: NarrowKey) => readonly Message[]
   /** Store messages from an API fetch so subsequent reads can hit cache. */
@@ -172,6 +176,8 @@ export type CreateSessionParams = {
   readonly signal?: AbortSignal
   /** If true, receive events for all public channels, not just subscribed ones. */
   readonly allPublicStreams?: boolean
+  /** If true, record content edit history for cached messages. Off by default. */
+  readonly trackEditHistory?: boolean
 }
 
 const DEFAULT_EVENT_TYPES = [
@@ -186,12 +192,19 @@ const DEFAULT_EVENT_TYPES = [
 ] as const
 
 export function createSession(params: CreateSessionParams): ZulipSession {
-  const { client, eventTypes = DEFAULT_EVENT_TYPES, handler, signal, allPublicStreams } = params
+  const {
+    client,
+    eventTypes = DEFAULT_EVENT_TYPES,
+    handler,
+    signal,
+    allPublicStreams,
+    trackEditHistory,
+  } = params
 
   let unreads: UnreadState = emptyUnreadState()
   let topicVisibility: TopicVisibilityState = emptyTopicVisibility()
   let members: MembersState = emptyMembers()
-  let messageCache: MessageListDataCache = emptyMessageListDataCache()
+  let messageCache: MessageListDataCache = emptyMessageListDataCache({ trackEditHistory })
   let subscriptions: SubscriptionState = emptySubscriptionState()
   let registeredAt: UnixEpochSeconds | undefined
   let ownUserId: UserId | undefined
@@ -236,7 +249,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     registeredAt = Math.floor(Date.now() / 1000) as UnixEpochSeconds
     unreads = unread_msgs ? initUnreadState(unread_msgs) : emptyUnreadState()
     topicVisibility = user_topics ? initTopicVisibility(user_topics) : emptyTopicVisibility()
-    messageCache = emptyMessageListDataCache()
+    messageCache = emptyMessageListDataCache({ trackEditHistory })
     subscriptions = initialSubs ? initSubscriptionState(initialSubs) : emptySubscriptionState()
 
     // Fetch members list
@@ -322,6 +335,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     canServeFromCache: (key, count) => canServeFromCache(messageCache, key, count),
     getReactions: (id) => cacheGetReactions(messageCache, id),
     getReactionCount: (id, emojiName) => cacheGetReactionCount(messageCache, id, emojiName),
+    getEditHistory: (id) => cacheGetEditHistory(messageCache, id),
     getMessagesBySender: (senderId, narrowKey) =>
       cacheGetMessagesBySender(messageCache, senderId, narrowKey),
     addApiMessages: (key, messages, flags) => addApiMessages(messageCache, key, messages, flags),
@@ -365,8 +379,12 @@ function handleUpdateMessageEvent(cache: MessageListDataCache, event: UpdateMess
     }
   } else if (event.content !== undefined) {
     // Content-only edit — update in-place
+    const edit =
+      event.orig_content !== undefined && event.edit_timestamp !== undefined
+        ? { prevContent: event.orig_content, editTimestamp: event.edit_timestamp }
+        : undefined
     for (const id of event.message_ids) {
-      updateMessageContent(cache, id, event.content)
+      updateMessageContent(cache, id, event.content, edit)
     }
   }
 }

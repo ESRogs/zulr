@@ -6,6 +6,7 @@ import type {
   ReactionEvent,
   StreamId,
   TopicName,
+  UnixEpochSeconds,
   UserId,
 } from 'zulip-ts'
 
@@ -33,12 +34,21 @@ type NarrowData = {
   lastAccessed: number
 }
 
+/** A record of a single content edit to a message. */
+export type EditEntry = {
+  readonly prevContent: string
+  readonly editTimestamp: UnixEpochSeconds
+}
+
 export type MessageListDataCache = {
   readonly narrows: Map<NarrowKey, NarrowData>
   /** Global message index for O(1) lookup by ID across all narrows. */
   readonly messageIndex: Map<MessageId, Message>
   /** Sender index: maps each user ID to the set of message IDs they sent. */
   readonly senderIndex: Map<UserId, Set<MessageId>>
+  /** Edit history: maps message IDs to their content edit history. Only populated when tracking is enabled. */
+  readonly editHistory: Map<MessageId, EditEntry[]>
+  readonly trackEditHistory: boolean
   readonly maxNarrows: number
   accessCounter: number
 }
@@ -46,12 +56,17 @@ export type MessageListDataCache = {
 const DEFAULT_MAX_NARROWS = 100
 
 /** Create an empty message list data cache with LRU eviction. */
-export function emptyMessageListDataCache(maxNarrows?: number): MessageListDataCache {
+export function emptyMessageListDataCache(options?: {
+  maxNarrows?: number
+  trackEditHistory?: boolean
+}): MessageListDataCache {
   return {
     narrows: new Map(),
     messageIndex: new Map(),
     senderIndex: new Map(),
-    maxNarrows: maxNarrows ?? DEFAULT_MAX_NARROWS,
+    editHistory: new Map(),
+    trackEditHistory: options?.trackEditHistory ?? false,
+    maxNarrows: options?.maxNarrows ?? DEFAULT_MAX_NARROWS,
     accessCounter: 0,
   }
 }
@@ -111,6 +126,7 @@ function evictIfNeeded(cache: MessageListDataCache): void {
         for (const id of evicted.messageIds) {
           removeFromSenderIndex(cache, id)
           cache.messageIndex.delete(id)
+          cache.editHistory.delete(id)
         }
       }
       cache.narrows.delete(oldestKey)
@@ -251,6 +267,7 @@ export function evictMessages(
     data.messageIds.delete(id)
     removeFromSenderIndex(cache, id)
     cache.messageIndex.delete(id)
+    cache.editHistory.delete(id)
     const idx = data.messages.findIndex((m) => m.id === id)
     if (idx !== -1) data.messages.splice(idx, 1)
   }
@@ -268,6 +285,7 @@ export function deleteMessage(
   data.messageIds.delete(messageId)
   removeFromSenderIndex(cache, messageId)
   cache.messageIndex.delete(messageId)
+  cache.editHistory.delete(messageId)
   const idx = data.messages.findIndex((m) => m.id === messageId)
   if (idx !== -1) data.messages.splice(idx, 1)
 }
@@ -277,11 +295,30 @@ export function updateMessageContent(
   cache: MessageListDataCache,
   messageId: MessageId,
   content: string,
+  edit?: { readonly prevContent: string; readonly editTimestamp: UnixEpochSeconds },
 ): void {
   const msg = cache.messageIndex.get(messageId)
   if (!msg) return
+
+  if (cache.trackEditHistory && edit) {
+    let entries = cache.editHistory.get(messageId)
+    if (!entries) {
+      entries = []
+      cache.editHistory.set(messageId, entries)
+    }
+    entries.push({ prevContent: edit.prevContent, editTimestamp: edit.editTimestamp })
+  }
+
   const mutable = msg as { content: string }
   mutable.content = content
+}
+
+/** Get the edit history for a cached message. Returns empty array if none recorded. */
+export function getEditHistory(
+  cache: MessageListDataCache,
+  messageId: MessageId,
+): readonly EditEntry[] {
+  return cache.editHistory.get(messageId) ?? []
 }
 
 /**
