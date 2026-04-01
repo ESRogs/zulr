@@ -14,8 +14,8 @@ import { registerOnboardingPromptTool } from './tools/onboarding-prompt.ts'
 import { registerPostTool } from './tools/post.ts'
 import { registerReactTool } from './tools/reactions.ts'
 import { registerReadTool } from './tools/read.ts'
+import { registerRefreshToolListTool } from './tools/refresh-tools.ts'
 import { registerRegisterTool } from './tools/register.ts'
-
 import { registerSearchTool } from './tools/search.ts'
 import { registerSubscriptionsTool } from './tools/subscriptions.ts'
 import { registerTeammatesTool } from './tools/teammates.ts'
@@ -74,6 +74,7 @@ export function createMcpServer(config: ServerConfig) {
   registerFollowedTopicsTool(server, ctx)
   registerUploadTool(server, ctx)
   registerDownloadTool(server, ctx)
+  registerRefreshToolListTool(server)
 
   return { server, ctx }
 }
