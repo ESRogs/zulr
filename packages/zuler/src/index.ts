@@ -17,7 +17,15 @@ const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
 const logFile = `${stateDir(repoRoot)}/zuler.log`
 
 function formatError(err: unknown): string {
-  return err instanceof Error ? (err.stack ?? err.message) : String(err)
+  if (err instanceof Error) return err.stack ?? err.message
+  if (typeof err === 'string') return err
+  if (typeof err === 'object' && err !== null) {
+    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
+      return (err as { message: string }).message
+    }
+    return JSON.stringify(err)
+  }
+  return String(err)
 }
 
 /** Pick the most useful params for each tool to keep log lines concise. */
