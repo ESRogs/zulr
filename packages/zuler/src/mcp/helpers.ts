@@ -16,6 +16,7 @@ import type {
 } from 'zulip-ts'
 import { createClient, getMembers, getStreams } from 'zulip-ts'
 import { clientForTeammate, type TeammateClient } from '../bot-manager.ts'
+import { getErrorMessage } from '../errors.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import type { EventListenerManager } from '../zulip/event-listener.ts'
@@ -46,12 +47,7 @@ export function notConfiguredResult() {
 }
 
 /** Format any error type consistently for MCP tool responses. */
-export function formatError(err: unknown): string {
-  if (typeof err === 'object' && err !== null && 'message' in err) {
-    return String((err as { message: unknown }).message)
-  }
-  return JSON.stringify(err)
-}
+export const formatError = getErrorMessage
 
 /** Build a synchronous user ID → full_name resolver from the members cache. */
 export function buildUserIdResolver(
@@ -110,6 +106,12 @@ export type ToolContext = {
   readonly setEventListenerManager: (manager: EventListenerManager) => void
   /** Get the event listener manager, if set. */
   readonly getEventListenerManager: () => EventListenerManager | undefined
+  /** Set a callback for when an MCP tool is invoked (for logging). */
+  readonly setOnToolCall: (cb: (name: string, params: Record<string, unknown>) => void) => void
+  /** Get the tool call callback, if set. */
+  readonly getOnToolCall: () =>
+    | ((name: string, params: Record<string, unknown>) => void)
+    | undefined
 }
 
 /**
@@ -262,6 +264,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     })
   }
 
+  let onToolCallCallback: ((name: string, params: Record<string, unknown>) => void) | undefined
   let credentialsLoadedCallback: (() => void) | null = null
   let eventListenerStarted = false
 
@@ -313,5 +316,9 @@ export function createToolContext(config: ServerConfig): ToolContext {
       eventListenerManager = manager
     },
     getEventListenerManager: () => eventListenerManager,
+    setOnToolCall: (cb) => {
+      onToolCallCallback = cb
+    },
+    getOnToolCall: () => onToolCallCallback,
   }
 }

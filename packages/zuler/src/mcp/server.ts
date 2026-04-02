@@ -46,6 +46,28 @@ export function createMcpServer(config: ServerConfig) {
     version: '0.1.0',
   })
 
+  // Wrap registerTool to log every tool invocation.
+  // The generic overloads on McpServer.registerTool make precise typing impractical
+  // for a thin instrumentation wrapper, so we cast through unknown.
+  const origRegisterTool = server.registerTool.bind(server) as (
+    name: string,
+    config: unknown,
+    cb: (...args: unknown[]) => unknown,
+  ) => unknown
+  const instrumentedRegisterTool = (
+    name: string,
+    config: unknown,
+    cb: (...args: unknown[]) => unknown,
+  ) => {
+    const wrappedCb = (...args: unknown[]) => {
+      const params = (args[0] ?? {}) as Record<string, unknown>
+      ctx.getOnToolCall()?.(name, params)
+      return cb(...args)
+    }
+    return origRegisterTool(name, config, wrappedCb)
+  }
+  server.registerTool = instrumentedRegisterTool as typeof server.registerTool
+
   registerInitTool(server, ctx)
   registerOnboardingPromptTool(server, ctx)
   registerRegisterTool(server, ctx)

@@ -1,5 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { getErrorMessage } from './errors.ts'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
 import type { TeamName } from './tagged-types.ts'
@@ -16,8 +17,46 @@ const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
 
 const logFile = `${stateDir(repoRoot)}/zuler.log`
 
-function formatError(err: unknown): string {
-  return err instanceof Error ? (err.stack ?? err.message) : String(err)
+/** Pick the most useful params for each tool to keep log lines concise. */
+function summarizeToolParams(tool: string, params: Record<string, unknown>): string {
+  const parts: string[] = []
+  const pick = (key: string) => {
+    if (params[key] !== undefined) parts.push(`${key}=${params[key]}`)
+  }
+  pick('sender')
+  if (tool === 'post') {
+    pick('channel')
+    pick('topic')
+    pick('to')
+    if (typeof params.content === 'string') {
+      const preview =
+        params.content.length > 60 ? `${params.content.slice(0, 60)}...` : params.content
+      parts.push(`content="${preview}"`)
+    }
+  } else if (tool === 'read' || tool === 'catch-up') {
+    pick('channel')
+    pick('topic')
+  } else if (tool === 'search') {
+    pick('query')
+  } else if (tool === 'react') {
+    pick('messageId')
+    pick('emoji')
+  } else if (tool === 'follow' || tool === 'unfollow' || tool === 'mute' || tool === 'unmute') {
+    pick('channel')
+    pick('topic')
+  } else if (tool === 'register') {
+    pick('name')
+  } else {
+    // For other tools, include all string/number params (skip long content)
+    for (const [k, v] of Object.entries(params)) {
+      if (k === 'sender') continue
+      if (typeof v === 'string' && v.length > 80) continue
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+        parts.push(`${k}=${v}`)
+      }
+    }
+  }
+  return parts.join(' ')
 }
 
 function log(msg: string): void {
@@ -27,10 +66,10 @@ function log(msg: string): void {
 }
 
 process.on('uncaughtException', (err) => {
-  log(`UNCAUGHT EXCEPTION: ${formatError(err)}`)
+  log(`UNCAUGHT EXCEPTION: ${getErrorMessage(err)}`)
   process.exit(1)
 })
-process.on('unhandledRejection', (reason) => log(`UNHANDLED REJECTION: ${formatError(reason)}`))
+process.on('unhandledRejection', (reason) => log(`UNHANDLED REJECTION: ${getErrorMessage(reason)}`))
 
 const t1 = performance.now()
 const db = openDatabase(repoRoot)
@@ -40,6 +79,11 @@ log(`db opened in ${(tDb - t1).toFixed(0)}ms`)
 const { server, ctx } = createMcpServer({ db, teamName, repoRoot })
 const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
+
+ctx.setOnToolCall((name, params) => {
+  const keyParams = summarizeToolParams(name, params)
+  log(`tool:${name}${keyParams ? ` ${keyParams}` : ''}`)
+})
 
 function bootEventListeners(): void {
   const creds = ctx.getCredentials()
@@ -60,7 +104,10 @@ function bootEventListeners(): void {
         `:${info.emoji}: from ${info.reactorName} on msg ${info.messageId} → ${info.deliveredTo.join(', ')}`,
       )
     },
-    onError: (err) => log(`event listener error: ${formatError(err)}`),
+    onInboxWrite: (info) => {
+      log(`[${info.botName}] inbox: ${info.summary}`)
+    },
+    onError: (err) => log(`event listener error: ${getErrorMessage(err)}`),
   })
 
   // Expose manager on ctx so register tool can start listeners for new bots
@@ -78,10 +125,10 @@ if (ctx.isConfigured()) {
   ctx.onCredentialsLoaded(bootEventListeners)
 }
 
-server.server.onerror = (err) => log(`MCP server error: ${formatError(err)}`)
+server.server.onerror = (err) => log(`MCP server error: ${getErrorMessage(err)}`)
 
 const transport = new StdioServerTransport()
-transport.onerror = (err) => log(`MCP transport error: ${formatError(err)}`)
+transport.onerror = (err) => log(`MCP transport error: ${getErrorMessage(err)}`)
 transport.onclose = () => log('MCP transport closed')
 await server.connect(transport)
 const tReady = performance.now()
