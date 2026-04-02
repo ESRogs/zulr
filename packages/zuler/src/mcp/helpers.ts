@@ -42,13 +42,10 @@ export function notConfiguredResult() {
   return errorResult(NOT_CONFIGURED_MESSAGE)
 }
 
+import { getErrorMessage } from '../errors.ts'
+
 /** Format any error type consistently for MCP tool responses. */
-export function formatError(err: unknown): string {
-  if (typeof err === 'object' && err !== null && 'message' in err) {
-    return String((err as { message: unknown }).message)
-  }
-  return JSON.stringify(err)
-}
+export const formatError = getErrorMessage
 
 /** Build a synchronous user ID → full_name resolver from the members cache. */
 export function buildUserIdResolver(

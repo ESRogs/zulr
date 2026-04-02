@@ -1,5 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { getErrorMessage } from './errors.ts'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
 import type { TeamName } from './tagged-types.ts'
@@ -18,14 +19,7 @@ const logFile = `${stateDir(repoRoot)}/zuler.log`
 
 function formatError(err: unknown): string {
   if (err instanceof Error) return err.stack ?? err.message
-  if (typeof err === 'string') return err
-  if (typeof err === 'object' && err !== null) {
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-    return JSON.stringify(err)
-  }
-  return String(err)
+  return getErrorMessage(err)
 }
 
 /** Pick the most useful params for each tool to keep log lines concise. */
