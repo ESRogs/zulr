@@ -18,5 +18,6 @@ function toErrorWithMessage(maybeError: unknown): ErrorWithMessage {
 }
 
 export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.stack ?? error.message
   return toErrorWithMessage(error).message
 }

@@ -17,11 +17,6 @@ const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
 
 const logFile = `${stateDir(repoRoot)}/zuler.log`
 
-function formatError(err: unknown): string {
-  if (err instanceof Error) return err.stack ?? err.message
-  return getErrorMessage(err)
-}
-
 /** Pick the most useful params for each tool to keep log lines concise. */
 function summarizeToolParams(tool: string, params: Record<string, unknown>): string {
   const parts: string[] = []
@@ -71,10 +66,10 @@ function log(msg: string): void {
 }
 
 process.on('uncaughtException', (err) => {
-  log(`UNCAUGHT EXCEPTION: ${formatError(err)}`)
+  log(`UNCAUGHT EXCEPTION: ${getErrorMessage(err)}`)
   process.exit(1)
 })
-process.on('unhandledRejection', (reason) => log(`UNHANDLED REJECTION: ${formatError(reason)}`))
+process.on('unhandledRejection', (reason) => log(`UNHANDLED REJECTION: ${getErrorMessage(reason)}`))
 
 const t1 = performance.now()
 const db = openDatabase(repoRoot)
@@ -112,7 +107,7 @@ function bootEventListeners(): void {
     onInboxWrite: (info) => {
       log(`[${info.botName}] inbox: ${info.summary}`)
     },
-    onError: (err) => log(`event listener error: ${formatError(err)}`),
+    onError: (err) => log(`event listener error: ${getErrorMessage(err)}`),
   })
 
   // Expose manager on ctx so register tool can start listeners for new bots
@@ -130,10 +125,10 @@ if (ctx.isConfigured()) {
   ctx.onCredentialsLoaded(bootEventListeners)
 }
 
-server.server.onerror = (err) => log(`MCP server error: ${formatError(err)}`)
+server.server.onerror = (err) => log(`MCP server error: ${getErrorMessage(err)}`)
 
 const transport = new StdioServerTransport()
-transport.onerror = (err) => log(`MCP transport error: ${formatError(err)}`)
+transport.onerror = (err) => log(`MCP transport error: ${getErrorMessage(err)}`)
 transport.onclose = () => log('MCP transport closed')
 await server.connect(transport)
 const tReady = performance.now()
