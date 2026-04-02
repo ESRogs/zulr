@@ -16,6 +16,7 @@ import type {
 } from 'zulip-ts'
 import { createClient, getMembers, getStreams } from 'zulip-ts'
 import { clientForTeammate, type TeammateClient } from '../bot-manager.ts'
+import { getErrorMessage } from '../errors.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import type { EventListenerManager } from '../zulip/event-listener.ts'
@@ -41,8 +42,6 @@ const NOT_CONFIGURED_MESSAGE = 'Zulip credentials not configured. Call the init 
 export function notConfiguredResult() {
   return errorResult(NOT_CONFIGURED_MESSAGE)
 }
-
-import { getErrorMessage } from '../errors.ts'
 
 /** Format any error type consistently for MCP tool responses. */
 export const formatError = getErrorMessage

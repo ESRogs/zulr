@@ -4,9 +4,6 @@
   "workspaces": {
     "": {
       "name": "zuler",
-      "dependencies": {
-        "fast-safe-stringify": "^2.1.1",
-      },
       "devDependencies": {
         "@biomejs/biome": "^2.4.6",
         "@ninoseki/eslint-plugin-neverthrow": "^0.1.1",
@@ -23,6 +20,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.27.1",
+        "fast-safe-stringify": "^2.1.1",
         "kysely": "^0.28.11",
         "kysely-bun-sqlite": "^0.4.0",
         "neverthrow": "^8.2.0",
