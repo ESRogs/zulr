@@ -12,10 +12,10 @@ import {
   addApiMessages,
   addEventMessage,
   canServeFromCache,
-  deleteMessage,
   dmNarrowKey,
   emptyMessageListDataCache,
   evictMessages,
+  evictOneMessage,
   getEditHistory,
   getMessage,
   getMessages,
@@ -388,7 +388,7 @@ describe('getMessages', () => {
   })
 })
 
-describe('deleteMessage', () => {
+describe('evictOneMessage', () => {
   test('removes a message from the narrow', () => {
     const cache = emptyMessageListDataCache()
     const key = streamNarrow(10, 'test-topic')
@@ -397,7 +397,7 @@ describe('deleteMessage', () => {
     addEventMessage(cache, key, makeStreamMessage({ id: 2 }))
     addEventMessage(cache, key, makeStreamMessage({ id: 3 }))
 
-    deleteMessage(cache, key, msgId(2))
+    evictOneMessage(cache, key, msgId(2))
 
     expect(getMessages(cache, key, 10).map((m) => m.id)).toEqual([msgId(1), msgId(3)])
   })
@@ -408,14 +408,14 @@ describe('deleteMessage', () => {
 
     addEventMessage(cache, key, makeStreamMessage({ id: 1 }))
 
-    deleteMessage(cache, key, msgId(999))
+    evictOneMessage(cache, key, msgId(999))
 
     expect(getMessages(cache, key, 10).map((m) => m.id)).toEqual([msgId(1)])
   })
 
   test('no-ops for unknown narrow', () => {
     const cache = emptyMessageListDataCache()
-    deleteMessage(cache, streamNarrow(99, 'nope'), msgId(1)) // should not throw
+    evictOneMessage(cache, streamNarrow(99, 'nope'), msgId(1)) // should not throw
   })
 
   test('preserves hasFoundOldest after deletion', () => {
@@ -429,7 +429,7 @@ describe('deleteMessage', () => {
       { foundOldest: true, foundNewest: true },
     )
 
-    deleteMessage(cache, key, msgId(2))
+    evictOneMessage(cache, key, msgId(2))
 
     // Still has complete coverage — deleting doesn't create a gap
     expect(canServeFromCache(cache, key, 10)).toBe(true)
@@ -554,14 +554,14 @@ describe('getMessage (global index)', () => {
     expect(getMessage(cache, msgId(999))).toBeUndefined()
   })
 
-  test('removes from global index on deleteMessage', () => {
+  test('removes from global index on evictOneMessage', () => {
     const cache = emptyMessageListDataCache()
     const key = streamNarrow(10, 'test-topic')
 
     addEventMessage(cache, key, makeStreamMessage({ id: 1 }))
     expect(getMessage(cache, msgId(1))).toBeDefined()
 
-    deleteMessage(cache, key, msgId(1))
+    evictOneMessage(cache, key, msgId(1))
     expect(getMessage(cache, msgId(1))).toBeUndefined()
   })
 
@@ -762,7 +762,7 @@ describe('getMessagesBySender', () => {
     addEventMessage(cache, key, makeStreamMessage({ id: 2, senderId: 5 }))
     expect(getMessagesBySender(cache, uid(5)).length).toBe(2)
 
-    deleteMessage(cache, key, msgId(1))
+    evictOneMessage(cache, key, msgId(1))
     expect(getMessagesBySender(cache, uid(5)).map((m) => m.id)).toEqual([msgId(2)])
   })
 
@@ -865,7 +865,7 @@ describe('edit history', () => {
     expect(getEditHistory(cache, msgId(999))).toEqual([])
   })
 
-  test('cleans up edit history on deleteMessage', () => {
+  test('cleans up edit history on evictOneMessage', () => {
     const cache = emptyMessageListDataCache({ trackEditHistory: true })
     const key = streamNarrow(10, 'test-topic')
     addEventMessage(cache, key, makeStreamMessage({ id: 1, content: 'original' }))
@@ -876,7 +876,7 @@ describe('edit history', () => {
     })
     expect(getEditHistory(cache, msgId(1)).length).toBe(1)
 
-    deleteMessage(cache, key, msgId(1))
+    evictOneMessage(cache, key, msgId(1))
     expect(getEditHistory(cache, msgId(1))).toEqual([])
   })
 

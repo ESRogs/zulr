@@ -45,7 +45,7 @@ import {
   addApiMessages,
   addEventMessage,
   applyReactionEvent,
-  deleteMessage as cacheDeleteMessage,
+  evictOneMessage as cacheEvictOneMessage,
   getEditHistory as cacheGetEditHistory,
   getMessage as cacheGetMessage,
   getMessages as cacheGetMessages,
@@ -406,10 +406,10 @@ function handleUpdateMessageEvent(cache: MessageListDataCache, event: UpdateMess
 
 function handleDeleteMessageEvent(cache: MessageListDataCache, event: DeleteMessageEvent): void {
   if (event.stream_id && event.topic) {
-    cacheDeleteMessage(cache, streamNarrowKey(event.stream_id, event.topic), event.message_id)
+    cacheEvictOneMessage(cache, streamNarrowKey(event.stream_id, event.topic), event.message_id)
   }
   // For DM deletes, we don't have the sender_id — the message may or may not be cached.
-  // The global messageIndex is cleaned up by deleteMessage if the narrow is found.
+  // The global messageIndex is cleaned up by evictOneMessage if the narrow is found.
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
