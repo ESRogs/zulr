@@ -286,7 +286,13 @@ export function createSession(params: CreateSessionParams): ZulipSession {
           // Queue expired — break to re-register
           return ok(undefined)
         }
-        return err(evtErr)
+        // Network/transient error — log and retry with the same queue.
+        // Re-registering would discard any events queued on the server side
+        // (e.g. after laptop sleep where the TCP connection dies but the
+        // server-side queue is still valid).
+        handler?.onError?.(evtErr)
+        await sleep(RETRY_DELAY_MS, signal)
+        continue
       }
 
       for (const event of eventsResult.value.events) {
