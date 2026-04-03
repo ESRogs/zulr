@@ -273,21 +273,13 @@ export function evictMessages(
   }
 }
 
-/** Remove a message from a narrow (e.g. on delete_message event). */
-export function deleteMessage(
+/** Remove a single message from a narrow (e.g. on delete_message event). */
+export function evictOneMessage(
   cache: MessageListDataCache,
   key: NarrowKey,
   messageId: MessageId,
 ): void {
-  const data = cache.narrows.get(key)
-  if (!data) return
-  if (!data.messageIds.has(messageId)) return
-  data.messageIds.delete(messageId)
-  removeFromSenderIndex(cache, messageId)
-  cache.messageIndex.delete(messageId)
-  cache.editHistory.delete(messageId)
-  const idx = data.messages.findIndex((m) => m.id === messageId)
-  if (idx !== -1) data.messages.splice(idx, 1)
+  evictMessages(cache, key, [messageId])
 }
 
 /** Update message content in-place for all cached copies. No-op if the message is not cached. */
