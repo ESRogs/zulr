@@ -61,6 +61,11 @@ Workflow:
 6. Default to squash merge: `gh pr merge --squash --delete-branch`.
 7. When a PR is merged, resolve the PR topic in prs.
 
+When mentioning a PR in Zulip, link to the PR topic (e.g.
+`#**prs>109 – merge route/inbox logs**`) rather than the GitHub URL. The PR
+topic is the canonical Zulip location for that PR's discussion, and it links
+to the GitHub PR from there.
+
 ### Other channels
 
 Use the `channels` tool for the current list. Some common ones:
