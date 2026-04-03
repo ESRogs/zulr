@@ -18,11 +18,8 @@ const client = createClient({ site, email: email as Email, apiKey: apiKey as Api
 console.log('Fetching streams, members, and bots...\n')
 
 const [streamsResult, membersResult, botsResult] = await Promise.all([
-  // eslint-disable-next-line neverthrow/must-use-result
   getStreams(client),
-  // eslint-disable-next-line neverthrow/must-use-result
   getMembers(client),
-  // eslint-disable-next-line neverthrow/must-use-result
   getBots(client),
 ])
 

@@ -54,7 +54,6 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       }
 
       if (to !== undefined) {
-        // eslint-disable-next-line neverthrow/must-use-result
         const resolveResult = await ctx.resolveUser(to)
         if (resolveResult.isErr()) {
           return errorResult(resolveResult.error)
@@ -72,7 +71,6 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
           )
         }
 
-        // eslint-disable-next-line neverthrow/must-use-result
         const clientResult = await ctx.getTeammateClient(sender)
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
@@ -89,19 +87,17 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       }
 
       if (channel && topic) {
-        // eslint-disable-next-line neverthrow/must-use-result
         const clientResult = await ctx.getTeammateClient(sender)
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
         }
 
         if (!createTopic) {
-          // eslint-disable-next-line neverthrow/must-use-result
           const channelResult = await ctx.resolveChannel(channel)
           if (channelResult.isErr()) {
             return errorResult(channelResult.error)
           }
-          // eslint-disable-next-line neverthrow/must-use-result
+
           const topicsResult = await getTopics(
             clientResult.value.client,
             channelResult.value.stream_id,
@@ -123,7 +119,6 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
           }
         }
 
-        // eslint-disable-next-line neverthrow/must-use-result
         const result = await sendStreamMessage(clientResult.value.client, {
           to: channel,
           topic,

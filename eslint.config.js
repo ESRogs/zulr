@@ -1,9 +1,9 @@
 import tseslint from 'typescript-eslint'
-import neverthrow from '@ninoseki/eslint-plugin-neverthrow'
+import neverthrow from './eslint-plugins/must-use-result.js'
 
 export default tseslint.config({
   files: ['packages/*/src/**/*.ts'],
-  ignores: ['**/*.test.ts'],
+  ignores: ['**/*.test.ts', '**/smoke.ts'],
   extends: [tseslint.configs.base],
   plugins: { neverthrow },
   languageOptions: {

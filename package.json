@@ -5,8 +5,8 @@
   "workspaces": ["packages/*"],
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
-    "@ninoseki/eslint-plugin-neverthrow": "^0.1.1",
     "@types/bun": "latest",
+    "@typescript-eslint/utils": "^8.58.0",
     "eslint": "^10.1.0",
     "typescript-eslint": "^8.57.2"
   },

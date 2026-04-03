@@ -25,7 +25,7 @@ export function registerRegisterTool(server: McpServer, ctx: ToolContext): void 
       if (!adminClient) {
         return notConfiguredResult()
       }
-      // eslint-disable-next-line neverthrow/must-use-result
+
       const result = await registerBot(adminClient, ctx.config.db, name)
       if (result.isOk()) {
         ctx.invalidateMembersCache()

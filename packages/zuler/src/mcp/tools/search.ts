@@ -29,7 +29,6 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
         return errorResult('"topic" requires "channel" to be specified')
       }
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
@@ -44,7 +43,6 @@ export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
         ...(channel && topic ? [{ operator: 'topic', operand: topic }] : []),
       ]
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const result = await fetchMessages(
         client,
         {
