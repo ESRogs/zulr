@@ -21,6 +21,7 @@ type EventListenerManagerOptions = {
     readonly topic?: string
     readonly sender: string
     readonly botName: string
+    readonly summary: string
   }) => void
   /** Called on reaction events for logging. */
   readonly onReaction?: (info: {
@@ -30,8 +31,6 @@ type EventListenerManagerOptions = {
     readonly messageId: MessageId
     readonly deliveredTo: readonly string[]
   }) => void
-  /** Called when a message is written to a bot's inbox (for logging the summary). */
-  readonly onInboxWrite?: (info: { readonly botName: string; readonly summary: string }) => void
   /** Called on errors for logging. Listener continues after errors. */
   readonly onError?: (error: unknown) => void
   /** If set, listeners stop when this signal is aborted. */
@@ -66,7 +65,6 @@ async function handleReaction(
   emojiName: EmojiName,
   resolveUserName: (userId: UserId) => DisplayName | undefined,
   onReaction?: EventListenerManagerOptions['onReaction'],
-  onInboxWrite?: EventListenerManagerOptions['onInboxWrite'],
   onError?: (error: unknown) => void,
 ): Promise<void> {
   // Check session cache first to avoid an API call
@@ -111,8 +109,6 @@ async function handleReaction(
       : {}),
     zulipSender: reactorName,
   })
-  onInboxWrite?.({ botName, summary })
-
   onReaction?.({
     emoji: emojiName,
     op: 'add',
@@ -135,7 +131,7 @@ function startBotSession(
   options: EventListenerManagerOptions,
   onSessionExit?: () => void,
 ): ZulipSession {
-  const { db, teamName, onRoute, onReaction, onInboxWrite, onError, signal } = options
+  const { db, teamName, onRoute, onReaction, onError, signal } = options
 
   const session = createSession({
     client: botClient,
@@ -156,8 +152,8 @@ function startBotSession(
           routeDm(db, teamName, msg, botName).match(
             (dmResult) => {
               if (dmResult.delivered.length > 0) {
-                onRoute?.({ sender: msg.sender_full_name, botName })
-                onInboxWrite?.({
+                onRoute?.({
+                  sender: msg.sender_full_name,
                   botName,
                   summary: sanitizeSummary(truncate(msg.content, 60)),
                 })
@@ -186,8 +182,6 @@ function startBotSession(
             zulipTopic: topic,
             zulipSender: senderName,
           })
-          onInboxWrite?.({ botName, summary })
-
           // Follow the topic when this bot is @-mentioned
           if (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') {
             // eslint-disable-next-line neverthrow/must-use-result
@@ -196,7 +190,7 @@ function startBotSession(
             )
           }
 
-          onRoute?.({ stream, topic, sender: senderName, botName })
+          onRoute?.({ stream, topic, sender: senderName, botName, summary })
           // eslint-disable-next-line neverthrow/must-use-result
           markAsRead(botClient, [msg.id]).mapErr((markErr) => onError?.(markErr))
         }
@@ -216,7 +210,6 @@ function startBotSession(
               event.emoji_name,
               (userId) => session.resolveUserId(userId),
               onReaction,
-              onInboxWrite,
               onError,
             ).catch((err) => onError?.(err))
           }

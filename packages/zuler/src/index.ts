@@ -97,15 +97,12 @@ function bootEventListeners(): void {
     signal: new AbortController().signal,
     onRoute: (info) => {
       const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
-      log(`[${info.botName}] ${location} from ${info.sender}`)
+      log(`[${info.botName}] ${location} from ${info.sender}: ${info.summary}`)
     },
     onReaction: (info) => {
       log(
         `:${info.emoji}: from ${info.reactorName} on msg ${info.messageId} → ${info.deliveredTo.join(', ')}`,
       )
-    },
-    onInboxWrite: (info) => {
-      log(`[${info.botName}] inbox: ${info.summary}`)
     },
     onError: (err) => log(`event listener error: ${getErrorMessage(err)}`),
   })
