@@ -1,10 +1,10 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getTopics, TopicVisibility } from 'zulip-ts'
 import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zChannelName,
   zTeammateName,
@@ -22,8 +22,8 @@ function visibilityLabel(policy: number): string {
   return VISIBILITY_LABELS[policy] ?? `unknown (${policy})`
 }
 
-export function registerTopicStateTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerTopicStateTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'topic-state',
     {
       description:
@@ -64,8 +64,8 @@ export function registerTopicStateTool(server: McpServer, ctx: ToolContext): voi
   )
 }
 
-export function registerChannelTopicStatesTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerChannelTopicStatesTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'channel-topic-states',
     {
       description:
@@ -116,8 +116,8 @@ export function registerChannelTopicStatesTool(server: McpServer, ctx: ToolConte
   )
 }
 
-export function registerFollowedTopicsTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerFollowedTopicsTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'followed-topics',
     {
       description:

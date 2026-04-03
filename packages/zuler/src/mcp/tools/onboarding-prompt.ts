@@ -1,13 +1,12 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import onboardingMd from '../../../../../.claude/agents/zuler-onboarding.md' with { type: 'text' }
-import { type ToolContext, textResult } from '../helpers.ts'
+import { type ToolContext, type ToolRegistrar, textResult } from '../helpers.ts'
 
 // Strip YAML frontmatter (between --- markers)
 const ONBOARDING_PROMPT = onboardingMd.replace(/^---\n[\s\S]*?\n---\n/, '').trim()
 
-export function registerOnboardingPromptTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerOnboardingPromptTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'onboarding-prompt',
     {
       description:

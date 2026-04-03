@@ -1,4 +1,3 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import {
@@ -6,12 +5,13 @@ import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zTeammateName,
 } from '../helpers.ts'
 
-export function registerSearchTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerSearchTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'search',
     {
       description:

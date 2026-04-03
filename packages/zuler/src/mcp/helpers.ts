@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -48,6 +49,25 @@ export function notConfiguredResult() {
 
 /** Format any error type consistently for MCP tool responses. */
 export const formatError = getErrorMessage
+
+/** Thin wrapper around McpServer.registerTool that intercepts calls for instrumentation. */
+export type ToolRegistrar = { readonly registerTool: McpServer['registerTool'] }
+
+/** Wrap a McpServer's registerTool method with a callback that fires on each tool invocation. */
+export function createToolRegistrar(server: McpServer, ctx: ToolContext): ToolRegistrar {
+  return {
+    registerTool: ((name: string, config: unknown, cb: (...args: unknown[]) => unknown) => {
+      const wrappedCb = (...args: unknown[]) => {
+        const params = (args[0] ?? {}) as Record<string, unknown>
+        ctx.getOnToolCall()?.(name, params)
+        return cb(...args)
+      }
+      return (
+        server.registerTool as (n: string, c: unknown, f: (...a: unknown[]) => unknown) => unknown
+      )(name, config, wrappedCb)
+    }) as McpServer['registerTool'],
+  }
+}
 
 /** Build a synchronous user ID → full_name resolver from the members cache. */
 export function buildUserIdResolver(

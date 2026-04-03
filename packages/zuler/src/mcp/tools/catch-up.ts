@@ -1,4 +1,3 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getSubscriptions, markAsRead } from 'zulip-ts'
 import {
@@ -13,13 +12,14 @@ import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zBool,
   zTeammateName,
 } from '../helpers.ts'
 
-export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'catch-up',
     {
       description:

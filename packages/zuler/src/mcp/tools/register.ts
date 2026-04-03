@@ -1,4 +1,3 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { registerBot } from '../../bot-manager.ts'
 import {
@@ -6,12 +5,13 @@ import {
   formatError,
   notConfiguredResult,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zTeammateName,
 } from '../helpers.ts'
 
-export function registerRegisterTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerRegisterTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'register',
     {
       description:

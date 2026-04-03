@@ -1,4 +1,3 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import {
   getTopics,
@@ -12,6 +11,7 @@ import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zBool,
   zChannelName,
@@ -19,10 +19,10 @@ import {
   zTopicName,
 } from '../helpers.ts'
 
-export function registerPostTool(server: McpServer, ctx: ToolContext): void {
+export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): void {
   const { teamName } = ctx.config
 
-  server.registerTool(
+  registrar.registerTool(
     'post',
     {
       description:

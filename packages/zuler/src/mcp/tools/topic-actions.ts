@@ -1,4 +1,3 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 import type { ChannelName, MessageId, TopicName, ZulipClient } from 'zulip-ts'
@@ -7,6 +6,7 @@ import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zBool,
   zChannelName,
@@ -40,8 +40,8 @@ function findMessageIdInTopic(
     })
 }
 
-export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerResolveTopicTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'resolve-topic',
     {
       description: 'Mark a Zulip topic as resolved (adds ✔ prefix). Use unresolve-topic to undo.',
@@ -76,8 +76,8 @@ export function registerResolveTopicTool(server: McpServer, ctx: ToolContext): v
   )
 }
 
-export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerUnresolveTopicTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'unresolve-topic',
     {
       description: 'Remove the resolved (✔) prefix from a Zulip topic.',
@@ -115,8 +115,8 @@ export function registerUnresolveTopicTool(server: McpServer, ctx: ToolContext):
   )
 }
 
-export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerMoveTopicTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'move-topic',
     {
       description:
