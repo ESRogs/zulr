@@ -240,7 +240,6 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   }
 
   async function runEventLoop(): Promise<Result<void, ZulipError | string>> {
-    // eslint-disable-next-line neverthrow/must-use-result
     const regResult = await registerQueue(client, {
       eventTypes: [...eventTypes],
       fetchEventTypes: ['message', 'user_topic', 'subscription'],
@@ -267,7 +266,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     subscriptions = initialSubs ? initSubscriptionState(initialSubs) : emptySubscriptionState()
 
     // Fetch members list
-    // eslint-disable-next-line neverthrow/must-use-result
+
     const membersResult = await getMembers(client)
     if (membersResult.isOk()) {
       members = initMembers(membersResult.value.members)
@@ -279,7 +278,6 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     let lastEventId: EventId = initialLastEventId
 
     while (!stopped && !signal?.aborted) {
-      // eslint-disable-next-line neverthrow/must-use-result
       const eventsResult = await getEvents(client, { queueId, lastEventId })
 
       if (eventsResult.isErr()) {

@@ -155,4 +155,4 @@ markAsRead(client, [id]).mapErr((err) => onError?.(err))
 
 **Other valid handlers:** `.andThen()`, `.orElse()`, `.map()`, `.mapErr()` chains, `.unwrapOr()`.
 
-**ESLint `must-use-result` rule:** The `neverthrow/must-use-result` rule catches unhandled Results. It only recognizes `.match()`, `.unwrapOr()`, and `._unsafeUnwrap()` as "handled" — the `.isErr()` guard pattern and `.mapErr()` fire-and-forget require `// eslint-disable-next-line neverthrow/must-use-result` comments. Before adding a suppression, confirm that errors are returned, logged, or intentionally discarded — never silently swallowed.
+**ESLint `must-use-result` rule:** The vendored `neverthrow/must-use-result` rule (in `eslint-plugins/`) catches unhandled Results. It recognizes `.match()`, `.unwrapOr()`, `._unsafeUnwrap()`, `.isErr()`, and `.isOk()` as valid handlers. A few edge cases still need `// eslint-disable-next-line neverthrow/must-use-result` comments: `.mapErr()` fire-and-forget, `Promise.all` destructuring, and `(await expr).unwrapOr()`. Before adding a suppression, confirm that errors are returned, logged, or intentionally discarded — never silently swallowed.

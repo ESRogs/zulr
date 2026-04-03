@@ -24,11 +24,9 @@ export function registerFollowTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, channel, topic }) => {
-      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
@@ -58,11 +56,9 @@ export function registerMuteTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, channel, topic }) => {
-      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
@@ -93,11 +89,9 @@ export function registerUnmuteTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, channel, topic }) => {
-      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
@@ -128,11 +122,9 @@ export function registerUnfollowTool(server: McpServer, ctx: ToolContext): void 
       }),
     },
     async ({ sender, channel, topic }) => {
-      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const channelResult = await ctx.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 

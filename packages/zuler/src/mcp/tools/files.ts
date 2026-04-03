@@ -47,7 +47,6 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       // Resolve DM recipient once (used for unread check + send)
       let recipient: Member | undefined
       if (to !== undefined) {
-        // eslint-disable-next-line neverthrow/must-use-result
         const resolveResult = await ctx.resolveUser(to)
         if (resolveResult.isErr()) return errorResult(resolveResult.error)
         recipient = resolveResult.value
@@ -68,7 +67,6 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
         if (dmBlocked) return errorResult(dmBlocked)
       }
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
@@ -76,7 +74,7 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
 
       const file = Bun.file(path)
       if (!(await file.exists())) return errorResult(`file not found: ${path}`)
-      // eslint-disable-next-line neverthrow/must-use-result
+
       const readResult = await ResultAsync.fromPromise(
         file.arrayBuffer().then((buf) => new Uint8Array(buf)),
         (err) => (err instanceof Error ? err.message : String(err)),
@@ -85,7 +83,7 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       const content = readResult.value
 
       const filename = basename(path)
-      // eslint-disable-next-line neverthrow/must-use-result
+
       const uploadResult = await uploadFile(client, filename, content)
       if (uploadResult.isErr()) return errorResult(formatError(uploadResult.error))
 
@@ -138,15 +136,12 @@ export function registerDownloadTool(server: McpServer, ctx: ToolContext): void 
       // Extract path if a full URL was passed
       const url = rawUrl.startsWith('http') ? new URL(rawUrl).pathname : rawUrl
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const result = await downloadFile(clientResult.value.client, url)
       if (result.isErr()) return errorResult(formatError(result.error))
 
-      // eslint-disable-next-line neverthrow/must-use-result
       const writeResult = await ResultAsync.fromPromise(
         Bun.write(saveTo, result.value.content),
         (err) => (err instanceof Error ? err.message : String(err)),

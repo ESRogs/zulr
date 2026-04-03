@@ -31,7 +31,6 @@ export function registerReactTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, messageId, emoji, remove }) => {
-      // eslint-disable-next-line neverthrow/must-use-result
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 

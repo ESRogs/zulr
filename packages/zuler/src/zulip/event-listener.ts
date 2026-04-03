@@ -71,7 +71,6 @@ async function handleReaction(
   let msg = session.getMessage(messageId)
 
   if (!msg) {
-    // eslint-disable-next-line neverthrow/must-use-result
     const msgResult = await getMessage(client, messageId)
 
     if (msgResult.isErr()) {
@@ -258,7 +257,6 @@ export function createEventListenerManager(
   async function startBot(name: TeammateName): Promise<void> {
     if (running.has(name)) return
 
-    // eslint-disable-next-line neverthrow/must-use-result
     const clientResult = await clientForTeammate(options.db, options.site, name)
     if (clientResult.isErr()) {
       options.onError?.(
@@ -267,7 +265,6 @@ export function createEventListenerManager(
       return
     }
 
-    // eslint-disable-next-line neverthrow/must-use-result
     const teammatesResult = await refreshBotEmails()
     if (teammatesResult.isErr()) {
       options.onError?.(teammatesResult.error)
@@ -292,7 +289,6 @@ export function createEventListenerManager(
   }
 
   async function startAll(): Promise<void> {
-    // eslint-disable-next-line neverthrow/must-use-result
     const teammatesResult = await refreshBotEmails()
     if (teammatesResult.isErr()) {
       options.onError?.(teammatesResult.error)

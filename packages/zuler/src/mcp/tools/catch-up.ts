@@ -43,7 +43,6 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       }),
     },
     async ({ sender, maxMessages, maxHours, unreadOnly }) => {
-      // eslint-disable-next-line neverthrow/must-use-result
       const botClientResult = await ctx.getTeammateClient(sender)
       if (botClientResult.isErr()) {
         return errorResult(botClientResult.error)
@@ -51,7 +50,7 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       const { client: botClient, botUserId } = botClientResult.value
 
       // Get the bot's channel subscriptions from Zulip
-      // eslint-disable-next-line neverthrow/must-use-result
+
       const subsResult = await getSubscriptions(botClient)
       if (subsResult.isErr()) {
         return errorResult(formatError(subsResult.error))
@@ -121,7 +120,6 @@ export function registerCatchUpTool(server: McpServer, ctx: ToolContext): void {
       // Mark as read on Zulip (unreadOnly mode only — default mode doesn't change Zulip state)
       let markWarning = ''
       if (unreadOnly && trimmedZulipIds.length > 0) {
-        // eslint-disable-next-line neverthrow/must-use-result
         const markResult = await markAsRead(botClient, trimmedZulipIds)
         if (markResult.isErr()) {
           markWarning = `(warning: failed to mark messages as read: ${formatError(markResult.error)})\n`
