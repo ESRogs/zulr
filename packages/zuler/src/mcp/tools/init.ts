@@ -18,11 +18,11 @@ export function registerInitTool(registrar: ToolRegistrar, ctx: ToolContext): vo
     },
     async () => {
       // Try loading .env if credentials aren't already configured
-      if (!ctx.isConfigured()) {
-        ctx.tryLoadEnv()
+      if (!ctx.credentials.isConfigured()) {
+        ctx.credentials.tryLoadEnv()
       }
 
-      if (!ctx.isConfigured()) {
+      if (!ctx.credentials.isConfigured()) {
         return textResult(`# Zuler Setup Required
 
 Zulip credentials are not configured. Ask the user which option they prefer:

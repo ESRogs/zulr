@@ -21,7 +21,7 @@ export function registerRegisterTool(registrar: ToolRegistrar, ctx: ToolContext)
       }),
     },
     async ({ name }) => {
-      const adminClient = ctx.getAdminClient()
+      const adminClient = ctx.credentials.getAdminClient()
       if (!adminClient) {
         return notConfiguredResult()
       }

@@ -85,7 +85,7 @@ export function registerChannelTopicStatesTool(registrar: ToolRegistrar, ctx: To
         )
       }
 
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)

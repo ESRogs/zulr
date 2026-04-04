@@ -24,7 +24,7 @@ export function registerFollowTool(registrar: ToolRegistrar, ctx: ToolContext): 
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)
@@ -56,7 +56,7 @@ export function registerMuteTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)
@@ -89,7 +89,7 @@ export function registerUnmuteTool(registrar: ToolRegistrar, ctx: ToolContext): 
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)
@@ -122,7 +122,7 @@ export function registerUnfollowTool(registrar: ToolRegistrar, ctx: ToolContext)
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)

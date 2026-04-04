@@ -43,7 +43,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       }),
     },
     async ({ sender, maxMessages, maxHours, unreadOnly }) => {
-      const botClientResult = await ctx.getTeammateClient(sender)
+      const botClientResult = await ctx.credentials.getTeammateClient(sender)
       if (botClientResult.isErr()) {
         return errorResult(botClientResult.error)
       }

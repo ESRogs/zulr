@@ -56,7 +56,7 @@ export function registerResolveTopicTool(registrar: ToolRegistrar, ctx: ToolCont
         return errorResult('topic is already resolved')
       }
 
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 
@@ -88,7 +88,7 @@ export function registerUnresolveTopicTool(registrar: ToolRegistrar, ctx: ToolCo
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 
@@ -146,7 +146,7 @@ export function registerMoveTopicTool(registrar: ToolRegistrar, ctx: ToolContext
       notifyOldTopic,
       notifyNewTopic,
     }) => {
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 

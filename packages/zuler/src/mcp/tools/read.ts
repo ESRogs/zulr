@@ -128,7 +128,7 @@ async function readStream(
   topic: TopicName,
   count: number,
 ) {
-  const botClientResult = await ctx.getTeammateClient(sender)
+  const botClientResult = await ctx.credentials.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)
   }
@@ -208,7 +208,7 @@ async function readStream(
 }
 
 async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, count: number) {
-  const botClientResult = await ctx.getTeammateClient(sender)
+  const botClientResult = await ctx.credentials.getTeammateClient(sender)
   if (botClientResult.isErr()) {
     return errorResult(botClientResult.error)
   }
