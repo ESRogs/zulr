@@ -99,6 +99,7 @@ import {
 } from './unread-state.ts'
 
 const RETRY_DELAY_MS = 5000
+const MAX_CONSECUTIVE_POLL_ERRORS = 5
 
 export type SessionEventHandler = {
   /** Called for every event received from the queue. */
@@ -276,6 +277,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     }
 
     let lastEventId: EventId = initialLastEventId
+    let consecutivePollErrors = 0
 
     while (!stopped && !signal?.aborted) {
       const eventsResult = await getEvents(client, { queueId, lastEventId })
@@ -286,8 +288,19 @@ export function createSession(params: CreateSessionParams): ZulipSession {
           // Queue expired — break to re-register
           return ok(undefined)
         }
-        return err(evtErr)
+        // Network/transient error — log and retry with the same queue.
+        // Re-registering would discard any events queued on the server side
+        // (e.g. after laptop sleep where the TCP connection dies but the
+        // server-side queue is still valid).
+        consecutivePollErrors++
+        handler?.onError?.(evtErr)
+        if (consecutivePollErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+          return err(evtErr)
+        }
+        await sleep(RETRY_DELAY_MS, signal)
+        continue
       }
+      consecutivePollErrors = 0
 
       for (const event of eventsResult.value.events) {
         lastEventId = event.id

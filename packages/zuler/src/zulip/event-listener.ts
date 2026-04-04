@@ -215,7 +215,14 @@ function startBotSession(
         }
       },
 
-      onError: (error) => onError?.(error),
+      onError: (error) => {
+        const prefix = `[${botName}]`
+        if (typeof error === 'string') {
+          onError?.(`${prefix} ${error}`)
+        } else {
+          onError?.(`${prefix} ${error.type}: ${error.message}`)
+        }
+      },
     },
   })
 
