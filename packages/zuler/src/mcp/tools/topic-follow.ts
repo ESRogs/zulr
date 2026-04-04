@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { setTopicVisibility, TopicVisibility } from 'zulip-ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -38,7 +38,7 @@ export function registerFollowTool(registrar: ToolRegistrar, ctx: ToolContext): 
       )
       return result.match(
         () => textResult(`following ${channel}/${topic}`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )
@@ -70,7 +70,7 @@ export function registerMuteTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       )
       return result.match(
         () => textResult(`muted ${channel}/${topic}`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )
@@ -103,7 +103,7 @@ export function registerUnmuteTool(registrar: ToolRegistrar, ctx: ToolContext): 
       )
       return result.match(
         () => textResult(`unmuted ${channel}/${topic}`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )
@@ -136,7 +136,7 @@ export function registerUnfollowTool(registrar: ToolRegistrar, ctx: ToolContext)
       )
       return result.match(
         () => textResult(`unfollowed ${channel}/${topic}`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )

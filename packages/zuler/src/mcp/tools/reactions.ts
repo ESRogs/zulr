@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { addReaction, type MessageId, removeReaction } from 'zulip-ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -39,7 +39,7 @@ export function registerReactTool(registrar: ToolRegistrar, ctx: ToolContext): v
 
       return result.match(
         () => textResult(`${remove ? 'removed' : 'added'} :${emoji}: on message ${messageId}`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )

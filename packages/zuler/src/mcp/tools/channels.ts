@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { archiveStream, createChannel, getTopics, updateChannel } from 'zulip-ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   notConfiguredResult,
   type ToolContext,
   type ToolRegistrar,
@@ -40,7 +40,7 @@ export function registerCreateChannelTool(registrar: ToolRegistrar, ctx: ToolCon
           ctx.invalidateChannelsCache()
           return textResult(`created channel "${name}" (id: ${res.id})`)
         },
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )
@@ -84,7 +84,7 @@ export function registerEditChannelTool(registrar: ToolRegistrar, ctx: ToolConte
             .join(', ')
           return textResult(`${channel}: ${changes}`)
         },
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )
@@ -139,7 +139,7 @@ export function registerTopicsTool(registrar: ToolRegistrar, ctx: ToolContext): 
           const lines = res.topics.map((t) => t.name)
           return textResult(lines.join('\n'))
         },
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )
@@ -167,7 +167,7 @@ export function registerArchiveChannelTool(registrar: ToolRegistrar, ctx: ToolCo
           ctx.invalidateChannelsCache()
           return textResult(`archived channel "${channel}"`)
         },
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )

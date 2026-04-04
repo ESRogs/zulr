@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { registerBot } from '../../bot-manager.ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   notConfiguredResult,
   type ToolContext,
   type ToolRegistrar,
@@ -38,7 +38,7 @@ export function registerRegisterTool(registrar: ToolRegistrar, ctx: ToolContext)
       }
       return result.match(
         (info) => textResult(`registered '${name}' (${info.botEmail})`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )

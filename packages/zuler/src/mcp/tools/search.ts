@@ -3,7 +3,7 @@ import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import {
   buildUserIdResolver,
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -55,7 +55,7 @@ export function registerSearchTool(registrar: ToolRegistrar, ctx: ToolContext): 
         { markRead: false, botUserId, resolveUserId },
       )
 
-      if (result.isErr()) return errorResult(formatError(result.error))
+      if (result.isErr()) return errorResult(getErrorMessage(result.error))
 
       const messages = result.value
       if (messages.length === 0) return textResult('(no results)')

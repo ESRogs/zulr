@@ -4,7 +4,7 @@ import type { ChannelName, MessageId, TopicName, ZulipClient } from 'zulip-ts'
 import { getMessages, updateMessage } from 'zulip-ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -32,7 +32,7 @@ function findMessageIdInTopic(
     ],
     applyMarkdown: false,
   })
-    .mapErr(formatError)
+    .mapErr(getErrorMessage)
     .andThen((res) => {
       const msg = res.messages[0]
       if (!msg) return errAsync(`no messages found in ${channel}/${topic}`)
@@ -70,7 +70,7 @@ export function registerResolveTopicTool(registrar: ToolRegistrar, ctx: ToolCont
 
       return result.match(
         () => textResult(`resolved: ${channel}/${RESOLVED_PREFIX}${topic}`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )
@@ -109,7 +109,7 @@ export function registerUnresolveTopicTool(registrar: ToolRegistrar, ctx: ToolCo
 
       return result.match(
         () => textResult(`unresolved: ${channel}/${unresolvedTopic}`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )
@@ -167,7 +167,7 @@ export function registerMoveTopicTool(registrar: ToolRegistrar, ctx: ToolContext
 
       return result.match(
         () => textResult(`moved ${channel}/${topic} → ${toChannel}/${destTopic}`),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )

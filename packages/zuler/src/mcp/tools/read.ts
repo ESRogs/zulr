@@ -18,7 +18,7 @@ import {
 import {
   buildUserIdResolver,
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -174,7 +174,7 @@ async function readStream(
     )
 
     if (fetchResult.isErr()) {
-      return errorResult(formatError(fetchResult.error))
+      return errorResult(getErrorMessage(fetchResult.error))
     }
 
     const inboxMessages = consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic)
@@ -231,7 +231,7 @@ async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, c
   )
 
   if (fetchResult.isErr()) {
-    return errorResult(formatError(fetchResult.error))
+    return errorResult(getErrorMessage(fetchResult.error))
   }
 
   // Consume unread DM inbox messages from this user

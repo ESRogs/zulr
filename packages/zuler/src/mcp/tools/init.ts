@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { listTeammates } from '../../state/teammates.ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -35,7 +35,7 @@ Present both options to the user and wait for their choice before proceeding.`)
 
       const teammatesResult = await listTeammates(ctx.config.db)
       if (teammatesResult.isErr()) {
-        return errorResult(formatError(teammatesResult.error))
+        return errorResult(getErrorMessage(teammatesResult.error))
       }
 
       const teammates = teammatesResult.value
