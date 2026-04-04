@@ -1,18 +1,18 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { setTopicVisibility, TopicVisibility } from 'zulip-ts'
 import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zChannelName,
   zTeammateName,
   zTopicName,
 } from '../helpers.ts'
 
-export function registerFollowTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerFollowTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'follow',
     {
       description:
@@ -44,8 +44,8 @@ export function registerFollowTool(server: McpServer, ctx: ToolContext): void {
   )
 }
 
-export function registerMuteTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerMuteTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'mute',
     {
       description: 'Mute a Zulip topic to suppress notifications.',
@@ -76,8 +76,8 @@ export function registerMuteTool(server: McpServer, ctx: ToolContext): void {
   )
 }
 
-export function registerUnmuteTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerUnmuteTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'unmute',
     {
       description:
@@ -109,8 +109,8 @@ export function registerUnmuteTool(server: McpServer, ctx: ToolContext): void {
   )
 }
 
-export function registerUnfollowTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerUnfollowTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'unfollow',
     {
       description:

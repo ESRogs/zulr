@@ -1,10 +1,15 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { listTeammates } from '../../state/teammates.ts'
-import { errorResult, formatError, type ToolContext, textResult } from '../helpers.ts'
+import {
+  errorResult,
+  formatError,
+  type ToolContext,
+  type ToolRegistrar,
+  textResult,
+} from '../helpers.ts'
 
-export function registerInitTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerInitTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'init',
     {
       description:

@@ -1,18 +1,18 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { addReaction, type MessageId, removeReaction } from 'zulip-ts'
 import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zBool,
   zEmojiName,
   zTeammateName,
 } from '../helpers.ts'
 
-export function registerReactTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerReactTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'react',
     {
       description:

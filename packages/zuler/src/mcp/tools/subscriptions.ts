@@ -1,16 +1,16 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getSubscriptions } from 'zulip-ts'
 import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zTeammateName,
 } from '../helpers.ts'
 
-export function registerSubscriptionsTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerSubscriptionsTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'subscriptions',
     {
       description: "List a teammate's current channel subscriptions on Zulip.",

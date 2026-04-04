@@ -1,4 +1,3 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { archiveStream, createChannel, getTopics, updateChannel } from 'zulip-ts'
 import {
@@ -6,12 +5,13 @@ import {
   formatError,
   notConfiguredResult,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zChannelName,
 } from '../helpers.ts'
 
-export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerCreateChannelTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'create-channel',
     {
       description: 'Create a new Zulip channel.',
@@ -46,8 +46,8 @@ export function registerCreateChannelTool(server: McpServer, ctx: ToolContext): 
   )
 }
 
-export function registerEditChannelTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerEditChannelTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'edit-channel',
     {
       description: 'Rename a Zulip channel or update its description.',
@@ -90,8 +90,8 @@ export function registerEditChannelTool(server: McpServer, ctx: ToolContext): vo
   )
 }
 
-export function registerChannelsTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerChannelsTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'channels',
     {
       description: 'List all Zulip channels.',
@@ -116,8 +116,8 @@ export function registerChannelsTool(server: McpServer, ctx: ToolContext): void 
   )
 }
 
-export function registerTopicsTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerTopicsTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'topics',
     {
       description: 'List topics in a Zulip channel.',
@@ -145,8 +145,8 @@ export function registerTopicsTool(server: McpServer, ctx: ToolContext): void {
   )
 }
 
-export function registerArchiveChannelTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerArchiveChannelTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'archive-channel',
     {
       description: 'Archive a Zulip channel. This is reversible by an admin in the Zulip UI.',

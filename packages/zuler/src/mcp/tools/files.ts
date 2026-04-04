@@ -1,5 +1,4 @@
 import { basename } from 'node:path'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 import type { Member } from 'zulip-ts'
@@ -9,16 +8,17 @@ import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zChannelName,
   zTeammateName,
   zTopicName,
 } from '../helpers.ts'
 
-export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
+export function registerUploadTool(registrar: ToolRegistrar, ctx: ToolContext): void {
   const { teamName } = ctx.config
 
-  server.registerTool(
+  registrar.registerTool(
     'upload',
     {
       description:
@@ -118,8 +118,8 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
   )
 }
 
-export function registerDownloadTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerDownloadTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'download',
     {
       description:

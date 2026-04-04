@@ -1,4 +1,3 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { streamNarrowKey, type ZulipSession } from 'zulip-client-ts'
 import { type ChannelName, markAsRead, type StreamId, type TopicName, type UserId } from 'zulip-ts'
@@ -21,6 +20,7 @@ import {
   errorResult,
   formatError,
   type ToolContext,
+  type ToolRegistrar,
   textResult,
   zBool,
   zChannelName,
@@ -28,8 +28,8 @@ import {
   zTopicName,
 } from '../helpers.ts'
 
-export function registerReadTool(server: McpServer, ctx: ToolContext): void {
-  server.registerTool(
+export function registerReadTool(registrar: ToolRegistrar, ctx: ToolContext): void {
+  registrar.registerTool(
     'read',
     {
       description:

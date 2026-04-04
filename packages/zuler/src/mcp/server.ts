@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createToolContext, type ServerConfig } from './helpers.ts'
+import { createToolContext, createToolRegistrar, type ServerConfig } from './helpers.ts'
 import { registerCatchUpTool } from './tools/catch-up.ts'
 import {
   registerArchiveChannelTool,
@@ -46,56 +46,36 @@ export function createMcpServer(config: ServerConfig) {
     version: '0.1.0',
   })
 
-  // Wrap registerTool to log every tool invocation.
-  // The generic overloads on McpServer.registerTool make precise typing impractical
-  // for a thin instrumentation wrapper, so we cast through unknown.
-  const origRegisterTool = server.registerTool.bind(server) as (
-    name: string,
-    config: unknown,
-    cb: (...args: unknown[]) => unknown,
-  ) => unknown
-  const instrumentedRegisterTool = (
-    name: string,
-    config: unknown,
-    cb: (...args: unknown[]) => unknown,
-  ) => {
-    const wrappedCb = (...args: unknown[]) => {
-      const params = (args[0] ?? {}) as Record<string, unknown>
-      ctx.getOnToolCall()?.(name, params)
-      return cb(...args)
-    }
-    return origRegisterTool(name, config, wrappedCb)
-  }
-  server.registerTool = instrumentedRegisterTool as typeof server.registerTool
+  const registrar = createToolRegistrar(server, ctx)
 
-  registerInitTool(server, ctx)
-  registerOnboardingPromptTool(server, ctx)
-  registerRegisterTool(server, ctx)
-  registerTeammatesTool(server, ctx)
-  registerPostTool(server, ctx)
+  registerInitTool(registrar, ctx)
+  registerOnboardingPromptTool(registrar, ctx)
+  registerRegisterTool(registrar, ctx)
+  registerTeammatesTool(registrar, ctx)
+  registerPostTool(registrar, ctx)
 
-  registerReactTool(server, ctx)
-  registerReadTool(server, ctx)
-  registerSearchTool(server, ctx)
-  registerSubscriptionsTool(server, ctx)
-  registerCatchUpTool(server, ctx)
-  registerCreateChannelTool(server, ctx)
-  registerEditChannelTool(server, ctx)
-  registerArchiveChannelTool(server, ctx)
-  registerChannelsTool(server, ctx)
-  registerTopicsTool(server, ctx)
-  registerResolveTopicTool(server, ctx)
-  registerUnresolveTopicTool(server, ctx)
-  registerMoveTopicTool(server, ctx)
-  registerFollowTool(server, ctx)
-  registerUnfollowTool(server, ctx)
-  registerMuteTool(server, ctx)
-  registerUnmuteTool(server, ctx)
-  registerTopicStateTool(server, ctx)
-  registerChannelTopicStatesTool(server, ctx)
-  registerFollowedTopicsTool(server, ctx)
-  registerUploadTool(server, ctx)
-  registerDownloadTool(server, ctx)
+  registerReactTool(registrar, ctx)
+  registerReadTool(registrar, ctx)
+  registerSearchTool(registrar, ctx)
+  registerSubscriptionsTool(registrar, ctx)
+  registerCatchUpTool(registrar, ctx)
+  registerCreateChannelTool(registrar, ctx)
+  registerEditChannelTool(registrar, ctx)
+  registerArchiveChannelTool(registrar, ctx)
+  registerChannelsTool(registrar, ctx)
+  registerTopicsTool(registrar, ctx)
+  registerResolveTopicTool(registrar, ctx)
+  registerUnresolveTopicTool(registrar, ctx)
+  registerMoveTopicTool(registrar, ctx)
+  registerFollowTool(registrar, ctx)
+  registerUnfollowTool(registrar, ctx)
+  registerMuteTool(registrar, ctx)
+  registerUnmuteTool(registrar, ctx)
+  registerTopicStateTool(registrar, ctx)
+  registerChannelTopicStatesTool(registrar, ctx)
+  registerFollowedTopicsTool(registrar, ctx)
+  registerUploadTool(registrar, ctx)
+  registerDownloadTool(registrar, ctx)
 
   return { server, ctx }
 }
