@@ -18,42 +18,18 @@ const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
 const logFile = `${stateDir(repoRoot)}/zuler.log`
 
 /** Pick the most useful params for each tool to keep log lines concise. */
-function summarizeToolParams(tool: string, params: Record<string, unknown>): string {
+function summarizeToolParams(_tool: string, params: Record<string, unknown>): string {
   const parts: string[] = []
-  const pick = (key: string) => {
-    if (params[key] !== undefined) parts.push(`${key}=${params[key]}`)
-  }
-  pick('sender')
-  if (tool === 'post') {
-    pick('channel')
-    pick('topic')
-    pick('to')
-    if (typeof params.content === 'string') {
-      const preview =
-        params.content.length > 60 ? `${params.content.slice(0, 60)}...` : params.content
+  for (const [k, v] of Object.entries(params)) {
+    if (k === 'content' && typeof v === 'string') {
+      const preview = v.length > 60 ? `${v.slice(0, 60)}...` : v
       parts.push(`content="${preview}"`)
-    }
-  } else if (tool === 'read' || tool === 'catch-up') {
-    pick('channel')
-    pick('topic')
-  } else if (tool === 'search') {
-    pick('query')
-  } else if (tool === 'react') {
-    pick('messageId')
-    pick('emoji')
-  } else if (tool === 'follow' || tool === 'unfollow' || tool === 'mute' || tool === 'unmute') {
-    pick('channel')
-    pick('topic')
-  } else if (tool === 'register') {
-    pick('name')
-  } else {
-    // For other tools, include all string/number params (skip long content)
-    for (const [k, v] of Object.entries(params)) {
-      if (k === 'sender') continue
-      if (typeof v === 'string' && v.length > 80) continue
-      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-        parts.push(`${k}=${v}`)
-      }
+    } else if (
+      (typeof v === 'string' && v.length <= 80) ||
+      typeof v === 'number' ||
+      typeof v === 'boolean'
+    ) {
+      parts.push(`${k}=${v}`)
     }
   }
   return parts.join(' ')
