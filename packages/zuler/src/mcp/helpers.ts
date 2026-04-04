@@ -53,7 +53,12 @@ export const formatError = getErrorMessage
 /** Thin wrapper around McpServer.registerTool that intercepts calls for instrumentation. */
 export type ToolRegistrar = { readonly registerTool: McpServer['registerTool'] }
 
-/** Wrap a McpServer's registerTool method with a callback that fires on each tool invocation. */
+/**
+ * Wrap a McpServer's registerTool method with a callback that fires on each tool invocation.
+ *
+ * The casts through `unknown` are intentional: McpServer.registerTool has a complex generic
+ * signature that cannot be precisely wrapped without duplicating SDK internals.
+ */
 export function createToolRegistrar(server: McpServer, ctx: ToolContext): ToolRegistrar {
   return {
     registerTool: ((name: string, config: unknown, cb: (...args: unknown[]) => unknown) => {
