@@ -50,23 +50,39 @@ const SESSION_EVENT_TYPES = [
   'subscription',
 ] as const
 
+type HandleReactionParams = {
+  readonly client: ZulipClient
+  readonly session: ZulipSession
+  readonly teamName: TeamName
+  readonly botName: TeammateName
+  readonly botEmail: Email
+  readonly messageId: MessageId
+  readonly reactorUserId: UserId
+  readonly emojiName: EmojiName
+  readonly resolveUserName: (userId: UserId) => DisplayName | undefined
+  readonly onReaction?: EventListenerManagerOptions['onReaction']
+  readonly onError?: (error: unknown) => void
+}
+
 /**
  * Handle a reaction event for a specific bot: look up the reacted-to message
  * (cache first, then API fallback), and if this bot authored it, notify them.
  */
-async function handleReaction(
-  client: ZulipClient,
-  session: ZulipSession,
-  teamName: TeamName,
-  botName: TeammateName,
-  botEmail: Email,
-  messageId: MessageId,
-  reactorUserId: UserId,
-  emojiName: EmojiName,
-  resolveUserName: (userId: UserId) => DisplayName | undefined,
-  onReaction?: EventListenerManagerOptions['onReaction'],
-  onError?: (error: unknown) => void,
-): Promise<void> {
+async function handleReaction(params: HandleReactionParams): Promise<void> {
+  const {
+    client,
+    session,
+    teamName,
+    botName,
+    botEmail,
+    messageId,
+    reactorUserId,
+    emojiName,
+    resolveUserName,
+    onReaction,
+    onError,
+  } = params
+
   // Check session cache first to avoid an API call
   let msg = session.getMessage(messageId)
 
@@ -198,19 +214,19 @@ function startBotSession(
       onEvent: (event) => {
         if (isKnownEvent(event) && event.type === 'reaction') {
           if (event.op === 'add') {
-            handleReaction(
-              botClient,
+            handleReaction({
+              client: botClient,
               session,
               teamName,
               botName,
               botEmail,
-              event.message_id,
-              event.user_id,
-              event.emoji_name,
-              (userId) => session.resolveUserId(userId),
+              messageId: event.message_id,
+              reactorUserId: event.user_id,
+              emojiName: event.emoji_name,
+              resolveUserName: (userId) => session.resolveUserId(userId),
               onReaction,
               onError,
-            ).catch((err) => onError?.(err))
+            }).catch((err) => onError?.(err))
           }
         }
       },
