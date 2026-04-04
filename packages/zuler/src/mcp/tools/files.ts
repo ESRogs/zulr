@@ -6,7 +6,7 @@ import { downloadFile, sendDirectMessage, sendStreamMessage, uploadFile } from '
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -85,7 +85,7 @@ export function registerUploadTool(registrar: ToolRegistrar, ctx: ToolContext): 
       const filename = basename(path)
 
       const uploadResult = await uploadFile(client, filename, content)
-      if (uploadResult.isErr()) return errorResult(formatError(uploadResult.error))
+      if (uploadResult.isErr()) return errorResult(getErrorMessage(uploadResult.error))
 
       const { url } = uploadResult.value
       const fullUrl = `${client.config.site.replace(/\/+$/, '')}${url}`
@@ -97,7 +97,7 @@ export function registerUploadTool(registrar: ToolRegistrar, ctx: ToolContext): 
         return postResult.match(
           (res) =>
             textResult(`uploaded and shared in ${channel}/${topic} (id: ${res.id})\n${fullUrl}`),
-          (err) => errorResult(formatError(err)),
+          (err) => errorResult(getErrorMessage(err)),
         )
       }
 
@@ -109,7 +109,7 @@ export function registerUploadTool(registrar: ToolRegistrar, ctx: ToolContext): 
         return dmResult.match(
           (res) =>
             textResult(`uploaded and DM'd to ${recipient.full_name} (id: ${res.id})\n${fullUrl}`),
-          (err) => errorResult(formatError(err)),
+          (err) => errorResult(getErrorMessage(err)),
         )
       }
 
@@ -140,7 +140,7 @@ export function registerDownloadTool(registrar: ToolRegistrar, ctx: ToolContext)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await downloadFile(clientResult.value.client, url)
-      if (result.isErr()) return errorResult(formatError(result.error))
+      if (result.isErr()) return errorResult(getErrorMessage(result.error))
 
       const writeResult = await ResultAsync.fromPromise(
         Bun.write(saveTo, result.value.content),

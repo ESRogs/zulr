@@ -137,7 +137,7 @@ Every `Result` and `ResultAsync` must be explicitly handled. Never silently disc
 ```ts
 return result.match(
   (value) => textResult(value),
-  (err) => errorResult(formatError(err)),
+  (err) => errorResult(getErrorMessage(err)),
 )
 ```
 

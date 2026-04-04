@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { getSubscriptions } from 'zulip-ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -31,7 +31,7 @@ export function registerSubscriptionsTool(registrar: ToolRegistrar, ctx: ToolCon
             .map((s) => `  ${s.name}`)
           return textResult(`channels:\n${lines.join('\n')}`)
         },
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )

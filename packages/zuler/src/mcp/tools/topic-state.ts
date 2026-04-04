@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { getTopics, TopicVisibility } from 'zulip-ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -93,7 +93,7 @@ export function registerChannelTopicStatesTool(registrar: ToolRegistrar, ctx: To
       const { stream_id: streamId } = channelResult.value
 
       const topicsResult = await getTopics(clientResult.value.client, streamId)
-      if (topicsResult.isErr()) return errorResult(formatError(topicsResult.error))
+      if (topicsResult.isErr()) return errorResult(getErrorMessage(topicsResult.error))
 
       const topics = topicsResult.value.topics
       if (topics.length === 0) return textResult(`${channel}: no topics`)

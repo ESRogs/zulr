@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { listTeammates } from '../../state/teammates.ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -24,7 +24,7 @@ export function registerTeammatesTool(registrar: ToolRegistrar, ctx: ToolContext
               ? '(no registered teammates)'
               : list.map((t) => `${t.name} <${t.botEmail}>`).join('\n'),
           ),
-        (err) => errorResult(formatError(err)),
+        (err) => errorResult(getErrorMessage(err)),
       )
     },
   )

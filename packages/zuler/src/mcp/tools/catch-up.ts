@@ -10,7 +10,7 @@ import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
 import {
   buildUserIdResolver,
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -53,7 +53,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
 
       const subsResult = await getSubscriptions(botClient)
       if (subsResult.isErr()) {
-        return errorResult(formatError(subsResult.error))
+        return errorResult(getErrorMessage(subsResult.error))
       }
       const channels = subsResult.value.subscriptions.map((s) => s.name)
 
@@ -122,7 +122,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       if (unreadOnly && trimmedZulipIds.length > 0) {
         const markResult = await markAsRead(botClient, trimmedZulipIds)
         if (markResult.isErr()) {
-          markWarning = `(warning: failed to mark messages as read: ${formatError(markResult.error)})\n`
+          markWarning = `(warning: failed to mark messages as read: ${getErrorMessage(markResult.error)})\n`
         }
       }
 

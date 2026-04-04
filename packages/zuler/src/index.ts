@@ -96,8 +96,8 @@ function bootEventListeners(): void {
     site: creds.site,
     getSession: manager.getSession,
     onLog: log,
-    onError: (err) => log(`backfill error: ${formatError(err)}`),
-  }).catch((err) => log(`backfill failed: ${formatError(err)}`))
+    onError: (err) => log(`backfill error: ${getErrorMessage(err)}`),
+  }).catch((err) => log(`backfill failed: ${getErrorMessage(err)}`))
 }
 
 // Start event listeners now if credentials are available, or later when they're loaded

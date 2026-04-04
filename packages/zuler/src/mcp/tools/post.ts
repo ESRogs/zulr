@@ -9,7 +9,7 @@ import {
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import {
   errorResult,
-  formatError,
+  getErrorMessage,
   type ToolContext,
   type ToolRegistrar,
   textResult,
@@ -82,7 +82,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
         })
         return result.match(
           (res) => textResult(`sent DM to ${recipient.full_name} (id: ${res.id})`),
-          (err) => errorResult(formatError(err)),
+          (err) => errorResult(getErrorMessage(err)),
         )
       }
 
@@ -103,7 +103,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
             channelResult.value.stream_id,
           )
           if (topicsResult.isErr()) {
-            return errorResult(formatError(topicsResult.error))
+            return errorResult(getErrorMessage(topicsResult.error))
           }
           const topicLower = topic.toLowerCase()
           const exists = topicsResult.value.topics.some((t) => t.name.toLowerCase() === topicLower)
@@ -134,7 +134,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
                 stream.stream_id,
                 topic,
                 TopicVisibility.FOLLOWED,
-              ).mapErr(formatError),
+              ).mapErr(getErrorMessage),
             )
             .match(
               () => undefined,
@@ -147,7 +147,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
         }
         return result.match(
           () => textResult(`posted to ${channel}/${topic}`),
-          (err) => errorResult(formatError(err)),
+          (err) => errorResult(getErrorMessage(err)),
         )
       }
 

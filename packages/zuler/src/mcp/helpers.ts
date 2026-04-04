@@ -46,8 +46,7 @@ export function notConfiguredResult() {
   return errorResult(NOT_CONFIGURED_MESSAGE)
 }
 
-/** Format any error type consistently for MCP tool responses. */
-export const formatError = getErrorMessage
+export { getErrorMessage }
 
 /** Thin wrapper around McpServer.registerTool that intercepts calls for instrumentation. */
 export type ToolRegistrar = { readonly registerTool: McpServer['registerTool'] }
@@ -211,7 +210,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     getTeammateClient: (sender: TeammateName) => {
       const creds = getZulipCredentials()
       if (!creds) return errAsync(NOT_CONFIGURED_MESSAGE)
-      return clientForTeammate(config.db, creds.site, sender).mapErr(formatError)
+      return clientForTeammate(config.db, creds.site, sender).mapErr(getErrorMessage)
     },
     setEventListenerManager: (manager: EventListenerManager) => {
       eventListenerManager = manager
