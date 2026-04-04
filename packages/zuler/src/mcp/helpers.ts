@@ -62,7 +62,7 @@ export function createToolRegistrar(server: McpServer, ctx: ToolContext): ToolRe
     registerTool: ((name: string, config: unknown, cb: (...args: unknown[]) => unknown) => {
       const wrappedCb = (...args: unknown[]) => {
         const params = (args[0] ?? {}) as Record<string, unknown>
-        ctx.getOnToolCall()?.(name, params)
+        ctx.config.onToolCall?.(name, params)
         return cb(...args)
       }
       return (
@@ -83,6 +83,8 @@ export type ServerConfig = {
   readonly db: Kysely<ZulerDatabase>
   readonly teamName: TeamName
   readonly repoRoot: string
+  /** Called on each MCP tool invocation (for logging). */
+  readonly onToolCall?: (name: string, params: Record<string, unknown>) => void
 }
 
 /** Shared context available to all tool handlers. */
@@ -109,12 +111,6 @@ export type ToolContext = {
   readonly setEventListenerManager: (manager: EventListenerManager) => void
   /** Get the event listener manager, if set. */
   readonly getEventListenerManager: () => EventListenerManager | undefined
-  /** Set a callback for when an MCP tool is invoked (for logging). */
-  readonly setOnToolCall: (cb: (name: string, params: Record<string, unknown>) => void) => void
-  /** Get the tool call callback, if set. */
-  readonly getOnToolCall: () =>
-    | ((name: string, params: Record<string, unknown>) => void)
-    | undefined
 }
 
 /**
@@ -181,7 +177,6 @@ export function createToolContext(config: ServerConfig): ToolContext {
 
   const cache = createCacheContext(tryGetClient)
 
-  let onToolCallCallback: ((name: string, params: Record<string, unknown>) => void) | undefined
   let credentialsLoadedCallback: (() => void) | null = null
   let eventListenerStarted = false
 
@@ -216,9 +211,5 @@ export function createToolContext(config: ServerConfig): ToolContext {
       eventListenerManager = manager
     },
     getEventListenerManager: () => eventListenerManager,
-    setOnToolCall: (cb) => {
-      onToolCallCallback = cb
-    },
-    getOnToolCall: () => onToolCallCallback,
   }
 }
