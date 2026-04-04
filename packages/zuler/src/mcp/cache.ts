@@ -2,6 +2,8 @@ import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import type { Member, Stream, UserId, ZulipClient } from 'zulip-ts'
 import { getMembers, getStreams } from 'zulip-ts'
 
+export const NOT_CONFIGURED_MESSAGE = 'Zulip credentials not configured. Call the init tool first.'
+
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 type TimedCache<T> = {
@@ -24,8 +26,6 @@ export type CacheContext = {
   readonly invalidateMembersCache: () => void
   /** Resolve a user by ID, full name, or email. Returns the Member if found. */
   readonly resolveUser: (identifier: string | number) => ResultAsync<Member, string>
-  /** Check whether a user ID belongs to a bot. */
-  readonly isBot: (userId: UserId) => ResultAsync<boolean, string>
   /** List all channels (uses cache). */
   readonly listChannels: () => ResultAsync<readonly Stream[], string>
   readonly invalidateChannelsCache: () => void
@@ -33,16 +33,13 @@ export type CacheContext = {
   readonly resolveChannel: (name: string) => ResultAsync<Stream, string>
 }
 
-export function createCacheContext(
-  getClient: () => ZulipClient | undefined,
-  notConfiguredMessage: string,
-): CacheContext {
+export function createCacheContext(getClient: () => ZulipClient | undefined): CacheContext {
   let membersCache: TimedCache<Map<UserId, Member>> | null = null
   let channelsCache: TimedCache<readonly Stream[]> | null = null
 
   function refreshMembersCache(): ResultAsync<Map<UserId, Member>, string> {
     const client = getClient()
-    if (!client) return errAsync(notConfiguredMessage)
+    if (!client) return errAsync(NOT_CONFIGURED_MESSAGE)
     return getMembers(client)
       .map((res) => {
         const data = new Map(res.members.map((m) => [m.user_id, m]))
@@ -62,7 +59,7 @@ export function createCacheContext(
 
   function refreshChannelsCache(): ResultAsync<readonly Stream[], string> {
     const client = getClient()
-    if (!client) return errAsync(notConfiguredMessage)
+    if (!client) return errAsync(NOT_CONFIGURED_MESSAGE)
     return getStreams(client)
       .map((res) => {
         channelsCache = { data: res.streams, fetchedAt: Date.now() }
@@ -107,12 +104,6 @@ export function createCacheContext(
         const found = findInCache(cache)
         if (found) return okAsync(found)
         return errAsync(`no Zulip user found matching "${identifier}"`)
-      })
-    },
-    isBot: (userId: UserId) => {
-      return getMember(userId).andThen((member) => {
-        if (!member) return errAsync(`unknown Zulip user ID: ${userId}`)
-        return okAsync(member.is_bot ?? false)
       })
     },
     listChannels: () => {

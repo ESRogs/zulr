@@ -18,7 +18,7 @@ import { getErrorMessage } from '../errors.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import type { EventListenerManager } from '../zulip/event-listener.ts'
-import { type CacheContext, createCacheContext } from './cache.ts'
+import { type CacheContext, createCacheContext, NOT_CONFIGURED_MESSAGE } from './cache.ts'
 
 /** Zod schema transforms that produce tagged types from MCP tool string inputs. */
 export const zTeammateName = z.string().transform((s): TeammateName => s as TeammateName)
@@ -38,7 +38,7 @@ export function errorResult(text: string) {
   return { content: [{ type: 'text' as const, text }], isError: true as const }
 }
 
-const NOT_CONFIGURED_MESSAGE = 'Zulip credentials not configured. Call the init tool first.'
+export { NOT_CONFIGURED_MESSAGE } from './cache.ts'
 
 /** Error result for when Zulip credentials aren't configured. */
 export function notConfiguredResult() {
@@ -155,7 +155,7 @@ export function createToolContext(config: ServerConfig): ToolContext {
     return adminClient
   }
 
-  const cache = createCacheContext(tryGetClient, NOT_CONFIGURED_MESSAGE)
+  const cache = createCacheContext(tryGetClient)
 
   let onToolCallCallback: ((name: string, params: Record<string, unknown>) => void) | undefined
   let credentialsLoadedCallback: (() => void) | null = null
