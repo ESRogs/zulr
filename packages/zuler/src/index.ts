@@ -53,14 +53,17 @@ const db = openDatabase(repoRoot)
 const tDb = performance.now()
 log(`db opened in ${(tDb - t1).toFixed(0)}ms`)
 
-const { server, ctx } = createMcpServer({ db, teamName, repoRoot })
+const { server, ctx } = createMcpServer({
+  db,
+  teamName,
+  repoRoot,
+  onToolCall: (name, params) => {
+    const keyParams = summarizeToolParams(name, params)
+    log(`tool:${name}${keyParams ? ` ${keyParams}` : ''}`)
+  },
+})
 const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
-
-ctx.setOnToolCall((name, params) => {
-  const keyParams = summarizeToolParams(name, params)
-  log(`tool:${name}${keyParams ? ` ${keyParams}` : ''}`)
-})
 
 function bootEventListeners(): void {
   const creds = ctx.getCredentials()
