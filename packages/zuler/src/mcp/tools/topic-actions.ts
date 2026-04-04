@@ -150,7 +150,7 @@ export function registerMoveTopicTool(server: McpServer, ctx: ToolContext): void
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 
-      const destResult = await ctx.resolveChannel(toChannel)
+      const destResult = await ctx.cache.resolveChannel(toChannel)
       if (destResult.isErr()) return errorResult(destResult.error)
 
       const found = await findMessageIdInTopic(client, channel, topic)

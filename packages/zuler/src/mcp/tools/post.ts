@@ -54,7 +54,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
       }
 
       if (to !== undefined) {
-        const resolveResult = await ctx.resolveUser(to)
+        const resolveResult = await ctx.cache.resolveUser(to)
         if (resolveResult.isErr()) {
           return errorResult(resolveResult.error)
         }
@@ -93,7 +93,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         }
 
         if (!createTopic) {
-          const channelResult = await ctx.resolveChannel(channel)
+          const channelResult = await ctx.cache.resolveChannel(channel)
           if (channelResult.isErr()) {
             return errorResult(channelResult.error)
           }
@@ -126,7 +126,7 @@ export function registerPostTool(server: McpServer, ctx: ToolContext): void {
         })
         if (result.isOk()) {
           // Follow the topic so the bot receives notifications for future messages
-          const followErr = await ctx
+          const followErr = await ctx.cache
             .resolveChannel(channel)
             .andThen((stream) =>
               setTopicVisibility(

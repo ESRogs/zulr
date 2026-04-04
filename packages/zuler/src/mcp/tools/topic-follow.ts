@@ -27,7 +27,7 @@ export function registerFollowTool(server: McpServer, ctx: ToolContext): void {
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      const channelResult = await ctx.resolveChannel(channel)
+      const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
       const result = await setTopicVisibility(
@@ -59,7 +59,7 @@ export function registerMuteTool(server: McpServer, ctx: ToolContext): void {
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      const channelResult = await ctx.resolveChannel(channel)
+      const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
       const result = await setTopicVisibility(
@@ -92,7 +92,7 @@ export function registerUnmuteTool(server: McpServer, ctx: ToolContext): void {
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      const channelResult = await ctx.resolveChannel(channel)
+      const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
       const result = await setTopicVisibility(
@@ -125,7 +125,7 @@ export function registerUnfollowTool(server: McpServer, ctx: ToolContext): void 
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      const channelResult = await ctx.resolveChannel(channel)
+      const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
       const result = await setTopicVisibility(

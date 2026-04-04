@@ -47,7 +47,7 @@ export function registerUploadTool(server: McpServer, ctx: ToolContext): void {
       // Resolve DM recipient once (used for unread check + send)
       let recipient: Member | undefined
       if (to !== undefined) {
-        const resolveResult = await ctx.resolveUser(to)
+        const resolveResult = await ctx.cache.resolveUser(to)
         if (resolveResult.isErr()) return errorResult(resolveResult.error)
         recipient = resolveResult.value
         if (recipient.is_bot) {
