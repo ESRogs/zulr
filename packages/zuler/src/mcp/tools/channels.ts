@@ -26,7 +26,7 @@ export function registerCreateChannelTool(registrar: ToolRegistrar, ctx: ToolCon
 
       // Zulip API requires at least one subscriber; use the admin user
 
-      const adminResult = await ctx.resolveUser(client.config.email)
+      const adminResult = await ctx.cache.resolveUser(client.config.email)
       if (adminResult.isErr()) return errorResult(adminResult.error)
 
       const result = await createChannel(client, {
@@ -37,7 +37,7 @@ export function registerCreateChannelTool(registrar: ToolRegistrar, ctx: ToolCon
 
       return result.match(
         (res) => {
-          ctx.invalidateChannelsCache()
+          ctx.cache.invalidateChannelsCache()
           return textResult(`created channel "${name}" (id: ${res.id})`)
         },
         (err) => errorResult(formatError(err)),
@@ -65,7 +65,7 @@ export function registerEditChannelTool(registrar: ToolRegistrar, ctx: ToolConte
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const streamResult = await ctx.resolveChannel(channel)
+      const streamResult = await ctx.cache.resolveChannel(channel)
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
       const result = await updateChannel(client, streamResult.value.stream_id, {
@@ -75,7 +75,7 @@ export function registerEditChannelTool(registrar: ToolRegistrar, ctx: ToolConte
 
       return result.match(
         () => {
-          ctx.invalidateChannelsCache()
+          ctx.cache.invalidateChannelsCache()
           const changes = [
             newName !== undefined ? `renamed to "${newName}"` : '',
             description !== undefined ? 'description updated' : '',
@@ -98,7 +98,7 @@ export function registerChannelsTool(registrar: ToolRegistrar, ctx: ToolContext)
       inputSchema: z.object({}),
     },
     async () => {
-      const result = await ctx.listChannels()
+      const result = await ctx.cache.listChannels()
       return result.match(
         (streams) => {
           if (streams.length === 0) return textResult('(no channels)')
@@ -129,7 +129,7 @@ export function registerTopicsTool(registrar: ToolRegistrar, ctx: ToolContext): 
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const streamResult = await ctx.resolveChannel(channel)
+      const streamResult = await ctx.cache.resolveChannel(channel)
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
       const result = await getTopics(client, streamResult.value.stream_id)
@@ -158,13 +158,13 @@ export function registerArchiveChannelTool(registrar: ToolRegistrar, ctx: ToolCo
       const client = ctx.getAdminClient()
       if (!client) return notConfiguredResult()
 
-      const streamResult = await ctx.resolveChannel(channel)
+      const streamResult = await ctx.cache.resolveChannel(channel)
       if (streamResult.isErr()) return errorResult(streamResult.error)
 
       const result = await archiveStream(client, streamResult.value.stream_id)
       return result.match(
         () => {
-          ctx.invalidateChannelsCache()
+          ctx.cache.invalidateChannelsCache()
           return textResult(`archived channel "${channel}"`)
         },
         (err) => errorResult(formatError(err)),

@@ -56,7 +56,7 @@ export function registerReadTool(registrar: ToolRegistrar, ctx: ToolContext): vo
         return readInboxOnly(ctx, sender, channel, topic)
       }
       if (user !== undefined) {
-        const resolveResult = await ctx.resolveUser(user)
+        const resolveResult = await ctx.cache.resolveUser(user)
         if (resolveResult.isErr()) {
           return errorResult(resolveResult.error)
         }
@@ -140,7 +140,7 @@ async function readStream(
   // Try cache first — if the session has enough cached messages, skip the API
   const session = ctx.getEventListenerManager()?.getSession(sender)
 
-  const channelResult = await ctx.resolveChannel(stream)
+  const channelResult = await ctx.cache.resolveChannel(stream)
   const streamId = channelResult.isOk() ? channelResult.value.stream_id : undefined
 
   let allMessages: readonly FormattedMessage[]

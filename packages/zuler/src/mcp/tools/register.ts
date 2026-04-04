@@ -28,7 +28,7 @@ export function registerRegisterTool(registrar: ToolRegistrar, ctx: ToolContext)
 
       const result = await registerBot(adminClient, ctx.config.db, name)
       if (result.isOk()) {
-        ctx.invalidateMembersCache()
+        ctx.cache.invalidateMembersCache()
 
         // Start an event listener for this bot
         const manager = ctx.getEventListenerManager()

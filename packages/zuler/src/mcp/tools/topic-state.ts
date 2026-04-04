@@ -44,7 +44,7 @@ export function registerTopicStateTool(registrar: ToolRegistrar, ctx: ToolContex
         )
       }
 
-      const channelResult = await ctx.resolveChannel(channel)
+      const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
       const { stream_id: streamId } = channelResult.value
 
@@ -88,7 +88,7 @@ export function registerChannelTopicStatesTool(registrar: ToolRegistrar, ctx: To
       const clientResult = await ctx.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
-      const channelResult = await ctx.resolveChannel(channel)
+      const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
       const { stream_id: streamId } = channelResult.value
 
