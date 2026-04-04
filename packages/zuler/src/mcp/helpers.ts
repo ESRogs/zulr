@@ -34,7 +34,7 @@ export function errorResult(text: string) {
 
 /** Error result for when Zulip credentials aren't configured. */
 export function notConfiguredResult() {
-  return errorResult('Zulip credentials not configured. Call the init tool first.')
+  return errorResult(NOT_CONFIGURED_MESSAGE)
 }
 
 export { getErrorMessage }
