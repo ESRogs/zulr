@@ -269,6 +269,49 @@ test('consumeUnreadDmMessages marks matching DMs and returns them', () => {
   expect(inbox[1]!.read).toBe(false)
 })
 
+// --- writeToInbox dedup tests ---
+
+test('writeToInbox skips duplicate zulipMessageId', () => {
+  writeToInbox(teamName, tm('alice'), {
+    from: 'zulip:general/greetings:Bob',
+    text: 'msg1',
+    summary: 'msg1',
+    zulipMessageId: 100 as MessageId,
+    zulipSenderId: 42 as UserId,
+    zulipStream: ch('general'),
+    zulipTopic: tp('greetings'),
+    zulipSender: dn('Bob'),
+  })
+  writeToInbox(teamName, tm('alice'), {
+    from: 'zulip:general/greetings:Bob',
+    text: 'msg1 duplicate',
+    summary: 'msg1 duplicate',
+    zulipMessageId: 100 as MessageId,
+    zulipSenderId: 42 as UserId,
+    zulipStream: ch('general'),
+    zulipTopic: tp('greetings'),
+    zulipSender: dn('Bob'),
+  })
+  const inbox = readInbox(teamName, tm('alice'))
+  expect(inbox).toHaveLength(1)
+  expect(inbox[0]!.text).toBe('msg1')
+})
+
+test('writeToInbox allows messages without zulipMessageId (non-Zulip messages)', () => {
+  writeToInbox(teamName, tm('alice'), {
+    from: 'zuler:system',
+    text: 'system msg 1',
+    summary: 'system',
+  })
+  writeToInbox(teamName, tm('alice'), {
+    from: 'zuler:system',
+    text: 'system msg 2',
+    summary: 'system',
+  })
+  const inbox = readInbox(teamName, tm('alice'))
+  expect(inbox).toHaveLength(2)
+})
+
 test('consumeUnreadDmMessages unblocks checkUnreadBeforeDm', () => {
   writeToInbox(teamName, tm('alice'), {
     from: 'zulip:Bob',

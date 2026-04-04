@@ -4,6 +4,7 @@ import { getErrorMessage } from './errors.ts'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
 import type { TeamName } from './tagged-types.ts'
+import { backfillAllInboxes } from './zulip/backfill.ts'
 import { createEventListenerManager } from './zulip/event-listener.ts'
 
 const t0 = performance.now()
@@ -88,6 +89,15 @@ function bootEventListeners(): void {
 
   manager.startAll()
   log('per-bot event listeners started')
+
+  backfillAllInboxes({
+    db,
+    teamName,
+    site: creds.site,
+    getSession: manager.getSession,
+    onLog: log,
+    onError: (err) => log(`backfill error: ${formatError(err)}`),
+  }).catch((err) => log(`backfill failed: ${formatError(err)}`))
 }
 
 // Start event listeners now if credentials are available, or later when they're loaded

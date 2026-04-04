@@ -60,6 +60,14 @@ export function writeToInbox(teamName: TeamName, teammate: TeammateName, entry: 
   const path = inboxPath(teamName, teammate)
   const messages = loadInbox(path)
 
+  // Skip duplicate Zulip messages (prevents races between backfill and event listener)
+  if (
+    entry.zulipMessageId !== undefined &&
+    messages.some((m) => m.zulipMessageId === entry.zulipMessageId)
+  ) {
+    return
+  }
+
   messages.push({
     ...entry,
     timestamp: new Date().toISOString(),
