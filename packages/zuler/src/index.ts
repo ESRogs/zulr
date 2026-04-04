@@ -65,7 +65,7 @@ const { server, ctx } = createMcpServer({
 const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
-function bootEventListeners(): void {
+async function bootEventListeners(): Promise<void> {
   const creds = ctx.getCredentials()
   if (!creds) return
 
@@ -90,7 +90,7 @@ function bootEventListeners(): void {
   // Expose manager on ctx so register tool can start listeners for new bots
   ctx.setEventListenerManager(manager)
 
-  manager.startAll()
+  await manager.startAll()
   log('per-bot event listeners started')
 
   backfillAllInboxes({
