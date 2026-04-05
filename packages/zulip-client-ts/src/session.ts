@@ -1,4 +1,4 @@
-import { err, errAsync, ok, type Result, type ResultAsync } from 'neverthrow'
+import { err, errAsync, fromPromise, ok, type Result, type ResultAsync } from 'neverthrow'
 import type {
   ChannelName,
   DeleteMessageEvent,
@@ -110,6 +110,8 @@ export type SessionEventHandler = {
   readonly onError?: (error: ZulipError | string) => void
   /** Called for informational lifecycle messages (queue registration, polling, retries). */
   readonly onLog?: (message: string) => void
+  /** Called after the session re-registers a new event queue (not on the initial registration). Awaited before the event poll loop starts. */
+  readonly onReconnect?: () => Promise<void> | void
 }
 
 export type ZulipSession = {
@@ -226,6 +228,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
   let registeredAt: UnixEpochSeconds | undefined
   let ownUserId: UserId | undefined
   let stopped = false
+  let registrationCount = 0
 
   async function start(): Promise<void> {
     stopped = false
@@ -286,6 +289,18 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     } else {
       handler?.onError?.(membersResult.error)
       members = emptyMembers()
+    }
+
+    registrationCount++
+    if (registrationCount > 1 && handler?.onReconnect) {
+      // eslint-disable-next-line neverthrow/must-use-result
+      const reconnectResult = await fromPromise(Promise.resolve(handler.onReconnect()), (e) => e)
+      if (reconnectResult.isErr()) {
+        const e = reconnectResult.error
+        handler.onError?.(
+          `onReconnect handler failed: ${e instanceof Error ? e.message : String(e)}`,
+        )
+      }
     }
 
     let lastEventId: EventId = initialLastEventId
