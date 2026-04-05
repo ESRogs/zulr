@@ -7,11 +7,12 @@ import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-c
 import {
   errorResult,
   getErrorMessage,
+  resolveSender,
   type ToolContext,
   type ToolRegistrar,
   textResult,
   zChannelName,
-  zTeammateName,
+  zOptionalTeammateName,
   zTopicName,
 } from '../helpers.ts'
 
@@ -24,7 +25,7 @@ export function registerUploadTool(registrar: ToolRegistrar, ctx: ToolContext): 
       description:
         'Upload a file to Zulip and optionally share it in a channel or DM. Returns the file URL.',
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         path: z
           .string()
           .describe('Local file path to upload (relative paths resolve from repo root)'),
@@ -38,6 +39,8 @@ export function registerUploadTool(registrar: ToolRegistrar, ctx: ToolContext): 
       }),
     },
     async ({ sender, path, channel, topic, to, message }) => {
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
       if (topic && !channel) return errorResult('"topic" requires "channel"')
       if (channel && !topic) return errorResult('"channel" requires "topic"')
       if (channel && to !== undefined) {
@@ -59,15 +62,15 @@ export function registerUploadTool(registrar: ToolRegistrar, ctx: ToolContext): 
 
       // Unread check before sharing
       if (channel && topic) {
-        const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)
+        const blocked = checkUnreadBeforePost(teamName, senderResult.value, channel, topic)
         if (blocked) return errorResult(blocked)
       }
       if (recipient) {
-        const dmBlocked = checkUnreadBeforeDm(teamName, sender, recipient.user_id)
+        const dmBlocked = checkUnreadBeforeDm(teamName, senderResult.value, recipient.user_id)
         if (dmBlocked) return errorResult(dmBlocked)
       }
 
-      const clientResult = await ctx.credentials.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const { client } = clientResult.value
@@ -125,7 +128,7 @@ export function registerDownloadTool(registrar: ToolRegistrar, ctx: ToolContext)
       description:
         'Download a file from Zulip by its URL path (e.g. /user_uploads/...) and save it locally.',
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         url: z.string().describe('Zulip file URL path (e.g. /user_uploads/...)'),
         saveTo: z
           .string()
@@ -133,10 +136,12 @@ export function registerDownloadTool(registrar: ToolRegistrar, ctx: ToolContext)
       }),
     },
     async ({ sender, url: rawUrl, saveTo }) => {
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
       // Extract path if a full URL was passed
       const url = rawUrl.startsWith('http') ? new URL(rawUrl).pathname : rawUrl
 
-      const clientResult = await ctx.credentials.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await downloadFile(clientResult.value.client, url)

@@ -14,6 +14,8 @@ type BackfillOptions = {
   readonly db: Kysely<ZulerDatabase>
   readonly teamName: TeamName
   readonly site: string
+  /** In standalone mode, only backfill this single agent using the provided client. */
+  readonly standaloneBot?: { readonly name: TeammateName; readonly client: ZulipClient }
   /** Maximum unread messages to write per bot. */
   readonly maxPerBot?: number
   /** Get a bot's session (for followed topics). */
@@ -170,40 +172,51 @@ async function backfillBot(
  * mentions, and DMs.
  */
 export async function backfillAllInboxes(options: BackfillOptions): Promise<void> {
-  const { db, site, getSession, onLog, onError } = options
+  const { db, site, standaloneBot, getSession, onLog, onError } = options
 
-  // eslint-disable-next-line neverthrow/must-use-result
-  const teammatesResult = await listTeammates(db)
-  if (teammatesResult.isErr()) {
-    onError?.(teammatesResult.error)
-    return
+  // In standalone mode, backfill only the single agent
+  const botNames: TeammateName[] = []
+  if (standaloneBot) {
+    botNames.push(standaloneBot.name)
+  } else {
+    // eslint-disable-next-line neverthrow/must-use-result
+    const teammatesResult = await listTeammates(db)
+    if (teammatesResult.isErr()) {
+      onError?.(teammatesResult.error)
+      return
+    }
+    botNames.push(...teammatesResult.value.map((t) => t.name))
   }
 
   const results = await Promise.all(
-    teammatesResult.value.map(async (teammate) => {
-      const session = getSession(teammate.name)
+    botNames.map(async (name) => {
+      const session = getSession(name)
       if (!session) {
-        onError?.(`no session for ${teammate.name}, skipping backfill`)
-        return { name: teammate.name, count: 0 }
+        onError?.(`no session for ${name}, skipping backfill`)
+        return { name, count: 0 }
       }
 
       const ready = await waitForSession(session)
       if (!ready) {
-        onError?.(`session for ${teammate.name} did not initialize in time, skipping backfill`)
-        return { name: teammate.name, count: 0 }
+        onError?.(`session for ${name} did not initialize in time, skipping backfill`)
+        return { name, count: 0 }
       }
 
-      // eslint-disable-next-line neverthrow/must-use-result
-      const clientResult = await clientForTeammate(db, site, teammate.name)
-      if (clientResult.isErr()) {
-        onError?.(
-          `failed to get client for ${teammate.name}: ${JSON.stringify(clientResult.error)}`,
-        )
-        return { name: teammate.name, count: 0 }
+      let client: ZulipClient
+      if (standaloneBot) {
+        client = standaloneBot.client
+      } else {
+        // eslint-disable-next-line neverthrow/must-use-result
+        const clientResult = await clientForTeammate(db, site, name)
+        if (clientResult.isErr()) {
+          onError?.(`failed to get client for ${name}: ${JSON.stringify(clientResult.error)}`)
+          return { name, count: 0 }
+        }
+        client = clientResult.value.client
       }
 
-      const count = await backfillBot(teammate.name, clientResult.value.client, session, options)
-      return { name: teammate.name, count }
+      const count = await backfillBot(name, client, session, options)
+      return { name, count }
     }),
   )
 

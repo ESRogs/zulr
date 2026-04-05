@@ -3,11 +3,12 @@ import { getTopics, TopicVisibility } from 'zulip-ts'
 import {
   errorResult,
   getErrorMessage,
+  resolveSender,
   type ToolContext,
   type ToolRegistrar,
   textResult,
   zChannelName,
-  zTeammateName,
+  zOptionalTeammateName,
   zTopicName,
 } from '../helpers.ts'
 
@@ -29,18 +30,20 @@ export function registerTopicStateTool(registrar: ToolRegistrar, ctx: ToolContex
       description:
         "Query a bot's local state for a channel topic: unread count and visibility (followed, muted, etc.). Uses session state — no API call needed.",
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name (queries their session state)'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name'),
       }),
     },
     async ({ sender, channel, topic }) => {
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
       const manager = ctx.getEventListenerManager()
-      const session = manager?.getSession(sender)
+      const session = manager?.getSession(senderResult.value)
 
       if (!session) {
         return errorResult(
-          `No active session for "${sender}". The bot may not be registered or the event listener may not be running.`,
+          `No active session for "${senderResult.value}". The bot may not be registered or the event listener may not be running.`,
         )
       }
 
@@ -71,21 +74,23 @@ export function registerChannelTopicStatesTool(registrar: ToolRegistrar, ctx: To
       description:
         "Query a bot's local state for all topics in a channel: unread counts and visibility. Fetches the topic list from the API, then checks session state for each.",
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
       }),
     },
     async ({ sender, channel }) => {
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
       const manager = ctx.getEventListenerManager()
-      const session = manager?.getSession(sender)
+      const session = manager?.getSession(senderResult.value)
 
       if (!session) {
         return errorResult(
-          `No active session for "${sender}". The bot may not be registered or the event listener may not be running.`,
+          `No active session for "${senderResult.value}". The bot may not be registered or the event listener may not be running.`,
         )
       }
 
-      const clientResult = await ctx.credentials.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)
@@ -123,16 +128,18 @@ export function registerFollowedTopicsTool(registrar: ToolRegistrar, ctx: ToolCo
       description:
         'List all topics the bot is currently following across all channels. Uses session state — no API call needed.',
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
       }),
     },
     async ({ sender }) => {
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
       const manager = ctx.getEventListenerManager()
-      const session = manager?.getSession(sender)
+      const session = manager?.getSession(senderResult.value)
 
       if (!session) {
         return errorResult(
-          `No active session for "${sender}". The bot may not be registered or the event listener may not be running.`,
+          `No active session for "${senderResult.value}". The bot may not be registered or the event listener may not be running.`,
         )
       }
 

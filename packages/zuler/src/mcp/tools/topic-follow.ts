@@ -3,11 +3,12 @@ import { setTopicVisibility, TopicVisibility } from 'zulip-ts'
 import {
   errorResult,
   getErrorMessage,
+  resolveSender,
   type ToolContext,
   type ToolRegistrar,
   textResult,
   zChannelName,
-  zTeammateName,
+  zOptionalTeammateName,
   zTopicName,
 } from '../helpers.ts'
 
@@ -18,13 +19,15 @@ export function registerFollowTool(registrar: ToolRegistrar, ctx: ToolContext): 
       description:
         'Follow a Zulip topic to receive notifications for all messages. Posting to a topic auto-follows it, so this is only needed to follow a topic without posting.',
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name'),
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.credentials.getTeammateClient(sender)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)
@@ -50,13 +53,15 @@ export function registerMuteTool(registrar: ToolRegistrar, ctx: ToolContext): vo
     {
       description: 'Mute a Zulip topic to suppress notifications.',
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name'),
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.credentials.getTeammateClient(sender)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)
@@ -83,13 +88,15 @@ export function registerUnmuteTool(registrar: ToolRegistrar, ctx: ToolContext): 
       description:
         'Unmute a Zulip topic (overrides channel-level mute). Use this to restore notifications for a previously muted topic.',
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name'),
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.credentials.getTeammateClient(sender)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)
@@ -116,13 +123,15 @@ export function registerUnfollowTool(registrar: ToolRegistrar, ctx: ToolContext)
       description:
         'Stop following a Zulip topic. Use this when you no longer need to participate in a conversation (e.g. after answering a specific question).',
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name'),
       }),
     },
     async ({ sender, channel, topic }) => {
-      const clientResult = await ctx.credentials.getTeammateClient(sender)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const channelResult = await ctx.cache.resolveChannel(channel)

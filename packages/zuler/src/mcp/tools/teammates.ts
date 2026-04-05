@@ -16,6 +16,10 @@ export function registerTeammatesTool(registrar: ToolRegistrar, ctx: ToolContext
       inputSchema: z.object({}),
     },
     async () => {
+      if (ctx.config.agentName) {
+        return textResult(`${ctx.config.agentName} (standalone mode)`)
+      }
+
       const result = await listTeammates(ctx.config.db)
       return result.match(
         (list) =>

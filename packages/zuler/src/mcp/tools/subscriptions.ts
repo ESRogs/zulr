@@ -3,10 +3,11 @@ import { getSubscriptions } from 'zulip-ts'
 import {
   errorResult,
   getErrorMessage,
+  resolveSender,
   type ToolContext,
   type ToolRegistrar,
   textResult,
-  zTeammateName,
+  zOptionalTeammateName,
 } from '../helpers.ts'
 
 export function registerSubscriptionsTool(registrar: ToolRegistrar, ctx: ToolContext): void {
@@ -15,11 +16,13 @@ export function registerSubscriptionsTool(registrar: ToolRegistrar, ctx: ToolCon
     {
       description: "List a teammate's current channel subscriptions on Zulip.",
       inputSchema: z.object({
-        teammate: zTeammateName.describe('Teammate name'),
+        teammate: zOptionalTeammateName.describe('Teammate name'),
       }),
     },
     async ({ teammate }) => {
-      const clientResult = await ctx.credentials.getTeammateClient(teammate)
+      const senderResult = resolveSender(ctx, teammate)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await getSubscriptions(clientResult.value.client)

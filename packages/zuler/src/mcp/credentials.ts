@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Kysely } from 'kysely'
-import { errAsync, type ResultAsync } from 'neverthrow'
+import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import type { ApiKey, Email, ZulipClient } from 'zulip-ts'
 import { createClient } from 'zulip-ts'
 import { clientForTeammate, type TeammateClient } from '../bot-manager.ts'
@@ -11,6 +11,16 @@ import type { TeammateName } from '../tagged-types.ts'
 import { NOT_CONFIGURED_MESSAGE } from './cache.ts'
 
 export type ZulipCredentials = { site: string; email: Email; apiKey: ApiKey }
+
+/** Standalone bot identity resolved once at startup from env vars. */
+export type StandaloneCredentials = {
+  readonly agentName: TeammateName
+  readonly site: string
+  readonly botEmail: Email
+  readonly botApiKey: ApiKey
+  /** Pre-built Zulip client for the standalone bot. */
+  readonly client: ZulipClient
+}
 
 /** Credential management and Zulip client access. */
 export type CredentialsContext = {
@@ -86,12 +96,14 @@ export function createCredentialsContext(
   db: Kysely<ZulerDatabase>,
   repoRoot: string,
   onReload: () => void,
+  standalone?: StandaloneCredentials,
 ): CredentialsContext {
   let adminClient: ZulipClient | undefined
   let credentialsLoadedCallback: (() => void) | null = null
   let eventListenerStarted = false
 
   function tryGetClient(): ZulipClient | undefined {
+    if (standalone) return standalone.client
     if (adminClient) return adminClient
     const creds = getZulipCredentials()
     if (!creds) return undefined
@@ -101,9 +113,15 @@ export function createCredentialsContext(
 
   return {
     getAdminClient: tryGetClient,
-    isConfigured: () => !!getZulipCredentials(),
-    getCredentials: getZulipCredentials,
+    isConfigured: () => (standalone ? true : !!getZulipCredentials()),
+    getCredentials: () => {
+      if (standalone) {
+        return { site: standalone.site, email: standalone.botEmail, apiKey: standalone.botApiKey }
+      }
+      return getZulipCredentials()
+    },
     tryLoadEnv: () => {
+      if (standalone) return // Standalone mode uses env vars directly
       const wasConfigured = !!getZulipCredentials()
       const loaded = loadEnvFile(repoRoot)
       if (loaded && getZulipCredentials()) {
@@ -119,6 +137,15 @@ export function createCredentialsContext(
       credentialsLoadedCallback = callback
     },
     getTeammateClient: (sender: TeammateName) => {
+      if (standalone) {
+        if (sender !== standalone.agentName) {
+          return errAsync(
+            `standalone mode: can only act as "${standalone.agentName}", not "${sender}"`,
+          )
+        }
+        // TODO: fetch botUserId eagerly at startup via /users/me to avoid DM formatting degradation
+        return okAsync({ client: standalone.client, botUserId: null })
+      }
       const creds = getZulipCredentials()
       if (!creds) return errAsync(NOT_CONFIGURED_MESSAGE)
       return clientForTeammate(db, creds.site, sender).mapErr(getErrorMessage)

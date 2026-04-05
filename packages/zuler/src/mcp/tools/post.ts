@@ -10,12 +10,13 @@ import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-c
 import {
   errorResult,
   getErrorMessage,
+  resolveSender,
   type ToolContext,
   type ToolRegistrar,
   textResult,
   zBool,
   zChannelName,
-  zTeammateName,
+  zOptionalTeammateName,
   zTopicName,
 } from '../helpers.ts'
 
@@ -28,7 +29,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       description:
         'Send a Zulip message. For DMs, provide "to" as a user ID, name, or email. For channel messages, provide "channel" and "topic". To @-mention a teammate, use @**full name** (e.g. @**scout**) — this auto-subscribes them to the topic. By default, posting to a non-existent topic is blocked — set createTopic: true to create a new topic. Checks for unread messages in your teammate inbox before sending — use the read or catch-up tool first if blocked.',
       inputSchema: z.object({
-        sender: zTeammateName.describe('Name of the registered teammate sending the message'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         content: z.string().describe('Message content'),
         to: z
           .union([z.number(), z.string()])
@@ -45,9 +46,12 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       }),
     },
     async ({ sender, content, to, channel, topic, createTopic }) => {
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+
       // Pre-flight unread checks before any async work
       if (channel && topic) {
-        const blocked = checkUnreadBeforePost(teamName, sender, channel, topic)
+        const blocked = checkUnreadBeforePost(teamName, senderResult.value, channel, topic)
         if (blocked) {
           return errorResult(blocked)
         }
@@ -60,7 +64,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
         }
         const recipient = resolveResult.value
 
-        const dmBlocked = checkUnreadBeforeDm(teamName, sender, recipient.user_id)
+        const dmBlocked = checkUnreadBeforeDm(teamName, senderResult.value, recipient.user_id)
         if (dmBlocked) {
           return errorResult(dmBlocked)
         }
@@ -71,7 +75,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
           )
         }
 
-        const clientResult = await ctx.credentials.getTeammateClient(sender)
+        const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
         }
@@ -87,7 +91,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       }
 
       if (channel && topic) {
-        const clientResult = await ctx.credentials.getTeammateClient(sender)
+        const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
         }

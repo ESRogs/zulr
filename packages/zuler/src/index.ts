@@ -3,7 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { getErrorMessage } from './errors.ts'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
-import type { TeamName } from './tagged-types.ts'
+import type { TeammateName, TeamName } from './tagged-types.ts'
 import { backfillAllInboxes } from './zulip/backfill.ts'
 import { createEventListenerManager } from './zulip/event-listener.ts'
 
@@ -15,6 +15,7 @@ if (rawTeamName.length === 0) {
 }
 const teamName = rawTeamName as TeamName
 const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
+const agentName = process.env.ZULER_AGENT ? (process.env.ZULER_AGENT as TeammateName) : undefined
 
 const logFile = `${stateDir(repoRoot)}/zuler.log`
 
@@ -57,23 +58,33 @@ const { server, ctx } = createMcpServer({
   db,
   teamName,
   repoRoot,
+  agentName,
   onToolCall: (name, params) => {
     const keyParams = summarizeToolParams(name, params)
     log(`tool:${name}${keyParams ? ` ${keyParams}` : ''}`)
   },
 })
 const tServer = performance.now()
-log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
+log(
+  `server created in ${(tServer - tDb).toFixed(0)}ms${agentName ? ` (standalone: ${agentName})` : ''}`,
+)
 
 async function bootEventListeners(): Promise<void> {
   const creds = ctx.credentials.getCredentials()
   if (!creds) return
 
-  log(`connecting to ${creds.site}`)
+  log(`connecting to ${creds.site}${agentName ? ` as ${agentName} (standalone)` : ''}`)
+
+  // In standalone mode, reuse the pre-built client from StandaloneCredentials
+  const standaloneClient = agentName ? ctx.credentials.getAdminClient() : undefined
+  const standaloneBot =
+    agentName && standaloneClient ? { client: standaloneClient, email: creds.email } : undefined
+
   const manager = createEventListenerManager({
     db,
     teamName,
     site: creds.site,
+    standaloneBot,
     signal: new AbortController().signal,
     onRoute: (info) => {
       const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
@@ -90,13 +101,20 @@ async function bootEventListeners(): Promise<void> {
   // Expose manager on ctx so register tool can start listeners for new bots
   ctx.setEventListenerManager(manager)
 
-  await manager.startAll()
-  log('per-bot event listeners started')
+  if (agentName) {
+    await manager.startBot(agentName)
+    log(`event listener started for ${agentName}`)
+  } else {
+    await manager.startAll()
+    log('per-bot event listeners started')
+  }
 
   backfillAllInboxes({
     db,
     teamName,
     site: creds.site,
+    standaloneBot:
+      agentName && standaloneClient ? { name: agentName, client: standaloneClient } : undefined,
     getSession: manager.getSession,
     onLog: log,
     onError: (err) => log(`backfill error: ${getErrorMessage(err)}`),
