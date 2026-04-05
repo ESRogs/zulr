@@ -29,7 +29,7 @@ export function registerSearchTool(registrar: ToolRegistrar, ctx: ToolContext): 
         return errorResult('"topic" requires "channel" to be specified')
       }
 
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const { client, botUserId } = clientResult.value

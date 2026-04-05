@@ -66,7 +66,7 @@ const tServer = performance.now()
 log(`server created in ${(tServer - tDb).toFixed(0)}ms`)
 
 async function bootEventListeners(): Promise<void> {
-  const creds = ctx.getCredentials()
+  const creds = ctx.credentials.getCredentials()
   if (!creds) return
 
   log(`connecting to ${creds.site}`)
@@ -104,11 +104,11 @@ async function bootEventListeners(): Promise<void> {
 }
 
 // Start event listeners now if credentials are available, or later when they're loaded
-if (ctx.isConfigured()) {
+if (ctx.credentials.isConfigured()) {
   bootEventListeners()
 } else {
   log('Zulip credentials not configured — waiting for init tool to load them.')
-  ctx.onCredentialsLoaded(bootEventListeners)
+  ctx.credentials.onCredentialsLoaded(bootEventListeners)
 }
 
 server.server.onerror = (err) => log(`MCP server error: ${getErrorMessage(err)}`)

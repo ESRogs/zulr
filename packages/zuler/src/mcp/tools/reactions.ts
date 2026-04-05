@@ -31,7 +31,7 @@ export function registerReactTool(registrar: ToolRegistrar, ctx: ToolContext): v
       }),
     },
     async ({ sender, messageId, emoji, remove }) => {
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const fn = remove ? removeReaction : addReaction

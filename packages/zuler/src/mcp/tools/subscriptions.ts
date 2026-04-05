@@ -19,7 +19,7 @@ export function registerSubscriptionsTool(registrar: ToolRegistrar, ctx: ToolCon
       }),
     },
     async ({ teammate }) => {
-      const clientResult = await ctx.getTeammateClient(teammate)
+      const clientResult = await ctx.credentials.getTeammateClient(teammate)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await getSubscriptions(clientResult.value.client)

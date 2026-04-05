@@ -67,7 +67,7 @@ export function registerUploadTool(registrar: ToolRegistrar, ctx: ToolContext): 
         if (dmBlocked) return errorResult(dmBlocked)
       }
 
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const { client } = clientResult.value
@@ -136,7 +136,7 @@ export function registerDownloadTool(registrar: ToolRegistrar, ctx: ToolContext)
       // Extract path if a full URL was passed
       const url = rawUrl.startsWith('http') ? new URL(rawUrl).pathname : rawUrl
 
-      const clientResult = await ctx.getTeammateClient(sender)
+      const clientResult = await ctx.credentials.getTeammateClient(sender)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await downloadFile(clientResult.value.client, url)

@@ -71,7 +71,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
           )
         }
 
-        const clientResult = await ctx.getTeammateClient(sender)
+        const clientResult = await ctx.credentials.getTeammateClient(sender)
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
         }
@@ -87,7 +87,7 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       }
 
       if (channel && topic) {
-        const clientResult = await ctx.getTeammateClient(sender)
+        const clientResult = await ctx.credentials.getTeammateClient(sender)
         if (clientResult.isErr()) {
           return errorResult(clientResult.error)
         }

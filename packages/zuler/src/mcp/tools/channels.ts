@@ -21,7 +21,7 @@ export function registerCreateChannelTool(registrar: ToolRegistrar, ctx: ToolCon
       }),
     },
     async ({ name, description }) => {
-      const client = ctx.getAdminClient()
+      const client = ctx.credentials.getAdminClient()
       if (!client) return notConfiguredResult()
 
       // Zulip API requires at least one subscriber; use the admin user
@@ -62,7 +62,7 @@ export function registerEditChannelTool(registrar: ToolRegistrar, ctx: ToolConte
         return errorResult('provide "name" and/or "description" to update')
       }
 
-      const client = ctx.getAdminClient()
+      const client = ctx.credentials.getAdminClient()
       if (!client) return notConfiguredResult()
 
       const streamResult = await ctx.cache.resolveChannel(channel)
@@ -126,7 +126,7 @@ export function registerTopicsTool(registrar: ToolRegistrar, ctx: ToolContext): 
       }),
     },
     async ({ channel }) => {
-      const client = ctx.getAdminClient()
+      const client = ctx.credentials.getAdminClient()
       if (!client) return notConfiguredResult()
 
       const streamResult = await ctx.cache.resolveChannel(channel)
@@ -155,7 +155,7 @@ export function registerArchiveChannelTool(registrar: ToolRegistrar, ctx: ToolCo
       }),
     },
     async ({ channel }) => {
-      const client = ctx.getAdminClient()
+      const client = ctx.credentials.getAdminClient()
       if (!client) return notConfiguredResult()
 
       const streamResult = await ctx.cache.resolveChannel(channel)
