@@ -108,6 +108,8 @@ export type SessionEventHandler = {
   readonly onNotification?: (event: MessageEvent, result: NotificationResult) => void
   /** Called on errors (network, API, validation). Session continues after errors. */
   readonly onError?: (error: ZulipError | string) => void
+  /** Called for informational lifecycle messages (queue registration, polling, retries). */
+  readonly onLog?: (message: string) => void
 }
 
 export type ZulipSession = {
@@ -233,11 +235,18 @@ export function createSession(params: CreateSessionParams): ZulipSession {
       if (result.isErr()) {
         handler?.onError?.(result.error)
         if (!stopped && !signal?.aborted) {
+          handler?.onLog?.('re-registering queue after poll loop error')
           await sleep(RETRY_DELAY_MS, signal)
         }
+      } else {
+        // ok(undefined) means BAD_EVENT_QUEUE_ID or clean exit
+        if (!stopped && !signal?.aborted) {
+          handler?.onLog?.('re-registering queue (BAD_EVENT_QUEUE_ID or queue expired)')
+        }
       }
-      // BAD_EVENT_QUEUE_ID or other loop exit — re-register
     }
+
+    handler?.onLog?.(`session exited (stopped=${stopped}, aborted=${signal?.aborted ?? false})`)
   }
 
   async function runEventLoop(): Promise<Result<void, ZulipError | string>> {
@@ -257,6 +266,8 @@ export function createSession(params: CreateSessionParams): ZulipSession {
       user_topics,
       subscriptions: initialSubs,
     } = regResult.value
+
+    handler?.onLog?.(`queue registered (queue_id=${queueId})`)
 
     // Initialize state from the register response
     if (regUserId) ownUserId = regUserId
@@ -279,13 +290,15 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     let lastEventId: EventId = initialLastEventId
     let consecutivePollErrors = 0
 
+    handler?.onLog?.('entering event poll loop')
+
     while (!stopped && !signal?.aborted) {
       const eventsResult = await getEvents(client, { queueId, lastEventId })
 
       if (eventsResult.isErr()) {
         const evtErr = eventsResult.error
         if (evtErr.type === 'api' && evtErr.code === 'BAD_EVENT_QUEUE_ID') {
-          // Queue expired — break to re-register
+          handler?.onLog?.('queue expired (BAD_EVENT_QUEUE_ID)')
           return ok(undefined)
         }
         // Network/transient error — log and retry with the same queue.
@@ -295,8 +308,14 @@ export function createSession(params: CreateSessionParams): ZulipSession {
         consecutivePollErrors++
         handler?.onError?.(evtErr)
         if (consecutivePollErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+          handler?.onLog?.(
+            `poll error ${consecutivePollErrors}/${MAX_CONSECUTIVE_POLL_ERRORS} — giving up`,
+          )
           return err(evtErr)
         }
+        handler?.onLog?.(
+          `poll error ${consecutivePollErrors}/${MAX_CONSECUTIVE_POLL_ERRORS} — retrying in ${RETRY_DELAY_MS}ms`,
+        )
         await sleep(RETRY_DELAY_MS, signal)
         continue
       }
