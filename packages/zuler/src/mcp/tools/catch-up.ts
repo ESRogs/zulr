@@ -11,11 +11,12 @@ import {
   buildUserIdResolver,
   errorResult,
   getErrorMessage,
+  resolveSender,
   type ToolContext,
   type ToolRegistrar,
   textResult,
   zBool,
-  zTeammateName,
+  zOptionalTeammateName,
 } from '../helpers.ts'
 
 export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext): void {
@@ -25,7 +26,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       description:
         "Fetch recent messages from all subscribed streams/topics and DMs. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart). Consider reacting to important messages after catching up to signal you've read them.",
       inputSchema: z.object({
-        sender: zTeammateName.describe('Teammate name'),
+        sender: zOptionalTeammateName.describe('Teammate name (optional in standalone mode)'),
         maxMessages: z.coerce
           .number()
           .optional()
@@ -43,7 +44,9 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       }),
     },
     async ({ sender, maxMessages, maxHours, unreadOnly }) => {
-      const botClientResult = await ctx.credentials.getTeammateClient(sender)
+      const resolved = resolveSender(ctx, sender)
+      if (!resolved.ok) return errorResult(resolved.error)
+      const botClientResult = await ctx.credentials.getTeammateClient(resolved.name)
       if (botClientResult.isErr()) {
         return errorResult(botClientResult.error)
       }
@@ -87,8 +90,8 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       const failedCount = fetchResults.filter((r) => r.isErr()).length
 
       // Consume inbox after fetch attempts complete (stream messages + DMs)
-      const streamInbox = consumeAllUnreadStreamMessages(ctx.config.teamName, sender)
-      const dmInbox = consumeAllUnreadDmMessages(ctx.config.teamName, sender)
+      const streamInbox = consumeAllUnreadStreamMessages(ctx.config.teamName, resolved.name)
+      const dmInbox = consumeAllUnreadDmMessages(ctx.config.teamName, resolved.name)
       const inboxFormatted = inboxToFormattedMessages([...streamInbox, ...dmInbox])
 
       // Merge Zulip results with inbox-only messages, deduplicate by ID

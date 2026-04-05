@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely'
 import type { FollowedTopic, ZulipSession } from 'zulip-client-ts'
-import type { MessageId, NarrowFilter, ZulipClient } from 'zulip-ts'
-import { getMessages, markAsRead } from 'zulip-ts'
+import type { ApiKey, Email, MessageId, NarrowFilter, ZulipClient } from 'zulip-ts'
+import { createClient, getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates } from '../state/teammates.ts'
@@ -14,6 +14,8 @@ type BackfillOptions = {
   readonly db: Kysely<ZulerDatabase>
   readonly teamName: TeamName
   readonly site: string
+  /** In standalone mode, only backfill this single agent (bypasses DB teammate list). */
+  readonly agentName?: TeammateName
   /** Maximum unread messages to write per bot. */
   readonly maxPerBot?: number
   /** Get a bot's session (for followed topics). */
@@ -170,40 +172,64 @@ async function backfillBot(
  * mentions, and DMs.
  */
 export async function backfillAllInboxes(options: BackfillOptions): Promise<void> {
-  const { db, site, getSession, onLog, onError } = options
+  const { db, site, agentName, getSession, onLog, onError } = options
 
-  // eslint-disable-next-line neverthrow/must-use-result
-  const teammatesResult = await listTeammates(db)
-  if (teammatesResult.isErr()) {
-    onError?.(teammatesResult.error)
-    return
+  // In standalone mode, backfill only the single agent
+  const botNames: TeammateName[] = []
+  if (agentName) {
+    botNames.push(agentName)
+  } else {
+    // eslint-disable-next-line neverthrow/must-use-result
+    const teammatesResult = await listTeammates(db)
+    if (teammatesResult.isErr()) {
+      onError?.(teammatesResult.error)
+      return
+    }
+    botNames.push(...teammatesResult.value.map((t) => t.name))
   }
 
   const results = await Promise.all(
-    teammatesResult.value.map(async (teammate) => {
-      const session = getSession(teammate.name)
+    botNames.map(async (name) => {
+      const session = getSession(name)
       if (!session) {
-        onError?.(`no session for ${teammate.name}, skipping backfill`)
-        return { name: teammate.name, count: 0 }
+        onError?.(`no session for ${name}, skipping backfill`)
+        return { name, count: 0 }
       }
 
       const ready = await waitForSession(session)
       if (!ready) {
-        onError?.(`session for ${teammate.name} did not initialize in time, skipping backfill`)
-        return { name: teammate.name, count: 0 }
+        onError?.(`session for ${name} did not initialize in time, skipping backfill`)
+        return { name, count: 0 }
       }
 
-      // eslint-disable-next-line neverthrow/must-use-result
-      const clientResult = await clientForTeammate(db, site, teammate.name)
-      if (clientResult.isErr()) {
-        onError?.(
-          `failed to get client for ${teammate.name}: ${JSON.stringify(clientResult.error)}`,
-        )
-        return { name: teammate.name, count: 0 }
+      // In standalone mode, the session's client is the bot client — get it from the session
+      let client: ZulipClient
+      if (agentName) {
+        // Use the session's own sent-messages API to verify connectivity, but we need
+        // a ZulipClient for getMessages. Build one from env var credentials.
+        const botEmail = process.env.ZULIP_BOT_EMAIL
+        const botApiKey = process.env.ZULIP_BOT_API_KEY
+        if (!botEmail || !botApiKey) {
+          onError?.(`standalone mode: missing ZULIP_BOT_EMAIL or ZULIP_BOT_API_KEY for backfill`)
+          return { name, count: 0 }
+        }
+        client = createClient({
+          site,
+          email: botEmail as Email,
+          apiKey: botApiKey as ApiKey,
+        })
+      } else {
+        // eslint-disable-next-line neverthrow/must-use-result
+        const clientResult = await clientForTeammate(db, site, name)
+        if (clientResult.isErr()) {
+          onError?.(`failed to get client for ${name}: ${JSON.stringify(clientResult.error)}`)
+          return { name, count: 0 }
+        }
+        client = clientResult.value.client
       }
 
-      const count = await backfillBot(teammate.name, clientResult.value.client, session, options)
-      return { name: teammate.name, count }
+      const count = await backfillBot(name, client, session, options)
+      return { name, count }
     }),
   )
 

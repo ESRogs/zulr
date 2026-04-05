@@ -15,6 +15,11 @@ type EventListenerManagerOptions = {
   readonly db: Kysely<ZulerDatabase>
   readonly teamName: TeamName
   readonly site: string
+  /** Pre-built bot client and email for standalone mode (bypasses DB lookup in startBot). */
+  readonly standaloneBot?: {
+    readonly client: ZulipClient
+    readonly email: Email
+  }
   /** Called on each successfully routed message for logging/debugging. */
   readonly onRoute?: (info: {
     readonly stream?: string
@@ -280,33 +285,42 @@ export function createEventListenerManager(
   async function startBot(name: TeammateName): Promise<void> {
     if (running.has(name)) return
 
-    const clientResult = await clientForTeammate(options.db, options.site, name)
-    if (clientResult.isErr()) {
-      options.onError?.(
-        `failed to get client for bot '${name}': ${JSON.stringify(clientResult.error)}`,
-      )
-      return
+    let botClient: ZulipClient
+    let email: Email
+
+    if (options.standaloneBot) {
+      // Standalone mode: use pre-built client from env var credentials
+      botClient = options.standaloneBot.client
+      email = options.standaloneBot.email
+      allBotEmails = new Set([email])
+    } else {
+      // Team mode: look up credentials from DB
+      const clientResult = await clientForTeammate(options.db, options.site, name)
+      if (clientResult.isErr()) {
+        options.onError?.(
+          `failed to get client for bot '${name}': ${JSON.stringify(clientResult.error)}`,
+        )
+        return
+      }
+
+      const teammatesResult = await refreshBotEmails()
+      if (teammatesResult.isErr()) {
+        options.onError?.(teammatesResult.error)
+        return
+      }
+
+      const foundEmail = teammatesResult.value.find((t) => t.name === name)?.botEmail
+      if (!foundEmail) {
+        options.onError?.(`bot email not found for '${name}'`)
+        return
+      }
+
+      botClient = clientResult.value.client
+      email = foundEmail
     }
 
-    const teammatesResult = await refreshBotEmails()
-    if (teammatesResult.isErr()) {
-      options.onError?.(teammatesResult.error)
-      return
-    }
-
-    const botEmail = teammatesResult.value.find((t) => t.name === name)?.botEmail
-    if (!botEmail) {
-      options.onError?.(`bot email not found for '${name}'`)
-      return
-    }
-
-    const session = startBotSession(
-      name,
-      clientResult.value.client,
-      botEmail,
-      allBotEmails,
-      options,
-      () => running.delete(name),
+    const session = startBotSession(name, botClient, email, allBotEmails, options, () =>
+      running.delete(name),
     )
     running.set(name, session)
   }

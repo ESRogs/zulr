@@ -21,6 +21,12 @@ export function registerRegisterTool(registrar: ToolRegistrar, ctx: ToolContext)
       }),
     },
     async ({ name }) => {
+      if (ctx.config.agentName) {
+        return errorResult(
+          'register is not available in standalone mode — the bot is configured via environment variables.',
+        )
+      }
+
       const adminClient = ctx.credentials.getAdminClient()
       if (!adminClient) {
         return notConfiguredResult()
