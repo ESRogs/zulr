@@ -1,7 +1,5 @@
 import { appendFileSync } from 'node:fs'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import type { ApiKey, Email } from 'zulip-ts'
-import { createClient } from 'zulip-ts'
 import { getErrorMessage } from './errors.ts'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
@@ -77,22 +75,10 @@ async function bootEventListeners(): Promise<void> {
 
   log(`connecting to ${creds.site}${agentName ? ` as ${agentName} (standalone)` : ''}`)
 
-  // In standalone mode, build the bot client from env var credentials
-  const standaloneBot = agentName
-    ? (() => {
-        const botEmail = process.env.ZULIP_BOT_EMAIL
-        const botApiKey = process.env.ZULIP_BOT_API_KEY
-        if (!botEmail || !botApiKey) return undefined
-        return {
-          client: createClient({
-            site: creds.site,
-            email: botEmail as Email,
-            apiKey: botApiKey as ApiKey,
-          }),
-          email: botEmail as Email,
-        }
-      })()
-    : undefined
+  // In standalone mode, reuse the pre-built client from StandaloneCredentials
+  const standaloneClient = agentName ? ctx.credentials.getAdminClient() : undefined
+  const standaloneBot =
+    agentName && standaloneClient ? { client: standaloneClient, email: creds.email } : undefined
 
   const manager = createEventListenerManager({
     db,
@@ -127,7 +113,8 @@ async function bootEventListeners(): Promise<void> {
     db,
     teamName,
     site: creds.site,
-    agentName,
+    standaloneBot:
+      agentName && standaloneClient ? { name: agentName, client: standaloneClient } : undefined,
     getSession: manager.getSession,
     onLog: log,
     onError: (err) => log(`backfill error: ${getErrorMessage(err)}`),

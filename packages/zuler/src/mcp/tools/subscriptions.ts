@@ -16,13 +16,13 @@ export function registerSubscriptionsTool(registrar: ToolRegistrar, ctx: ToolCon
     {
       description: "List a teammate's current channel subscriptions on Zulip.",
       inputSchema: z.object({
-        teammate: zOptionalTeammateName.describe('Teammate name (optional in standalone mode)'),
+        teammate: zOptionalTeammateName.describe('Teammate name'),
       }),
     },
     async ({ teammate }) => {
-      const resolved = resolveSender(ctx, teammate)
-      if (!resolved.ok) return errorResult(resolved.error)
-      const clientResult = await ctx.credentials.getTeammateClient(resolved.name)
+      const senderResult = resolveSender(ctx, teammate)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const result = await getSubscriptions(clientResult.value.client)

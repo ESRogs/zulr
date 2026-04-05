@@ -19,7 +19,7 @@ export function registerReactTool(registrar: ToolRegistrar, ctx: ToolContext): v
       description:
         'Add or remove an emoji reaction on a Zulip message. Use the emoji name without colons (e.g. "thumbs_up", "check", "eyes"). Consider using reactions to acknowledge messages — e.g. "eyes" when you start working on something, "check" when done.',
       inputSchema: z.object({
-        sender: zOptionalTeammateName.describe('Teammate name (optional in standalone mode)'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         messageId: z.coerce
           .number()
           .transform((n): MessageId => n as MessageId)
@@ -32,9 +32,9 @@ export function registerReactTool(registrar: ToolRegistrar, ctx: ToolContext): v
       }),
     },
     async ({ sender, messageId, emoji, remove }) => {
-      const resolved = resolveSender(ctx, sender)
-      if (!resolved.ok) return errorResult(resolved.error)
-      const clientResult = await ctx.credentials.getTeammateClient(resolved.name)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const fn = remove ? removeReaction : addReaction

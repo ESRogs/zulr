@@ -47,19 +47,19 @@ export function registerResolveTopicTool(registrar: ToolRegistrar, ctx: ToolCont
     {
       description: 'Mark a Zulip topic as resolved (adds ✔ prefix). Use unresolve-topic to undo.',
       inputSchema: z.object({
-        sender: zOptionalTeammateName.describe('Teammate name (optional in standalone mode)'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name'),
       }),
     },
     async ({ sender, channel, topic }) => {
-      const resolved = resolveSender(ctx, sender)
-      if (!resolved.ok) return errorResult(resolved.error)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
       if (topic.startsWith(RESOLVED_PREFIX)) {
         return errorResult('topic is already resolved')
       }
 
-      const clientResult = await ctx.credentials.getTeammateClient(resolved.name)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 
@@ -85,15 +85,15 @@ export function registerUnresolveTopicTool(registrar: ToolRegistrar, ctx: ToolCo
     {
       description: 'Remove the resolved (✔) prefix from a Zulip topic.',
       inputSchema: z.object({
-        sender: zOptionalTeammateName.describe('Teammate name (optional in standalone mode)'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Channel name'),
         topic: zTopicName.describe('Topic name (with or without ✔ prefix)'),
       }),
     },
     async ({ sender, channel, topic }) => {
-      const resolved = resolveSender(ctx, sender)
-      if (!resolved.ok) return errorResult(resolved.error)
-      const clientResult = await ctx.credentials.getTeammateClient(resolved.name)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 
@@ -127,7 +127,7 @@ export function registerMoveTopicTool(registrar: ToolRegistrar, ctx: ToolContext
       description:
         'Move all messages in a topic to a different channel. Optionally rename the topic during the move via "toTopic".',
       inputSchema: z.object({
-        sender: zOptionalTeammateName.describe('Teammate name (optional in standalone mode)'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.describe('Source channel name'),
         topic: zTopicName.describe('Topic name'),
         toChannel: z.string().describe('Destination channel name'),
@@ -151,9 +151,9 @@ export function registerMoveTopicTool(registrar: ToolRegistrar, ctx: ToolContext
       notifyOldTopic,
       notifyNewTopic,
     }) => {
-      const resolved = resolveSender(ctx, sender)
-      if (!resolved.ok) return errorResult(resolved.error)
-      const clientResult = await ctx.credentials.getTeammateClient(resolved.name)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
       const { client } = clientResult.value
 

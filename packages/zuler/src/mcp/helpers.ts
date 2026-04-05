@@ -1,8 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
+import { err, ok, type Result } from 'neverthrow'
 import { z } from 'zod'
 import type { ApiKey, ChannelName, Email, EmojiName, TopicName, UserId } from 'zulip-ts'
+import { createClient } from 'zulip-ts'
 import { getErrorMessage } from '../errors.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
@@ -18,16 +20,18 @@ export type { CacheContext } from './cache.ts'
 export { NOT_CONFIGURED_MESSAGE } from './cache.ts'
 export type { CredentialsContext, StandaloneCredentials, ZulipCredentials } from './credentials.ts'
 
-/** Read standalone bot credentials from env vars. Throws if required vars are missing. */
+/** Read standalone bot credentials from env vars and build a single client. Throws if required vars are missing. */
 function getStandaloneCredentials(agentName: TeammateName): StandaloneCredentials {
+  const site = process.env.ZULIP_SITE
   const botEmail = process.env.ZULIP_BOT_EMAIL
   const botApiKey = process.env.ZULIP_BOT_API_KEY
-  if (!botEmail || !botApiKey) {
+  if (!site || !botEmail || !botApiKey) {
     throw new Error(
-      'standalone mode (ZULER_AGENT set) requires ZULIP_BOT_EMAIL and ZULIP_BOT_API_KEY env vars',
+      'standalone mode (ZULER_AGENT set) requires ZULIP_SITE, ZULIP_BOT_EMAIL, and ZULIP_BOT_API_KEY env vars',
     )
   }
-  return { agentName, botEmail: botEmail as Email, botApiKey: botApiKey as ApiKey }
+  const client = createClient({ site, email: botEmail as Email, apiKey: botApiKey as ApiKey })
+  return { agentName, site, botEmail: botEmail as Email, botApiKey: botApiKey as ApiKey, client }
 }
 
 /** Zod schema transforms that produce tagged types from MCP tool string inputs. */
@@ -117,10 +121,10 @@ export type ToolContext = {
 export function resolveSender(
   ctx: ToolContext,
   sender: TeammateName | undefined,
-): { ok: true; name: TeammateName } | { ok: false; error: string } {
-  if (sender) return { ok: true, name: sender }
-  if (ctx.config.agentName) return { ok: true, name: ctx.config.agentName }
-  return { ok: false, error: 'sender is required (set ZULER_AGENT env var for standalone mode)' }
+): Result<TeammateName, string> {
+  if (sender) return ok(sender)
+  if (ctx.config.agentName) return ok(ctx.config.agentName)
+  return err('sender is required (set ZULER_AGENT env var for standalone mode)')
 }
 
 export function createToolContext(config: ServerConfig): ToolContext {

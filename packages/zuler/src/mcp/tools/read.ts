@@ -36,7 +36,7 @@ export function registerReadTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       description:
         'Fetch recent messages from a Zulip channel/topic or DM conversation. For channel messages, provide "channel" and "topic". For DMs, provide "user" (ID, name, or email). Uses the sender bot API key and marks fetched messages as read. Set inboxOnly to read just the unread messages in your teammate inbox (optionally filtered by channel/topic) — this clears the posting gate without fetching from Zulip.',
       inputSchema: z.object({
-        sender: zOptionalTeammateName.describe('Teammate name (optional in standalone mode)'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         channel: zChannelName.optional().describe('Channel name'),
         topic: zTopicName.optional().describe('Topic name'),
         user: z
@@ -53,20 +53,20 @@ export function registerReadTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       }),
     },
     async ({ sender, channel, topic, user, count, inboxOnly }) => {
-      const resolved = resolveSender(ctx, sender)
-      if (!resolved.ok) return errorResult(resolved.error)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
       if (inboxOnly) {
-        return readInboxOnly(ctx, resolved.name, channel, topic)
+        return readInboxOnly(ctx, senderResult.value, channel, topic)
       }
       if (user !== undefined) {
         const resolveResult = await ctx.cache.resolveUser(user)
         if (resolveResult.isErr()) {
           return errorResult(resolveResult.error)
         }
-        return readDms(ctx, resolved.name, resolveResult.value.user_id, count)
+        return readDms(ctx, senderResult.value, resolveResult.value.user_id, count)
       }
       if (channel && topic) {
-        return readStream(ctx, resolved.name, channel, topic, count)
+        return readStream(ctx, senderResult.value, channel, topic, count)
       }
       return errorResult('provide either "channel" and "topic" (for channels) or "user" (for DMs)')
     },

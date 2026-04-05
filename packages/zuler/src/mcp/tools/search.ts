@@ -18,7 +18,7 @@ export function registerSearchTool(registrar: ToolRegistrar, ctx: ToolContext): 
       description:
         'Search Zulip messages by keyword. Optionally scope to a channel and/or topic. Consider searching before asking questions that might already be answered in the history.',
       inputSchema: z.object({
-        sender: zOptionalTeammateName.describe('Teammate name (optional in standalone mode)'),
+        sender: zOptionalTeammateName.describe('Teammate name'),
         query: z.string().describe('Search query'),
         channel: z.string().optional().describe('Limit search to this channel'),
         topic: z.string().optional().describe('Limit search to this topic (requires channel)'),
@@ -26,14 +26,14 @@ export function registerSearchTool(registrar: ToolRegistrar, ctx: ToolContext): 
       }),
     },
     async ({ sender, query, channel, topic, count }) => {
-      const resolved = resolveSender(ctx, sender)
-      if (!resolved.ok) return errorResult(resolved.error)
+      const senderResult = resolveSender(ctx, sender)
+      if (senderResult.isErr()) return errorResult(senderResult.error)
 
       if (topic && !channel) {
         return errorResult('"topic" requires "channel" to be specified')
       }
 
-      const clientResult = await ctx.credentials.getTeammateClient(resolved.name)
+      const clientResult = await ctx.credentials.getTeammateClient(senderResult.value)
       if (clientResult.isErr()) return errorResult(clientResult.error)
 
       const { client, botUserId } = clientResult.value
