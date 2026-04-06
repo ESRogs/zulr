@@ -87,9 +87,9 @@ GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal --replace <agent-name>
 ### How It Works
 
 1. Bot credentials are extracted locally from the zuler DB (same as local mode)
-2. `mngr create agent@.modal` builds a sandbox from `scripts/Dockerfile.modal` (bun + Claude Code)
-3. The repo is transferred via `git push --mirror`
-4. Provision commands run `bun install` and generate the MCP config with the correct sandbox path
+2. `mngr create agent@.modal` provisions the default Modal image (debian:bookworm-slim) with bun and Claude Code via `--extra-provision-command`
+3. The repo is transferred via `git push --mirror`, then `bun install` runs on-sandbox
+4. The MCP config is generated on-sandbox using the correct sandbox paths
 5. The agent starts with `--idle-timeout 5m --idle-mode io` for cost-efficient lifecycle management
 
 ### Lifecycle (Idle/Wake)

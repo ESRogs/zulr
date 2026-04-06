@@ -92,9 +92,9 @@ if [ "$MODAL" = true ]; then
   MODAL_MEMORY="${MODAL_MEMORY:-4}"
   MODAL_IDLE_TIMEOUT="${MODAL_IDLE_TIMEOUT:-5m}"
 
-  # Install bun and Claude Code on-sandbox via provision commands.
-  # The default Modal image (debian:bookworm-slim) works with mngr's SSH setup;
-  # custom Dockerfiles based on other Debian versions may have compatibility issues.
+  # The default Modal image (debian:bookworm-slim) needs unzip for bun's installer
+  # and nodejs/npm for Claude Code's runtime.
+  INSTALL_DEPS='apt-get update && apt-get install -y --no-install-recommends unzip nodejs npm'
   INSTALL_BUN='curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun --version'
   INSTALL_CC='npm install -g @anthropic-ai/claude-code'
 
@@ -114,6 +114,8 @@ if [ "$MODAL" = true ]; then
     -b "memory=$MODAL_MEMORY" \
     --idle-timeout "$MODAL_IDLE_TIMEOUT" \
     --idle-mode io \
+    --no-ensure-clean \
+    --extra-provision-command "$INSTALL_DEPS" \
     --extra-provision-command "$INSTALL_BUN" \
     --extra-provision-command "$SETUP_PATH" \
     --extra-provision-command "$INSTALL_CC" \
