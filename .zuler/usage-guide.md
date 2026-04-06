@@ -131,3 +131,17 @@ in the same topic. They can read it themselves.
 - Never merge without the user's explicit approval.
 - PR descriptions should explain the "why," not just the "what."
 - Tag reviewers as appropriate when a PR is ready.
+
+### Worktrees
+
+**Do not use `EnterWorktree` or `ExitWorktree`** unless explicitly
+instructed by the team lead or the user. These tools change your working
+directory to a different git worktree, which can conflict with another
+teammate's work.
+
+How you're set up depends on how you were spawned:
+- **mngr-spawned agents** get their own dedicated worktree. You're
+  already isolated — stay in your worktree.
+- **Team-mode agents** share the team lead's worktree. You may end up in
+  a worktree that belongs to another teammate. If so, ask the team lead
+  or user for guidance rather than switching worktrees yourself.
