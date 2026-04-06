@@ -138,7 +138,12 @@ test('consumeUnreadInboxMessages marks matching messages and returns them', () =
     zulipSender: dn('Bob'),
   })
 
-  const consumed = consumeUnreadInboxMessages(teamName, tm('alice'), ch('general'), tp('greetings'))
+  const consumed = consumeUnreadInboxMessages(
+    teamName,
+    tm('alice'),
+    ch('general'),
+    tp('greetings'),
+  )._unsafeUnwrap()
 
   expect(consumed).toHaveLength(1)
   expect(consumed[0]!.text).toBe('msg1')
@@ -154,7 +159,12 @@ test('consumeUnreadInboxMessages leaves messages without structured fields alone
     summary: 'legacy',
   })
 
-  const consumed = consumeUnreadInboxMessages(teamName, tm('alice'), ch('general'), tp('greetings'))
+  const consumed = consumeUnreadInboxMessages(
+    teamName,
+    tm('alice'),
+    ch('general'),
+    tp('greetings'),
+  )._unsafeUnwrap()
 
   expect(consumed).toHaveLength(0)
   const inbox = readInbox(teamName, tm('alice'))._unsafeUnwrap()
@@ -260,7 +270,7 @@ test('consumeUnreadDmMessages marks matching DMs and returns them', () => {
     zulipSender: dn('Charlie'),
   })
 
-  const consumed = consumeUnreadDmMessages(teamName, tm('alice'), 42 as UserId)
+  const consumed = consumeUnreadDmMessages(teamName, tm('alice'), 42 as UserId)._unsafeUnwrap()
 
   expect(consumed).toHaveLength(1)
   expect(consumed[0]!.text).toBe('dm from bob')
@@ -323,6 +333,6 @@ test('consumeUnreadDmMessages unblocks checkUnreadBeforeDm', () => {
   })
 
   expect(checkUnreadBeforeDm(teamName, tm('alice'), 42 as UserId)).toBeDefined()
-  consumeUnreadDmMessages(teamName, tm('alice'), 42 as UserId)
+  consumeUnreadDmMessages(teamName, tm('alice'), 42 as UserId)._unsafeUnwrap()
   expect(checkUnreadBeforeDm(teamName, tm('alice'), 42 as UserId)).toBeUndefined()
 })
