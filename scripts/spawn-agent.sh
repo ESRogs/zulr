@@ -72,8 +72,9 @@ if mngr list --format json 2>/dev/null | grep -q "\"$AGENT\""; then
   fi
 fi
 
-# Generate the MCP config with the correct repo path
-MCP_CONFIG="$REPO_ROOT/zuler-standalone-mcp.json"
+# Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
+ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
+MCP_CONFIG="$ZULER_STATE_DIR/standalone-mcp.json"
 cat > "$MCP_CONFIG" << MCPEOF
 {
   "mcpServers": {

@@ -41,7 +41,7 @@ For reference, here are the individual steps that `spawn-agent.sh` automates:
 
 ### MCP Config
 
-The `spawn-agent.sh` script generates `zuler-standalone-mcp.json` with the correct repo path. The file contains only the bun command — env vars are inherited from the mngr environment.
+The `spawn-agent.sh` script generates `~/.zuler/<repo-slug>/standalone-mcp.json` with the correct repo path. The file contains only the bun command — env vars are inherited from the mngr environment.
 
 ### Per-Agent Teams
 
