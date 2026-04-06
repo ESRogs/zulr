@@ -1,0 +1,134 @@
+#!/bin/bash
+# Spawn a standalone zuler agent via mngr.
+# Usage: ./spawn-agent.sh [--replace] <agent-name>
+#
+# Prerequisites:
+#   - The bot must already be registered on Zulip (use the `register` MCP tool)
+#   - mngr must be installed
+#
+# Options:
+#   --replace   Destroy any existing agent with the same name before creating
+#
+# This script:
+#   1. Extracts bot credentials from the zuler DB
+#   2. Creates a mngr agent with the right env vars and MCP config
+#   3. Approves the trust dialog if needed
+#   4. Sends the initial prompt (create team + getting-started)
+
+set -euo pipefail
+
+REPLACE=false
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --replace) REPLACE=true; shift ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
+AGENT="${1:?Usage: spawn-agent.sh [--replace] <agent-name>}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ZULIP_SITE="${ZULIP_SITE:-https://zuler.zulipchat.com}"
+
+# Find the zuler DB
+REPO_SLUG=$(echo "$REPO_ROOT" | sed 's|/|-|g')
+DB_PATH="$HOME/.zuler/$REPO_SLUG/state.db"
+
+if [ ! -f "$DB_PATH" ]; then
+  echo "error: zuler DB not found at $DB_PATH"
+  echo "Make sure the bot is registered via the register MCP tool first."
+  exit 1
+fi
+
+# Extract bot credentials (pass values via env vars to avoid injection)
+CREDS=$(ZULER_DB_PATH="$DB_PATH" ZULER_BOT_NAME="$AGENT" bun -e "
+import { Database } from 'bun:sqlite';
+const db = new Database(process.env.ZULER_DB_PATH!);
+const row = db.query('SELECT bot_email, api_key FROM teammates WHERE name = ?').get(process.env.ZULER_BOT_NAME!);
+if (!row) { console.error('Bot not found: ' + process.env.ZULER_BOT_NAME); process.exit(1); }
+console.log(JSON.stringify(row));
+" 2>&1)
+
+if [ $? -ne 0 ]; then
+  echo "error: failed to extract credentials for '$AGENT'"
+  echo "$CREDS"
+  exit 1
+fi
+
+BOT_EMAIL=$(echo "$CREDS" | bun -e "const d=JSON.parse(await Bun.stdin.text()); console.log(d.bot_email)")
+BOT_API_KEY=$(echo "$CREDS" | bun -e "const d=JSON.parse(await Bun.stdin.text()); console.log(d.api_key)")
+
+echo "Bot: $BOT_EMAIL"
+
+# Clean up any existing agent with the same name
+if mngr list --format json 2>/dev/null | grep -q "\"$AGENT\""; then
+  if [ "$REPLACE" = true ]; then
+    echo "Replacing existing agent '$AGENT'..."
+    echo "y" | mngr destroy --force "$AGENT" 2>/dev/null || true
+    git branch -D "mngr/$AGENT" 2>/dev/null || true
+  else
+    echo "error: agent '$AGENT' already exists. Use --replace to destroy and recreate."
+    exit 1
+  fi
+fi
+
+# Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
+ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
+MCP_CONFIG="$ZULER_STATE_DIR/standalone-mcp.json"
+cat > "$MCP_CONFIG" << MCPEOF
+{
+  "mcpServers": {
+    "zuler": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "$REPO_ROOT/packages/zuler/src/index.ts"]
+    }
+  }
+}
+MCPEOF
+
+# Create the agent
+echo "Creating agent '$AGENT'..."
+mngr create "$AGENT" claude \
+  --env "ZULER_TEAM=zuler-$AGENT" \
+  --env "ZULER_AGENT=$AGENT" \
+  --env "ZULIP_SITE=$ZULIP_SITE" \
+  --env "ZULIP_BOT_EMAIL=$BOT_EMAIL" \
+  --env "ZULIP_BOT_API_KEY=$BOT_API_KEY" \
+  --no-ensure-clean \
+  --no-connect \
+  -- --mcp-config "$MCP_CONFIG" --permission-mode auto
+
+# Approve trust dialog
+"$SCRIPT_DIR/approve-trust.sh" "$AGENT"
+
+# Wait for auto mode dialog
+TMUX_SESSION="mngr-$AGENT"
+for i in $(seq 1 30); do
+  SCREEN=$(mngr capture "$AGENT" 2>/dev/null || true)
+
+  if echo "$SCREEN" | grep -q "Yes, enable auto mode"; then
+    tmux send-keys -t "$TMUX_SESSION" Down Enter
+    echo "Approved auto mode"
+    sleep 2
+    continue
+  fi
+
+  if echo "$SCREEN" | grep -q "auto mode on"; then
+    echo "Claude Code ready"
+    break
+  fi
+
+  sleep 1
+done
+
+# Send the initial prompt
+echo "Sending initial prompt..."
+INITIAL_PROMPT="Create a team called 'zuler-$AGENT' using TeamCreate. Then read the docs channel topic 'getting-started' using the catch-up tool and follow its instructions."
+tmux send-keys -t "$TMUX_SESSION" "$INITIAL_PROMPT" Enter
+
+echo ""
+echo "Agent '$AGENT' spawned successfully!"
+echo "  Connect: mngr connect $AGENT"
+echo "  Capture: mngr capture $AGENT"
+echo "  Destroy: echo y | mngr destroy --force $AGENT"

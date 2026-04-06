@@ -20,6 +20,8 @@ type EventListenerManagerOptions = {
     readonly client: ZulipClient
     readonly email: Email
   }
+  /** Override the inbox file name (defaults to the bot's teammate name). Used in standalone mode where the agent is "team-lead" in its own team. */
+  readonly inboxName?: TeammateName
   /** Called on each successfully routed message for logging/debugging. */
   readonly onRoute?: (info: {
     readonly stream?: string
@@ -60,6 +62,7 @@ type HandleReactionParams = {
   readonly session: ZulipSession
   readonly teamName: TeamName
   readonly botName: TeammateName
+  readonly inboxName: TeammateName
   readonly botEmail: Email
   readonly messageId: MessageId
   readonly reactorUserId: UserId
@@ -79,6 +82,7 @@ async function handleReaction(params: HandleReactionParams): Promise<void> {
     session,
     teamName,
     botName,
+    inboxName,
     botEmail,
     messageId,
     reactorUserId,
@@ -118,7 +122,7 @@ async function handleReaction(params: HandleReactionParams): Promise<void> {
   const summary = `:${emojiName}: on \u201c${preview}\u201d`
   const text = `${summary}\n[msg:${messageId}]`
 
-  writeToInbox(teamName, botName, {
+  writeToInbox(teamName, inboxName, {
     from,
     text,
     summary,
@@ -152,6 +156,7 @@ function startBotSession(
   onSessionExit?: () => void,
 ): ZulipSession {
   const { db, teamName, onRoute, onReaction, onError, signal } = options
+  const inboxTarget = options.inboxName ?? botName
 
   const session = createSession({
     client: botClient,
@@ -169,7 +174,7 @@ function startBotSession(
           // Block bot-to-bot DMs
           if (allBotEmails.has(msg.sender_email)) return
 
-          routeDm(db, teamName, msg, botName).match(
+          routeDm(db, teamName, msg, inboxTarget).match(
             (dmResult) => {
               if (dmResult.delivered.length > 0) {
                 onRoute?.({
@@ -192,7 +197,7 @@ function startBotSession(
           const from = `zulip:${location}:${senderName}`
           const summary = sanitizeSummary(truncate(content, 60))
 
-          writeToInbox(teamName, botName, {
+          writeToInbox(teamName, inboxTarget, {
             from,
             text: `${content}\n${formatMessageFooter(msg.id, msg.timestamp)}`,
             summary,
@@ -224,6 +229,7 @@ function startBotSession(
               session,
               teamName,
               botName,
+              inboxName: inboxTarget,
               botEmail,
               messageId: event.message_id,
               reactorUserId: event.user_id,
