@@ -85,6 +85,7 @@ async function bootEventListeners(): Promise<void> {
     teamName,
     site: creds.site,
     standaloneBot,
+    ...(agentName ? { inboxName: 'team-lead' as TeammateName } : {}),
     signal: new AbortController().signal,
     onRoute: (info) => {
       const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
@@ -115,6 +116,7 @@ async function bootEventListeners(): Promise<void> {
     site: creds.site,
     standaloneBot:
       agentName && standaloneClient ? { name: agentName, client: standaloneClient } : undefined,
+    ...(agentName ? { inboxName: 'team-lead' as TeammateName } : {}),
     getSession: manager.getSession,
     onLog: log,
     onError: (err) => log(`backfill error: ${getErrorMessage(err)}`),

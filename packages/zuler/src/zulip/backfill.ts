@@ -16,6 +16,8 @@ type BackfillOptions = {
   readonly site: string
   /** In standalone mode, only backfill this single agent using the provided client. */
   readonly standaloneBot?: { readonly name: TeammateName; readonly client: ZulipClient }
+  /** Override the inbox file name (defaults to the bot name). Used in standalone mode. */
+  readonly inboxName?: TeammateName
   /** Maximum unread messages to write per bot. */
   readonly maxPerBot?: number
   /** Get a bot's session (for followed topics). */
@@ -69,6 +71,7 @@ async function backfillBot(
   options: BackfillOptions,
 ): Promise<number> {
   const { teamName, maxPerBot = DEFAULT_MAX_PER_BOT, onError } = options
+  const inboxTarget = options.inboxName ?? botName
 
   const followedTopics = session.getFollowedTopics()
   const narrows = buildNarrows(followedTopics)
@@ -107,7 +110,7 @@ async function backfillBot(
   const capped = sorted.slice(0, maxPerBot)
 
   // Deduplicate against existing inbox
-  const inbox = readInbox(teamName, botName)
+  const inbox = readInbox(teamName, inboxTarget)
   const inboxIds = new Set(
     inbox.flatMap((m) => (m.zulipMessageId !== undefined ? [m.zulipMessageId] : [])),
   )
@@ -134,7 +137,7 @@ async function backfillBot(
 
     const summary = sanitizeSummary(truncate(content, 60))
 
-    writeToInbox(teamName, botName, {
+    writeToInbox(teamName, inboxTarget, {
       from,
       text: `${content}\n${formatMessageFooter(msg.id, msg.timestamp)}`,
       summary,
@@ -156,7 +159,7 @@ async function backfillBot(
   // If we hit the cap and there were more messages, write overflow summary
   if (sorted.length > maxPerBot) {
     const overflow = sorted.length - maxPerBot
-    writeToInbox(teamName, botName, {
+    writeToInbox(teamName, inboxTarget, {
       from: 'zuler:system',
       text: `${overflow} additional unread message(s) were not loaded during startup backfill. Run catch-up to see them.`,
       summary: `${overflow} more unread message(s) — run catch-up`,
