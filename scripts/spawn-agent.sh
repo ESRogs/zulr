@@ -29,7 +29,7 @@ while [[ "${1:-}" == --* ]]; do
   esac
 done
 
-AGENT="${1:?Usage: spawn-agent.sh [--replace] <agent-name>}"
+AGENT="${1:?Usage: spawn-agent.sh [--replace] [--modal] <agent-name>}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ZULIP_SITE="${ZULIP_SITE:-https://zuler.zulipchat.com}"
@@ -102,13 +102,16 @@ if [ "$MODAL" = true ]; then
   # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
   GENERATE_MCP='mkdir -p ~/.zuler && printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > ~/.zuler/standalone-mcp.json'
 
-  # Ensure bun is on PATH for future commands (provision commands run in separate shells)
+  # Add bun to ~/.bashrc so it's on PATH at agent runtime.
+  # Provision commands run in separate shells, so the bun install step below
+  # uses an inline export instead of relying on this.
   SETUP_PATH='echo "export BUN_INSTALL=\$HOME/.bun" >> ~/.bashrc && echo "export PATH=\$BUN_INSTALL/bin:\$PATH" >> ~/.bashrc'
 
   echo "Creating Modal agent '$AGENT'..."
   mngr create "$AGENT@.modal" claude \
     "${COMMON_ENV[@]}" \
     --env "GITHUB_TOKEN=$GITHUB_TOKEN" \
+    --env "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?--modal requires ANTHROPIC_API_KEY env var}" \
     -b "timeout=$MODAL_TIMEOUT" \
     -b "cpu=$MODAL_CPU" \
     -b "memory=$MODAL_MEMORY" \
@@ -147,7 +150,9 @@ MCPEOF
     -- --mcp-config "$MCP_CONFIG" --permission-mode auto
 fi
 
-# Approve trust dialog
+# Approve trust dialog and send initial prompt.
+# These steps work for both local and Modal agents — mngr creates a tmux
+# session and `mngr capture` works over SSH for remote sandboxes.
 "$SCRIPT_DIR/approve-trust.sh" "$AGENT"
 
 # Wait for auto mode dialog
