@@ -99,6 +99,7 @@ async function bootEventListeners(): Promise<void> {
       )
     },
     onError: (err) => log(`event listener error: ${getErrorMessage(err)}`),
+    onLog: log,
   })
 
   // Expose manager on ctx so register tool can start listeners for new bots

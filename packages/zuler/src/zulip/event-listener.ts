@@ -40,6 +40,8 @@ type EventListenerManagerOptions = {
   }) => void
   /** Called on errors for logging. Listener continues after errors. */
   readonly onError?: (error: unknown) => void
+  /** Called for informational lifecycle messages (session start, queue registration, retries). */
+  readonly onLog?: (message: string) => void
   /** If set, listeners stop when this signal is aborted. */
   readonly signal?: AbortSignal
 }
@@ -155,7 +157,7 @@ function startBotSession(
   options: EventListenerManagerOptions,
   onSessionExit?: () => void,
 ): ZulipSession {
-  const { db, teamName, onRoute, onReaction, onError, signal } = options
+  const { db, teamName, onRoute, onReaction, onError, onLog, signal } = options
   const inboxTarget = options.inboxName ?? botName
 
   const session = createSession({
@@ -249,6 +251,10 @@ function startBotSession(
         } else {
           onError?.(`${prefix} ${error.type}: ${error.message}`)
         }
+      },
+
+      onLog: (message) => {
+        onLog?.(`[${botName}] ${message}`)
       },
     },
   })
