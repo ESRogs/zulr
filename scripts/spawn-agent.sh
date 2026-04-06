@@ -34,6 +34,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ZULIP_SITE="${ZULIP_SITE:-https://zuler.zulipchat.com}"
 
+# Load .env if present (bun does this automatically, but this is a bash script)
+if [ -f "$REPO_ROOT/.env" ]; then
+  set -a
+  source "$REPO_ROOT/.env"
+  set +a
+fi
+
 # Find the zuler DB
 REPO_SLUG=$(echo "$REPO_ROOT" | sed 's|/|-|g')
 DB_PATH="$HOME/.zuler/$REPO_SLUG/state.db"
@@ -87,6 +94,24 @@ COMMON_ENV=(
 
 if [ "$MODAL" = true ]; then
   GITHUB_TOKEN="${GITHUB_TOKEN:?--modal requires GITHUB_TOKEN env var for remote GitHub access}"
+
+  # Resolve Claude Code auth for the remote sandbox.
+  # Checks CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, and CLAUDE_CODE_API_KEY_MODAL (from .env).
+  MODAL_AUTH_ENV=()
+  if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    MODAL_AUTH_ENV=(--env "CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN")
+  elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    MODAL_AUTH_ENV=(--env "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
+  elif [ -n "${CLAUDE_CODE_API_KEY_MODAL:-}" ]; then
+    MODAL_AUTH_ENV=(--env "ANTHROPIC_API_KEY=$CLAUDE_CODE_API_KEY_MODAL")
+  else
+    echo "error: --modal requires Claude Code auth. Set one of:"
+    echo "  CLAUDE_CODE_OAUTH_TOKEN  (from 'claude setup-token')"
+    echo "  ANTHROPIC_API_KEY"
+    echo "  CLAUDE_CODE_API_KEY_MODAL  (in .env)"
+    exit 1
+  fi
+
   MODAL_TIMEOUT="${MODAL_TIMEOUT:-3600}"
   MODAL_CPU="${MODAL_CPU:-2}"
   MODAL_MEMORY="${MODAL_MEMORY:-4}"
@@ -110,6 +135,7 @@ if [ "$MODAL" = true ]; then
   echo "Creating Modal agent '$AGENT'..."
   mngr create "$AGENT@.modal" claude \
     "${COMMON_ENV[@]}" \
+    "${MODAL_AUTH_ENV[@]}" \
     --env "GITHUB_TOKEN=$GITHUB_TOKEN" \
     -b "timeout=$MODAL_TIMEOUT" \
     -b "cpu=$MODAL_CPU" \

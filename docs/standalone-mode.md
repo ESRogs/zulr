@@ -74,14 +74,19 @@ Run standalone agents on Modal instead of local worktrees. The script runs local
 
 - Modal CLI installed and authenticated: `uv tool install modal && modal token new`
 - `GITHUB_TOKEN` env var set (for the agent to push code / create PRs)
+- Claude Code auth: one of `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`), `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_API_KEY_MODAL` (in `.env`)
 
 ### Quick Start
 
 ```bash
+# With API key in .env (CLAUDE_CODE_API_KEY_MODAL):
 GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal <agent-name>
 
-# Replace an existing Modal agent:
-GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal --replace <agent-name>
+# With explicit API key:
+ANTHROPIC_API_KEY=sk-... GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal <agent-name>
+
+# With OAuth token (from 'claude setup-token'):
+CLAUDE_CODE_OAUTH_TOKEN=... GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal <agent-name>
 ```
 
 ### How It Works
