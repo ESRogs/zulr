@@ -55,9 +55,9 @@ export function routeDm(
         if (targetBot && name !== targetBot) return false
         return true
       })
-      .map(([_, name]) => {
+      .flatMap(([_, name]) => {
         const from = `zulip:${senderName}`
-        writeToInbox(teamName, name, {
+        const writeResult = writeToInbox(teamName, name, {
           from,
           text: appendFooter(content, message.id, message.timestamp),
           summary,
@@ -65,7 +65,8 @@ export function routeDm(
           zulipSenderId: message.sender_id,
           zulipSender: senderName,
         })
-        return { teammate: name, from }
+        if (writeResult.isErr()) return []
+        return [{ teammate: name, from }]
       })
 
     return { messageId: message.id, delivered }

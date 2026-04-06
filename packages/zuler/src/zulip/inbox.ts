@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { err, ok, type Result } from 'neverthrow'
 import type {
   ChannelName,
   DisplayName,
@@ -48,14 +49,32 @@ function loadInbox(path: string): InboxMessage[] {
 }
 
 /** Read all messages from a teammate's inbox file. */
-export function readInbox(teamName: TeamName, teammate: TeammateName): readonly InboxMessage[] {
-  return loadInbox(inboxPath(teamName, teammate))
+export function readInbox(
+  teamName: TeamName,
+  teammate: TeammateName,
+): Result<readonly InboxMessage[], string> {
+  const path = inboxPath(teamName, teammate)
+  if (!existsSync(path)) return ok([])
+  try {
+    const data = readFileSync(path, 'utf-8')
+    return ok(JSON.parse(data) as InboxMessage[])
+  } catch (e) {
+    return err(`failed to read inbox at ${path}: ${e instanceof Error ? e.message : String(e)}`)
+  }
 }
 
 /** Append a message to a teammate's inbox file. */
-export function writeToInbox(teamName: TeamName, teammate: TeammateName, entry: InboxEntry): void {
+export function writeToInbox(
+  teamName: TeamName,
+  teammate: TeammateName,
+  entry: InboxEntry,
+): Result<void, string> {
   const dir = inboxDir(teamName)
-  mkdirSync(dir, { recursive: true })
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch (e) {
+    return err(`failed to create inbox dir ${dir}: ${e instanceof Error ? e.message : String(e)}`)
+  }
 
   const path = inboxPath(teamName, teammate)
   const messages = loadInbox(path)
@@ -65,7 +84,7 @@ export function writeToInbox(teamName: TeamName, teammate: TeammateName, entry: 
     entry.zulipMessageId !== undefined &&
     messages.some((m) => m.zulipMessageId === entry.zulipMessageId)
   ) {
-    return
+    return ok(undefined)
   }
 
   messages.push({
@@ -74,7 +93,12 @@ export function writeToInbox(teamName: TeamName, teammate: TeammateName, entry: 
     read: false,
   })
 
-  writeFileSync(path, JSON.stringify(messages, null, 2))
+  try {
+    writeFileSync(path, JSON.stringify(messages, null, 2))
+    return ok(undefined)
+  } catch (e) {
+    return err(`failed to write inbox at ${path}: ${e instanceof Error ? e.message : String(e)}`)
+  }
 }
 
 /** Consume (mark as read and return) unread inbox messages matching a predicate. */

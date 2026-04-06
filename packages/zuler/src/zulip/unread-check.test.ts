@@ -142,7 +142,7 @@ test('consumeUnreadInboxMessages marks matching messages and returns them', () =
 
   expect(consumed).toHaveLength(1)
   expect(consumed[0]!.text).toBe('msg1')
-  const inbox = readInbox(teamName, tm('alice'))
+  const inbox = readInbox(teamName, tm('alice'))._unsafeUnwrap()
   expect(inbox[0]!.read).toBe(true)
   expect(inbox[1]!.read).toBe(false)
 })
@@ -157,7 +157,7 @@ test('consumeUnreadInboxMessages leaves messages without structured fields alone
   const consumed = consumeUnreadInboxMessages(teamName, tm('alice'), ch('general'), tp('greetings'))
 
   expect(consumed).toHaveLength(0)
-  const inbox = readInbox(teamName, tm('alice'))
+  const inbox = readInbox(teamName, tm('alice'))._unsafeUnwrap()
   expect(inbox[0]!.read).toBe(false)
 })
 
@@ -264,7 +264,7 @@ test('consumeUnreadDmMessages marks matching DMs and returns them', () => {
 
   expect(consumed).toHaveLength(1)
   expect(consumed[0]!.text).toBe('dm from bob')
-  const inbox = readInbox(teamName, tm('alice'))
+  const inbox = readInbox(teamName, tm('alice'))._unsafeUnwrap()
   expect(inbox[0]!.read).toBe(true)
   expect(inbox[1]!.read).toBe(false)
 })
@@ -292,7 +292,7 @@ test('writeToInbox skips duplicate zulipMessageId', () => {
     zulipTopic: tp('greetings'),
     zulipSender: dn('Bob'),
   })
-  const inbox = readInbox(teamName, tm('alice'))
+  const inbox = readInbox(teamName, tm('alice'))._unsafeUnwrap()
   expect(inbox).toHaveLength(1)
   expect(inbox[0]!.text).toBe('msg1')
 })
@@ -308,7 +308,7 @@ test('writeToInbox allows messages without zulipMessageId (non-Zulip messages)',
     text: 'system msg 2',
     summary: 'system',
   })
-  const inbox = readInbox(teamName, tm('alice'))
+  const inbox = readInbox(teamName, tm('alice'))._unsafeUnwrap()
   expect(inbox).toHaveLength(2)
 })
 

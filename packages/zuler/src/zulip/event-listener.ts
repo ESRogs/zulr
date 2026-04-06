@@ -125,6 +125,7 @@ async function handleReaction(params: HandleReactionParams): Promise<void> {
   const summary = `:${emojiName}: on \u201c${preview}\u201d`
   const text = `${summary}\n[msg:${messageId}]`
 
+  // eslint-disable-next-line neverthrow/must-use-result
   writeToInbox(teamName, inboxName, {
     from,
     text,
@@ -135,7 +136,7 @@ async function handleReaction(params: HandleReactionParams): Promise<void> {
       ? { zulipStream: msg.display_recipient, zulipTopic: msg.subject }
       : {}),
     zulipSender: reactorName,
-  })
+  }).mapErr((e) => onError?.(e))
   onReaction?.({
     emoji: emojiName,
     op: 'add',
@@ -200,6 +201,7 @@ function startBotSession(
           const from = `zulip:${location}:${senderName}`
           const summary = sanitizeSummary(truncate(content, 60))
 
+          // eslint-disable-next-line neverthrow/must-use-result
           writeToInbox(teamName, inboxTarget, {
             from,
             text: `${content}\n${formatMessageFooter(msg.id, msg.timestamp)}`,
@@ -209,7 +211,7 @@ function startBotSession(
             zulipStream: stream,
             zulipTopic: topic,
             zulipSender: senderName,
-          })
+          }).mapErr((e) => onError?.(e))
           // Follow the topic when this bot is @-mentioned
           if (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') {
             // eslint-disable-next-line neverthrow/must-use-result

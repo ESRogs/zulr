@@ -125,7 +125,12 @@ async function backfillBotImpl(
   const capped = sorted.slice(0, maxPerBot)
 
   // Deduplicate against existing inbox
-  const inbox = readInbox(teamName, inboxTarget)
+  const inboxResult = readInbox(teamName, inboxTarget)
+  if (inboxResult.isErr()) {
+    onError?.(inboxResult.error)
+    return 0
+  }
+  const inbox = inboxResult.value
   const inboxIds = new Set(
     inbox.flatMap((m) => (m.zulipMessageId !== undefined ? [m.zulipMessageId] : [])),
   )
@@ -152,6 +157,7 @@ async function backfillBotImpl(
 
     const summary = sanitizeSummary(truncate(content, 60))
 
+    // eslint-disable-next-line neverthrow/must-use-result
     writeToInbox(teamName, inboxTarget, {
       from,
       text: `${content}\n${formatMessageFooter(msg.id, msg.timestamp)}`,
@@ -160,7 +166,7 @@ async function backfillBotImpl(
       zulipSenderId: msg.sender_id,
       ...(isStream ? { zulipStream: msg.display_recipient, zulipTopic: msg.subject } : {}),
       zulipSender: senderName,
-    })
+    }).mapErr((e) => onError?.(e))
   }
 
   // Mark as read on Zulip
@@ -174,11 +180,12 @@ async function backfillBotImpl(
   // If we hit the cap and there were more messages, write overflow summary
   if (sorted.length > maxPerBot) {
     const overflow = sorted.length - maxPerBot
+    // eslint-disable-next-line neverthrow/must-use-result
     writeToInbox(teamName, inboxTarget, {
       from: 'zuler:system',
       text: `${overflow} additional unread message(s) were not loaded during startup backfill. Run catch-up to see them.`,
       summary: `${overflow} more unread message(s) — run catch-up`,
-    })
+    }).mapErr((e) => onError?.(e))
   }
 
   return chronological.length

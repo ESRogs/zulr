@@ -12,7 +12,7 @@ export function checkUnreadBeforePost(
   stream: ChannelName,
   topic: TopicName,
 ): string | undefined {
-  const messages = readInbox(teamName, sender)
+  const messages = readInbox(teamName, sender).unwrapOr([])
   const unread = countUnreadFromTopic(messages, stream, topic)
   if (unread > 0) {
     return `you have ${unread} unread message(s) in ${stream}/${topic}. Use the read or catch-up tool first.`
@@ -29,7 +29,7 @@ export function checkUnreadBeforeDm(
   sender: TeammateName,
   fromUserId: UserId,
 ): string | undefined {
-  const messages = readInbox(teamName, sender)
+  const messages = readInbox(teamName, sender).unwrapOr([])
   const unread = countUnreadDmsFromUser(messages, fromUserId)
   if (unread > 0) {
     return `you have ${unread} unread DM(s) from user ${fromUserId}. Use the read or catch-up tool first.`
