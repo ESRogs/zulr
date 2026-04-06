@@ -131,3 +131,10 @@ in the same topic. They can read it themselves.
 - Never merge without the user's explicit approval.
 - PR descriptions should explain the "why," not just the "what."
 - Tag reviewers as appropriate when a PR is ready.
+
+### Worktrees
+
+Each teammate is spawned in its own git worktree. **Do not use
+`EnterWorktree` or `ExitWorktree`.** You are already in your worktree — switching
+to a different one can conflict with another teammate's work or with the
+main repo. All your changes should happen in the worktree you were spawned in.
