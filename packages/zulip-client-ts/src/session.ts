@@ -229,20 +229,18 @@ export function createSession(params: CreateSessionParams): ZulipSession {
 
   async function start(): Promise<void> {
     stopped = false
+    handler?.onLog?.('starting session')
 
     while (!stopped && !signal?.aborted) {
       const result = await runEventLoop()
       if (result.isErr()) {
         handler?.onError?.(result.error)
         if (!stopped && !signal?.aborted) {
-          handler?.onLog?.('re-registering queue after poll loop error')
+          handler?.onLog?.('re-registering queue')
           await sleep(RETRY_DELAY_MS, signal)
         }
-      } else {
-        // ok(undefined) means BAD_EVENT_QUEUE_ID or clean exit
-        if (!stopped && !signal?.aborted) {
-          handler?.onLog?.('re-registering queue (BAD_EVENT_QUEUE_ID or queue expired)')
-        }
+      } else if (!stopped && !signal?.aborted) {
+        handler?.onLog?.('re-registering queue')
       }
     }
 
@@ -256,7 +254,10 @@ export function createSession(params: CreateSessionParams): ZulipSession {
       allPublicStreams,
     })
 
-    if (regResult.isErr()) return err(regResult.error)
+    if (regResult.isErr()) {
+      handler?.onLog?.('queue registration failed')
+      return err(regResult.error)
+    }
 
     const {
       queue_id: queueId,
@@ -309,7 +310,7 @@ export function createSession(params: CreateSessionParams): ZulipSession {
         handler?.onError?.(evtErr)
         if (consecutivePollErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
           handler?.onLog?.(
-            `poll error ${consecutivePollErrors}/${MAX_CONSECUTIVE_POLL_ERRORS} — giving up`,
+            `poll error ${consecutivePollErrors}/${MAX_CONSECUTIVE_POLL_ERRORS} — abandoning queue`,
           )
           return err(evtErr)
         }
