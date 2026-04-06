@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely'
+import { fromPromise, type ResultAsync } from 'neverthrow'
 import type { FollowedTopic, ZulipSession } from 'zulip-client-ts'
 import type { MessageId, NarrowFilter, ZulipClient } from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
@@ -10,20 +11,25 @@ import { readInbox, writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
 import { sanitizeSummary, truncate } from './routing.ts'
 
-type BackfillOptions = {
-  readonly db: Kysely<ZulerDatabase>
+/** Options for backfilling a single bot's inbox. */
+export type BackfillBotOptions = {
   readonly teamName: TeamName
+  /** Maximum unread messages to write per bot. */
+  readonly maxPerBot?: number
+  /** Override the inbox file name (defaults to the bot name). Used in standalone mode. */
+  readonly inboxName?: TeammateName
+  readonly onError?: (error: unknown) => void
+}
+
+/** Options for backfilling all bots' inboxes at startup. */
+export type BackfillOptions = BackfillBotOptions & {
+  readonly db: Kysely<ZulerDatabase>
   readonly site: string
   /** In standalone mode, only backfill this single agent using the provided client. */
   readonly standaloneBot?: { readonly name: TeammateName; readonly client: ZulipClient }
-  /** Override the inbox file name (defaults to the bot name). Used in standalone mode. */
-  readonly inboxName?: TeammateName
-  /** Maximum unread messages to write per bot. */
-  readonly maxPerBot?: number
   /** Get a bot's session (for followed topics). */
   readonly getSession: (name: TeammateName) => ZulipSession | undefined
   readonly onLog?: (msg: string) => void
-  readonly onError?: (error: unknown) => void
 }
 
 const DEFAULT_MAX_PER_BOT = 20
@@ -64,11 +70,20 @@ function buildNarrows(
 }
 
 /** Backfill a single bot's inbox with missed unread messages. */
-async function backfillBot(
+export function backfillBot(
   botName: TeammateName,
   client: ZulipClient,
   session: ZulipSession,
-  options: BackfillOptions,
+  options: BackfillBotOptions,
+): ResultAsync<number, unknown> {
+  return fromPromise(backfillBotImpl(botName, client, session, options), (err) => err)
+}
+
+async function backfillBotImpl(
+  botName: TeammateName,
+  client: ZulipClient,
+  session: ZulipSession,
+  options: BackfillBotOptions,
 ): Promise<number> {
   const { teamName, maxPerBot = DEFAULT_MAX_PER_BOT, onError } = options
   const inboxTarget = options.inboxName ?? botName
@@ -218,8 +233,12 @@ export async function backfillAllInboxes(options: BackfillOptions): Promise<void
         client = clientResult.value.client
       }
 
-      const count = await backfillBot(name, client, session, options)
-      return { name, count }
+      const botResult = await backfillBot(name, client, session, options)
+      if (botResult.isErr()) {
+        onError?.(`backfill failed for ${name}: ${botResult.error}`)
+        return { name, count: 0 }
+      }
+      return { name, count: botResult.value }
     }),
   )
 

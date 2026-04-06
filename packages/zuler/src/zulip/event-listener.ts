@@ -7,6 +7,7 @@ import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates, type StateError, type Teammate } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
+import { type BackfillBotOptions, backfillBot } from './backfill.ts'
 import { writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
 import { routeDm, sanitizeSummary, truncate } from './routing.ts'
@@ -241,6 +242,22 @@ function startBotSession(
               onError,
             }).catch((err) => onError?.(err))
           }
+        }
+      },
+
+      onReconnect: async () => {
+        // Awaited before the event poll loop starts, so backfill completes
+        // before new events are processed. Events accumulate server-side
+        // during backfill and are delivered in order afterward.
+        onLog?.(`[${botName}] session reconnected — running backfill`)
+        const backfillOptions: BackfillBotOptions = {
+          teamName,
+          inboxName: inboxTarget,
+          onError: (err) => onError?.(`[${botName}] reconnect backfill: ${err}`),
+        }
+        const result = await backfillBot(botName, botClient, session, backfillOptions)
+        if (result.isErr()) {
+          onError?.(`[${botName}] reconnect backfill failed: ${result.error}`)
         }
       },
 

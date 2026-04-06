@@ -98,8 +98,8 @@ async function bootEventListeners(): Promise<void> {
         `:${info.emoji}: from ${info.reactorName} on msg ${info.messageId} → ${info.deliveredTo.join(', ')}`,
       )
     },
-    onError: (err) => log(`event listener error: ${getErrorMessage(err)}`),
     onLog: log,
+    onError: (err) => log(`event listener error: ${getErrorMessage(err)}`),
   })
 
   // Expose manager on ctx so register tool can start listeners for new bots
