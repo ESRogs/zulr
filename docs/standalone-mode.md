@@ -110,4 +110,3 @@ After waking, the Zulip event queue may have expired (~10 min TTL). The session 
 | `MODAL_MEMORY` | `4` | Memory in GB (0.5–32) |
 | `MODAL_IDLE_TIMEOUT` | `5m` | Idle time before auto-shutdown |
 | `GITHUB_TOKEN` | (required) | GitHub PAT for pushing code |
-| `ANTHROPIC_API_KEY` | (required) | API key for Claude Code |

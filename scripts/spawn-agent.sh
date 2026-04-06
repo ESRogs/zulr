@@ -111,7 +111,6 @@ if [ "$MODAL" = true ]; then
   mngr create "$AGENT@.modal" claude \
     "${COMMON_ENV[@]}" \
     --env "GITHUB_TOKEN=$GITHUB_TOKEN" \
-    --env "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?--modal requires ANTHROPIC_API_KEY env var}" \
     -b "timeout=$MODAL_TIMEOUT" \
     -b "cpu=$MODAL_CPU" \
     -b "memory=$MODAL_MEMORY" \
