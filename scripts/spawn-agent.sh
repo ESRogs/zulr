@@ -171,18 +171,43 @@ MCPEOF
     -- --mcp-config "$MCP_CONFIG" --permission-mode auto
 fi
 
-# Approve trust dialog and send initial prompt.
-# These steps work for both local and Modal agents — mngr creates a tmux
-# session and `mngr capture` works over SSH for remote sandboxes.
-"$SCRIPT_DIR/approve-trust.sh" "$AGENT"
-
-# Wait for auto mode dialog
+# Helper: send tmux keys to the agent's session.
+# For local agents, uses tmux directly. For Modal, uses mngr exec to run
+# tmux on the remote sandbox.
 TMUX_SESSION="mngr-$AGENT"
-for i in $(seq 1 30); do
+send_keys() {
+  if [ "$MODAL" = true ]; then
+    mngr exec "$AGENT" "tmux send-keys -t $TMUX_SESSION $*" 2>/dev/null || true
+  else
+    tmux send-keys -t "$TMUX_SESSION" "$@"
+  fi
+}
+
+# Navigate Claude Code's startup dialogs (trust, theme, auto mode).
+# On first run (common on Modal), Claude Code shows a theme picker and
+# possibly a login prompt before the trust and auto-mode dialogs.
+for i in $(seq 1 60); do
   SCREEN=$(mngr capture "$AGENT" 2>/dev/null || true)
 
+  # Theme picker (first-run only) — accept default with Enter
+  if echo "$SCREEN" | grep -q "Dark mode"; then
+    send_keys Enter
+    echo "Accepted theme"
+    sleep 2
+    continue
+  fi
+
+  # Trust dialog
+  if echo "$SCREEN" | grep -q "Yes, I trust this folder"; then
+    send_keys Enter
+    echo "Approved trust dialog"
+    sleep 2
+    continue
+  fi
+
+  # Auto mode dialog
   if echo "$SCREEN" | grep -q "Yes, enable auto mode"; then
-    tmux send-keys -t "$TMUX_SESSION" Down Enter
+    send_keys Down Enter
     echo "Approved auto mode"
     sleep 2
     continue
@@ -199,7 +224,7 @@ done
 # Send the initial prompt
 echo "Sending initial prompt..."
 INITIAL_PROMPT="Create a team called 'zuler-$AGENT' using TeamCreate. Then read the docs channel topic 'getting-started' using the catch-up tool and follow its instructions."
-tmux send-keys -t "$TMUX_SESSION" "$INITIAL_PROMPT" Enter
+send_keys "$INITIAL_PROMPT" Enter
 
 echo ""
 echo "Agent '$AGENT' spawned successfully!"
