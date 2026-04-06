@@ -92,22 +92,32 @@ if [ "$MODAL" = true ]; then
   MODAL_MEMORY="${MODAL_MEMORY:-4}"
   MODAL_IDLE_TIMEOUT="${MODAL_IDLE_TIMEOUT:-5m}"
 
-  # On Modal, generate the MCP config on-sandbox since local paths don't apply.
-  # The provision command runs in the sandbox work_dir (where mngr placed the repo).
-  # We write a helper script that generates the MCP config using $(pwd).
-  GENERATE_MCP='mkdir -p ~/.zuler && printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$(pwd)" > ~/.zuler/standalone-mcp.json'
+  # Install bun and Claude Code on-sandbox via provision commands.
+  # The default Modal image (debian:bookworm-slim) works with mngr's SSH setup;
+  # custom Dockerfiles based on other Debian versions may have compatibility issues.
+  INSTALL_BUN='curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun --version'
+  INSTALL_CC='npm install -g @anthropic-ai/claude-code'
+
+  # Generate the MCP config on-sandbox since local paths don't apply.
+  # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
+  GENERATE_MCP='mkdir -p ~/.zuler && printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > ~/.zuler/standalone-mcp.json'
+
+  # Ensure bun is on PATH for future commands (provision commands run in separate shells)
+  SETUP_PATH='echo "export BUN_INSTALL=\$HOME/.bun" >> ~/.bashrc && echo "export PATH=\$BUN_INSTALL/bin:\$PATH" >> ~/.bashrc'
 
   echo "Creating Modal agent '$AGENT'..."
   mngr create "$AGENT@.modal" claude \
     "${COMMON_ENV[@]}" \
     --env "GITHUB_TOKEN=$GITHUB_TOKEN" \
-    -b "file=$SCRIPT_DIR/Dockerfile.modal" \
     -b "timeout=$MODAL_TIMEOUT" \
     -b "cpu=$MODAL_CPU" \
     -b "memory=$MODAL_MEMORY" \
     --idle-timeout "$MODAL_IDLE_TIMEOUT" \
     --idle-mode io \
-    --extra-provision-command 'bun install' \
+    --extra-provision-command "$INSTALL_BUN" \
+    --extra-provision-command "$SETUP_PATH" \
+    --extra-provision-command "$INSTALL_CC" \
+    --extra-provision-command 'export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun install' \
     --extra-provision-command "$GENERATE_MCP" \
     --no-connect \
     -- --mcp-config ~/.zuler/standalone-mcp.json --permission-mode auto
