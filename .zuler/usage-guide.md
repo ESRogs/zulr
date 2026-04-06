@@ -134,7 +134,8 @@ in the same topic. They can read it themselves.
 
 ### Worktrees
 
-Each teammate is spawned in its own git worktree. **Do not use
-`EnterWorktree` or `ExitWorktree`.** You are already in your worktree — switching
-to a different one can conflict with another teammate's work or with the
-main repo. All your changes should happen in the worktree you were spawned in.
+**Do not use `EnterWorktree` or `ExitWorktree`** unless explicitly
+instructed by the team lead or the user. These tools change your working
+directory to a different git worktree, which can conflict with another
+teammate's work. All your changes should happen in the worktree you were
+started in.
