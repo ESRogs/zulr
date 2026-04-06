@@ -65,3 +65,48 @@ Claude Code shows a workspace trust dialog on first launch in a new directory. T
 ### Permission Mode
 
 Use `--permission-mode auto` to avoid manual tool approval dialogs. Auto mode checks each tool call for safety before executing — safe calls proceed automatically, risky calls are blocked.
+
+## Modal (Remote Sandboxes)
+
+Run standalone agents on Modal instead of local worktrees. The script runs locally but the agent executes in a remote Modal sandbox.
+
+### Prerequisites
+
+- Modal CLI installed and authenticated: `uv tool install modal && modal token new`
+- `GITHUB_TOKEN` env var set (for the agent to push code / create PRs)
+
+### Quick Start
+
+```bash
+GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal <agent-name>
+
+# Replace an existing Modal agent:
+GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal --replace <agent-name>
+```
+
+### How It Works
+
+1. Bot credentials are extracted locally from the zuler DB (same as local mode)
+2. `mngr create agent@.modal` builds a sandbox from `scripts/Dockerfile.modal` (bun + Claude Code)
+3. The repo is transferred via `git push --mirror`
+4. Provision commands run `bun install` and generate the MCP config with the correct sandbox path
+5. The agent starts with `--idle-timeout 5m --idle-mode io` for cost-efficient lifecycle management
+
+### Lifecycle (Idle/Wake)
+
+Modal agents automatically shut down when idle, snapshotting their state:
+
+- **Idle** → mngr detects inactivity → snapshots sandbox → shuts down
+- **Wake** → `mngr start <agent>` → restores from snapshot → resumes
+
+After waking, the Zulip event queue may have expired (~10 min TTL). The session re-registers and backfill recovers any unread messages from the gap.
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MODAL_TIMEOUT` | `3600` | Max sandbox lifetime in seconds |
+| `MODAL_CPU` | `2` | CPU cores (0.25–16) |
+| `MODAL_MEMORY` | `4` | Memory in GB (0.5–32) |
+| `MODAL_IDLE_TIMEOUT` | `5m` | Idle time before auto-shutdown |
+| `GITHUB_TOKEN` | (required) | GitHub PAT for pushing code |

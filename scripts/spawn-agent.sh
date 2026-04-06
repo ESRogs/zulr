@@ -1,13 +1,15 @@
 #!/bin/bash
 # Spawn a standalone zuler agent via mngr.
-# Usage: ./spawn-agent.sh [--replace] <agent-name>
+# Usage: ./spawn-agent.sh [--replace] [--modal] <agent-name>
 #
 # Prerequisites:
 #   - The bot must already be registered on Zulip (use the `register` MCP tool)
 #   - mngr must be installed
+#   - For --modal: Modal CLI authenticated (`modal token new`)
 #
 # Options:
 #   --replace   Destroy any existing agent with the same name before creating
+#   --modal     Run the agent on Modal instead of a local worktree
 #
 # This script:
 #   1. Extracts bot credentials from the zuler DB
@@ -18,9 +20,11 @@
 set -euo pipefail
 
 REPLACE=false
+MODAL=false
 while [[ "${1:-}" == --* ]]; do
   case "$1" in
     --replace) REPLACE=true; shift ;;
+    --modal) MODAL=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -72,10 +76,46 @@ if mngr list --format json 2>/dev/null | grep -q "\"$AGENT\""; then
   fi
 fi
 
-# Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
-ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
-MCP_CONFIG="$ZULER_STATE_DIR/standalone-mcp.json"
-cat > "$MCP_CONFIG" << MCPEOF
+# Common env vars for both local and Modal modes
+COMMON_ENV=(
+  --env "ZULER_TEAM=zuler-$AGENT"
+  --env "ZULER_AGENT=$AGENT"
+  --env "ZULIP_SITE=$ZULIP_SITE"
+  --env "ZULIP_BOT_EMAIL=$BOT_EMAIL"
+  --env "ZULIP_BOT_API_KEY=$BOT_API_KEY"
+)
+
+if [ "$MODAL" = true ]; then
+  GITHUB_TOKEN="${GITHUB_TOKEN:?--modal requires GITHUB_TOKEN env var for remote GitHub access}"
+  MODAL_TIMEOUT="${MODAL_TIMEOUT:-3600}"
+  MODAL_CPU="${MODAL_CPU:-2}"
+  MODAL_MEMORY="${MODAL_MEMORY:-4}"
+  MODAL_IDLE_TIMEOUT="${MODAL_IDLE_TIMEOUT:-5m}"
+
+  # On Modal, generate the MCP config on-sandbox since local paths don't apply.
+  # The provision command runs in the sandbox work_dir (where mngr placed the repo).
+  # We write a helper script that generates the MCP config using $(pwd).
+  GENERATE_MCP='mkdir -p ~/.zuler && printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$(pwd)" > ~/.zuler/standalone-mcp.json'
+
+  echo "Creating Modal agent '$AGENT'..."
+  mngr create "$AGENT@.modal" claude \
+    "${COMMON_ENV[@]}" \
+    --env "GITHUB_TOKEN=$GITHUB_TOKEN" \
+    -b "file=$SCRIPT_DIR/Dockerfile.modal" \
+    -b "timeout=$MODAL_TIMEOUT" \
+    -b "cpu=$MODAL_CPU" \
+    -b "memory=$MODAL_MEMORY" \
+    --idle-timeout "$MODAL_IDLE_TIMEOUT" \
+    --idle-mode io \
+    --extra-provision-command 'bun install' \
+    --extra-provision-command "$GENERATE_MCP" \
+    --no-connect \
+    -- --mcp-config ~/.zuler/standalone-mcp.json --permission-mode auto
+else
+  # Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
+  ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
+  MCP_CONFIG="$ZULER_STATE_DIR/standalone-mcp.json"
+  cat > "$MCP_CONFIG" << MCPEOF
 {
   "mcpServers": {
     "zuler": {
@@ -87,17 +127,13 @@ cat > "$MCP_CONFIG" << MCPEOF
 }
 MCPEOF
 
-# Create the agent
-echo "Creating agent '$AGENT'..."
-mngr create "$AGENT" claude \
-  --env "ZULER_TEAM=zuler-$AGENT" \
-  --env "ZULER_AGENT=$AGENT" \
-  --env "ZULIP_SITE=$ZULIP_SITE" \
-  --env "ZULIP_BOT_EMAIL=$BOT_EMAIL" \
-  --env "ZULIP_BOT_API_KEY=$BOT_API_KEY" \
-  --no-ensure-clean \
-  --no-connect \
-  -- --mcp-config "$MCP_CONFIG" --permission-mode auto
+  echo "Creating agent '$AGENT'..."
+  mngr create "$AGENT" claude \
+    "${COMMON_ENV[@]}" \
+    --no-ensure-clean \
+    --no-connect \
+    -- --mcp-config "$MCP_CONFIG" --permission-mode auto
+fi
 
 # Approve trust dialog
 "$SCRIPT_DIR/approve-trust.sh" "$AGENT"
