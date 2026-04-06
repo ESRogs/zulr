@@ -86,7 +86,12 @@ COMMON_ENV=(
 )
 
 if [ "$MODAL" = true ]; then
-  GITHUB_TOKEN="${GITHUB_TOKEN:?--modal requires GITHUB_TOKEN env var for remote GitHub access}"
+  MODAL_EXTRA_ENV=()
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    MODAL_EXTRA_ENV+=(--env "GITHUB_TOKEN=$GITHUB_TOKEN")
+  else
+    echo "warning: GITHUB_TOKEN not set — Modal agent won't be able to push to GitHub"
+  fi
 
   # Resolve Claude Code auth for the remote sandbox.
   # CLAUDE_CODE_OAUTH_TOKEN: long-lived token from 'claude setup-token' (subscription billing)
@@ -127,7 +132,7 @@ if [ "$MODAL" = true ]; then
   mngr create "$AGENT@.modal" claude \
     "${COMMON_ENV[@]}" \
     "${MODAL_AUTH_ENV[@]}" \
-    --env "GITHUB_TOKEN=$GITHUB_TOKEN" \
+    "${MODAL_EXTRA_ENV[@]}" \
     -b "timeout=$MODAL_TIMEOUT" \
     -b "cpu=$MODAL_CPU" \
     -b "memory=$MODAL_MEMORY" \
@@ -141,7 +146,7 @@ if [ "$MODAL" = true ]; then
     --extra-provision-command 'export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun install' \
     --extra-provision-command "$GENERATE_MCP" \
     --no-connect \
-    -- --mcp-config ~/.zuler/standalone-mcp.json --permission-mode auto
+    -- --mcp-config /root/.zuler/standalone-mcp.json --permission-mode auto
 else
   # Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
   ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
