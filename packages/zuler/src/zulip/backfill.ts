@@ -125,7 +125,12 @@ async function backfillBotImpl(
   const capped = sorted.slice(0, maxPerBot)
 
   // Deduplicate against existing inbox
-  const inbox = readInbox(teamName, inboxTarget)
+  const inboxResult = readInbox(teamName, inboxTarget)
+  if (inboxResult.isErr()) {
+    onError?.(inboxResult.error)
+    return 0
+  }
+  const inbox = inboxResult.value
   const inboxIds = new Set(
     inbox.flatMap((m) => (m.zulipMessageId !== undefined ? [m.zulipMessageId] : [])),
   )
@@ -160,7 +165,10 @@ async function backfillBotImpl(
       zulipSenderId: msg.sender_id,
       ...(isStream ? { zulipStream: msg.display_recipient, zulipTopic: msg.subject } : {}),
       zulipSender: senderName,
-    })
+    }).match(
+      () => {},
+      (e) => onError?.(e),
+    )
   }
 
   // Mark as read on Zulip
@@ -178,7 +186,10 @@ async function backfillBotImpl(
       from: 'zuler:system',
       text: `${overflow} additional unread message(s) were not loaded during startup backfill. Run catch-up to see them.`,
       summary: `${overflow} more unread message(s) — run catch-up`,
-    })
+    }).match(
+      () => {},
+      (e) => onError?.(e),
+    )
   }
 
   return chronological.length

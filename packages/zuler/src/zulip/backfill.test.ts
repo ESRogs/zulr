@@ -51,7 +51,7 @@ test('backfill skips messages already in inbox by zulipMessageId', () => {
     zulipSender: dn('Alice'),
   })
 
-  const inbox = readInbox(teamName, tm('bot'))
+  const inbox = readInbox(teamName, tm('bot'))._unsafeUnwrap()
   const inboxIds = new Set(
     inbox.flatMap((m) => (m.zulipMessageId !== undefined ? [m.zulipMessageId] : [])),
   )
@@ -64,7 +64,7 @@ test('backfill skips messages already in inbox by zulipMessageId', () => {
 })
 
 test('backfill writes all messages when inbox is empty', () => {
-  const inbox = readInbox(teamName, tm('bot'))
+  const inbox = readInbox(teamName, tm('bot'))._unsafeUnwrap()
   const inboxIds = new Set(
     inbox.flatMap((m) => (m.zulipMessageId !== undefined ? [m.zulipMessageId] : [])),
   )
@@ -140,7 +140,7 @@ test('overflow summary uses zuler:system as from field', () => {
     summary,
   })
 
-  const inbox = readInbox(teamName, tm('bot'))
+  const inbox = readInbox(teamName, tm('bot'))._unsafeUnwrap()
   expect(inbox).toHaveLength(1)
   expect(inbox[0]!.from).toBe('zuler:system')
   expect(inbox[0]!.summary).toContain('run catch-up')

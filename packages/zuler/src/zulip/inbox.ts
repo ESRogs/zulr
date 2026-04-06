@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { err, ok, type Result } from 'neverthrow'
 import type {
   ChannelName,
   DisplayName,
@@ -37,35 +38,48 @@ export function inboxPath(teamName: TeamName, teammate: TeammateName): string {
   return join(inboxDir(teamName), `${teammate}.json`)
 }
 
-/** Load and parse an inbox file, returning empty array on missing/corrupt file. */
-function loadInbox(path: string): InboxMessage[] {
-  if (!existsSync(path)) return []
+/** Load and parse an inbox file. Returns ok([]) for missing files, err for read/parse failures. */
+function loadInbox(path: string): Result<InboxMessage[], string> {
+  if (!existsSync(path)) return ok([])
   try {
-    return JSON.parse(readFileSync(path, 'utf-8')) as InboxMessage[]
-  } catch {
-    return []
+    return ok(JSON.parse(readFileSync(path, 'utf-8')) as InboxMessage[])
+  } catch (e) {
+    return err(`failed to read inbox at ${path}: ${e instanceof Error ? e.message : String(e)}`)
   }
 }
 
 /** Read all messages from a teammate's inbox file. */
-export function readInbox(teamName: TeamName, teammate: TeammateName): readonly InboxMessage[] {
+export function readInbox(
+  teamName: TeamName,
+  teammate: TeammateName,
+): Result<readonly InboxMessage[], string> {
   return loadInbox(inboxPath(teamName, teammate))
 }
 
 /** Append a message to a teammate's inbox file. */
-export function writeToInbox(teamName: TeamName, teammate: TeammateName, entry: InboxEntry): void {
+export function writeToInbox(
+  teamName: TeamName,
+  teammate: TeammateName,
+  entry: InboxEntry,
+): Result<void, string> {
   const dir = inboxDir(teamName)
-  mkdirSync(dir, { recursive: true })
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch (e) {
+    return err(`failed to create inbox dir ${dir}: ${e instanceof Error ? e.message : String(e)}`)
+  }
 
   const path = inboxPath(teamName, teammate)
-  const messages = loadInbox(path)
+  const loadResult = loadInbox(path)
+  if (loadResult.isErr()) return loadResult
+  const messages = loadResult.value
 
   // Skip duplicate Zulip messages (prevents races between backfill and event listener)
   if (
     entry.zulipMessageId !== undefined &&
     messages.some((m) => m.zulipMessageId === entry.zulipMessageId)
   ) {
-    return
+    return ok(undefined)
   }
 
   messages.push({
@@ -74,16 +88,28 @@ export function writeToInbox(teamName: TeamName, teammate: TeammateName, entry: 
     read: false,
   })
 
-  writeFileSync(path, JSON.stringify(messages, null, 2))
+  return writeInboxFile(path, messages)
+}
+
+/** Write an inbox message array to disk. */
+function writeInboxFile(path: string, messages: readonly InboxMessage[]): Result<void, string> {
+  try {
+    writeFileSync(path, JSON.stringify(messages, null, 2))
+    return ok(undefined)
+  } catch (e) {
+    return err(`failed to write inbox at ${path}: ${e instanceof Error ? e.message : String(e)}`)
+  }
 }
 
 /** Consume (mark as read and return) unread inbox messages matching a predicate. */
 function consumeMatching(
   path: string,
   predicate: (m: InboxMessage) => boolean,
-): readonly InboxMessage[] {
-  const messages = loadInbox(path)
-  if (messages.length === 0) return []
+): Result<readonly InboxMessage[], string> {
+  const loadResult = loadInbox(path)
+  if (loadResult.isErr()) return loadResult
+  const messages = loadResult.value
+  if (messages.length === 0) return ok([])
 
   const consumed: InboxMessage[] = []
   const updated = messages.map((m) => {
@@ -94,9 +120,10 @@ function consumeMatching(
     return m
   })
   if (consumed.length > 0) {
-    writeFileSync(path, JSON.stringify(updated, null, 2))
+    const writeResult = writeInboxFile(path, updated)
+    if (writeResult.isErr()) return writeResult
   }
-  return consumed
+  return ok(consumed)
 }
 
 /** Consume unread inbox messages matching a stream/topic. */
@@ -105,7 +132,7 @@ export function consumeUnreadInboxMessages(
   teammate: TeammateName,
   stream: ChannelName,
   topic: TopicName,
-): readonly InboxMessage[] {
+): Result<readonly InboxMessage[], string> {
   return consumeMatching(
     inboxPath(teamName, teammate),
     (m) => m.zulipStream === stream && m.zulipTopic === topic,
@@ -116,7 +143,7 @@ export function consumeUnreadInboxMessages(
 export function consumeAllUnreadStreamMessages(
   teamName: TeamName,
   teammate: TeammateName,
-): readonly InboxMessage[] {
+): Result<readonly InboxMessage[], string> {
   return consumeMatching(inboxPath(teamName, teammate), (m) => !!m.zulipStream)
 }
 
@@ -125,7 +152,7 @@ export function consumeUnreadDmMessages(
   teamName: TeamName,
   teammate: TeammateName,
   fromUserId: UserId,
-): readonly InboxMessage[] {
+): Result<readonly InboxMessage[], string> {
   return consumeMatching(
     inboxPath(teamName, teammate),
     (m) => !m.zulipStream && m.zulipSenderId === fromUserId,
@@ -136,7 +163,7 @@ export function consumeUnreadDmMessages(
 export function consumeAllUnreadDmMessages(
   teamName: TeamName,
   teammate: TeammateName,
-): readonly InboxMessage[] {
+): Result<readonly InboxMessage[], string> {
   return consumeMatching(
     inboxPath(teamName, teammate),
     (m) => !m.zulipStream && m.zulipSenderId !== undefined,
@@ -183,7 +210,7 @@ export function mergeWithInbox(
 export function consumeAllUnreadMessages(
   teamName: TeamName,
   teammate: TeammateName,
-): readonly InboxMessage[] {
+): Result<readonly InboxMessage[], string> {
   return consumeMatching(inboxPath(teamName, teammate), () => true)
 }
 

@@ -90,8 +90,13 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       const failedCount = fetchResults.filter((r) => r.isErr()).length
 
       // Consume inbox after fetch attempts complete (stream messages + DMs)
-      const streamInbox = consumeAllUnreadStreamMessages(ctx.config.teamName, senderResult.value)
-      const dmInbox = consumeAllUnreadDmMessages(ctx.config.teamName, senderResult.value)
+      const streamInbox = consumeAllUnreadStreamMessages(
+        ctx.config.teamName,
+        senderResult.value,
+      ).unwrapOr([])
+      const dmInbox = consumeAllUnreadDmMessages(ctx.config.teamName, senderResult.value).unwrapOr(
+        [],
+      )
       const inboxFormatted = inboxToFormattedMessages([...streamInbox, ...dmInbox])
 
       // Merge Zulip results with inbox-only messages, deduplicate by ID

@@ -135,7 +135,10 @@ async function handleReaction(params: HandleReactionParams): Promise<void> {
       ? { zulipStream: msg.display_recipient, zulipTopic: msg.subject }
       : {}),
     zulipSender: reactorName,
-  })
+  }).match(
+    () => {},
+    (e) => onError?.(e),
+  )
   onReaction?.({
     emoji: emojiName,
     op: 'add',
@@ -209,7 +212,10 @@ function startBotSession(
             zulipStream: stream,
             zulipTopic: topic,
             zulipSender: senderName,
-          })
+          }).match(
+            () => {},
+            (e) => onError?.(e),
+          )
           // Follow the topic when this bot is @-mentioned
           if (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') {
             // eslint-disable-next-line neverthrow/must-use-result

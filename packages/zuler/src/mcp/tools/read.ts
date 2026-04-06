@@ -80,13 +80,12 @@ function readInboxOnly(
   topic?: TopicName,
 ) {
   const { teamName } = ctx.config
-  let consumed: ReturnType<typeof consumeAllUnreadMessages>
-
-  if (channel && topic) {
-    consumed = consumeUnreadInboxMessages(teamName, sender, channel, topic)
-  } else {
-    consumed = consumeAllUnreadMessages(teamName, sender)
-  }
+  const consumeResult =
+    channel && topic
+      ? consumeUnreadInboxMessages(teamName, sender, channel, topic)
+      : consumeAllUnreadMessages(teamName, sender)
+  if (consumeResult.isErr()) return errorResult(consumeResult.error)
+  const consumed = consumeResult.value
 
   if (consumed.length === 0) {
     const scope = channel && topic ? ` in ${channel}/${topic}` : ''
@@ -155,8 +154,9 @@ async function readStream(
 
   if (cached) {
     // Cache hit — merge with inbox and serve
-    const inboxMessages = consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic)
-    const inboxFormatted = inboxToFormattedMessages(inboxMessages)
+    const inboxFormatted = inboxToFormattedMessages(
+      consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic).unwrapOr([]),
+    )
     allMessages = mergeWithInbox([...cached], inboxFormatted)
   } else {
     // Cache miss — fetch from API
@@ -180,8 +180,9 @@ async function readStream(
       return errorResult(getErrorMessage(fetchResult.error))
     }
 
-    const inboxMessages = consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic)
-    const inboxFormatted = inboxToFormattedMessages(inboxMessages)
+    const inboxFormatted = inboxToFormattedMessages(
+      consumeUnreadInboxMessages(ctx.config.teamName, sender, stream, topic).unwrapOr([]),
+    )
     allMessages = mergeWithInbox([...fetchResult.value], inboxFormatted)
   }
 
@@ -237,8 +238,11 @@ async function readDms(ctx: ToolContext, sender: TeammateName, userId: UserId, c
     return errorResult(getErrorMessage(fetchResult.error))
   }
 
-  // Consume unread DM inbox messages from this user
-  consumeUnreadDmMessages(ctx.config.teamName, sender, userId)
+  // Consume unread DM inbox messages from this user (best-effort, ignore errors)
+  consumeUnreadDmMessages(ctx.config.teamName, sender, userId).match(
+    () => {},
+    () => {},
+  )
 
   const allMessages = [...fetchResult.value]
 
