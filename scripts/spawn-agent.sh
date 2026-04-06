@@ -1,10 +1,13 @@
 #!/bin/bash
 # Spawn a standalone zuler agent via mngr.
-# Usage: ./spawn-agent.sh <agent-name>
+# Usage: ./spawn-agent.sh [--replace] <agent-name>
 #
 # Prerequisites:
 #   - The bot must already be registered on Zulip (use the `register` MCP tool)
 #   - mngr must be installed
+#
+# Options:
+#   --replace   Destroy any existing agent with the same name before creating
 #
 # This script:
 #   1. Extracts bot credentials from the zuler DB
@@ -14,7 +17,15 @@
 
 set -euo pipefail
 
-AGENT="${1:?Usage: spawn-agent.sh <agent-name>}"
+REPLACE=false
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --replace) REPLACE=true; shift ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
+AGENT="${1:?Usage: spawn-agent.sh [--replace] <agent-name>}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ZULIP_SITE="${ZULIP_SITE:-https://zuler.zulipchat.com}"
@@ -29,12 +40,12 @@ if [ ! -f "$DB_PATH" ]; then
   exit 1
 fi
 
-# Extract bot credentials
-CREDS=$(bun -e "
+# Extract bot credentials (pass values via env vars to avoid injection)
+CREDS=$(ZULER_DB_PATH="$DB_PATH" ZULER_BOT_NAME="$AGENT" bun -e "
 import { Database } from 'bun:sqlite';
-const db = new Database('$DB_PATH');
-const row = db.query('SELECT bot_email, api_key FROM teammates WHERE name = ?').get('$AGENT');
-if (!row) { console.error('Bot not found: $AGENT'); process.exit(1); }
+const db = new Database(process.env.ZULER_DB_PATH!);
+const row = db.query('SELECT bot_email, api_key FROM teammates WHERE name = ?').get(process.env.ZULER_BOT_NAME!);
+if (!row) { console.error('Bot not found: ' + process.env.ZULER_BOT_NAME); process.exit(1); }
 console.log(JSON.stringify(row));
 " 2>&1)
 
@@ -51,27 +62,29 @@ echo "Bot: $BOT_EMAIL"
 
 # Clean up any existing agent with the same name
 if mngr list --format json 2>/dev/null | grep -q "\"$AGENT\""; then
-  echo "Destroying existing agent '$AGENT'..."
-  echo "y" | mngr destroy --force "$AGENT" 2>/dev/null || true
-  git branch -D "mngr/$AGENT" 2>/dev/null || true
+  if [ "$REPLACE" = true ]; then
+    echo "Replacing existing agent '$AGENT'..."
+    echo "y" | mngr destroy --force "$AGENT" 2>/dev/null || true
+    git branch -D "mngr/$AGENT" 2>/dev/null || true
+  else
+    echo "error: agent '$AGENT' already exists. Use --replace to destroy and recreate."
+    exit 1
+  fi
 fi
 
-# Create the MCP config (shared, env vars are inherited)
+# Generate the MCP config with the correct repo path
 MCP_CONFIG="$REPO_ROOT/zuler-standalone-mcp.json"
-if [ ! -f "$MCP_CONFIG" ]; then
-  cat > "$MCP_CONFIG" << 'MCPEOF'
+cat > "$MCP_CONFIG" << MCPEOF
 {
   "mcpServers": {
     "zuler": {
       "type": "stdio",
       "command": "bun",
-      "args": ["run", "REPO_ROOT_PLACEHOLDER/packages/zuler/src/index.ts"]
+      "args": ["run", "$REPO_ROOT/packages/zuler/src/index.ts"]
     }
   }
 }
 MCPEOF
-  sed -i '' "s|REPO_ROOT_PLACEHOLDER|$REPO_ROOT|g" "$MCP_CONFIG"
-fi
 
 # Create the agent
 echo "Creating agent '$AGENT'..."
@@ -85,21 +98,14 @@ mngr create "$AGENT" claude \
   --no-connect \
   -- --mcp-config "$MCP_CONFIG" --permission-mode auto
 
-# Approve trust and auto-mode dialogs
+# Approve trust dialog
+"$SCRIPT_DIR/approve-trust.sh" "$AGENT"
+
+# Wait for auto mode dialog
 TMUX_SESSION="mngr-$AGENT"
-echo "Waiting for dialogs..."
 for i in $(seq 1 30); do
   SCREEN=$(mngr capture "$AGENT" 2>/dev/null || true)
 
-  # Trust dialog
-  if echo "$SCREEN" | grep -q "Yes, I trust this folder"; then
-    tmux send-keys -t "$TMUX_SESSION" Enter
-    echo "Approved trust dialog"
-    sleep 2
-    continue
-  fi
-
-  # Auto mode dialog
   if echo "$SCREEN" | grep -q "Yes, enable auto mode"; then
     tmux send-keys -t "$TMUX_SESSION" Down Enter
     echo "Approved auto mode"
@@ -107,7 +113,6 @@ for i in $(seq 1 30); do
     continue
   fi
 
-  # Claude Code is ready (prompt visible)
   if echo "$SCREEN" | grep -q "auto mode on"; then
     echo "Claude Code ready"
     break

@@ -8,33 +8,24 @@ Run a zuler agent as an independent Claude Code instance (not a teammate in a sh
 # 1. Register a bot (from the main zuler session)
 #    Use the `register` MCP tool to create a bot on Zulip
 
-# 2. Extract bot credentials from the DB
-bun -e "
-import { Database } from 'bun:sqlite';
-const db = new Database(Bun.env.HOME + '/.zuler/<repo-slug>/state.db');
-const row = db.query('SELECT * FROM teammates WHERE name = ?').get('<bot-name>');
-console.log(JSON.stringify(row, null, 2));
-"
+# 2. Spawn the agent
+./scripts/spawn-agent.sh <agent-name>
 
-# 3. Create the agent with mngr
-mngr create <agent-name> claude \
-  --env ZULER_TEAM=zuler-<agent-name> \
-  --env ZULER_AGENT=<agent-name> \
-  --env ZULIP_SITE=https://<org>.zulipchat.com \
-  --env ZULIP_BOT_EMAIL=<bot-email> \
-  --env ZULIP_BOT_API_KEY=<bot-api-key> \
-  --no-ensure-clean \
-  --no-connect \
-  -- --mcp-config /path/to/zuler-standalone-mcp.json \
-     --permission-mode auto
-
-# 4. Approve the trust dialog (if needed)
-./scripts/approve-trust.sh <agent-name>
-
-# 5. Send the initial prompt
-tmux send-keys -t mngr-<agent-name> \
-  "Create a team called 'zuler-<agent-name>' using TeamCreate. Then read #**docs>getting-started** and follow its instructions." Enter
+# If an agent with the same name already exists:
+./scripts/spawn-agent.sh --replace <agent-name>
 ```
+
+The script extracts bot credentials from the DB, creates the mngr agent with correct env vars and MCP config, approves trust/auto-mode dialogs, and sends the initial prompt.
+
+## Manual Setup
+
+For reference, here are the individual steps that `spawn-agent.sh` automates:
+
+1. Extract bot credentials from the zuler DB
+2. Create a mngr agent with env vars (`ZULER_TEAM`, `ZULER_AGENT`, `ZULIP_SITE`, `ZULIP_BOT_EMAIL`, `ZULIP_BOT_API_KEY`)
+3. Generate `zuler-standalone-mcp.json` pointing to the zuler entry point
+4. Approve the trust dialog (`scripts/approve-trust.sh`)
+5. Send the initial prompt (create team + getting-started)
 
 ## How It Works
 
@@ -50,21 +41,7 @@ tmux send-keys -t mngr-<agent-name> \
 
 ### MCP Config
 
-The shared MCP config file (`zuler-standalone-mcp.json`) contains only the bun command — env vars are inherited from the mngr environment:
-
-```json
-{
-  "mcpServers": {
-    "zuler": {
-      "type": "stdio",
-      "command": "bun",
-      "args": ["run", "/path/to/zuler/packages/zuler/src/index.ts"]
-    }
-  }
-}
-```
-
-Pass it via `--mcp-config` when creating the agent.
+The `spawn-agent.sh` script generates `zuler-standalone-mcp.json` with the correct repo path. The file contains only the bun command — env vars are inherited from the mngr environment.
 
 ### Per-Agent Teams
 

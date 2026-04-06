@@ -17,6 +17,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # MCP config (contains local paths)
 .mcp.json
+zuler-standalone-mcp.json
 
 # dotenv environment variable files
 .env

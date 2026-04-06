@@ -16,6 +16,8 @@ if (rawTeamName.length === 0) {
 const teamName = rawTeamName as TeamName
 const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
 const agentName = process.env.ZULER_AGENT ? (process.env.ZULER_AGENT as TeammateName) : undefined
+/** In standalone mode, route all messages to the "team-lead" inbox since the agent is team-lead of its own per-agent team. */
+const STANDALONE_INBOX_NAME = 'team-lead' as TeammateName
 
 const logFile = `${stateDir(repoRoot)}/zuler.log`
 
@@ -85,7 +87,7 @@ async function bootEventListeners(): Promise<void> {
     teamName,
     site: creds.site,
     standaloneBot,
-    ...(agentName ? { inboxName: 'team-lead' as TeammateName } : {}),
+    inboxName: agentName ? STANDALONE_INBOX_NAME : undefined,
     signal: new AbortController().signal,
     onRoute: (info) => {
       const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
@@ -116,7 +118,7 @@ async function bootEventListeners(): Promise<void> {
     site: creds.site,
     standaloneBot:
       agentName && standaloneClient ? { name: agentName, client: standaloneClient } : undefined,
-    ...(agentName ? { inboxName: 'team-lead' as TeammateName } : {}),
+    inboxName: agentName ? STANDALONE_INBOX_NAME : undefined,
     getSession: manager.getSession,
     onLog: log,
     onError: (err) => log(`backfill error: ${getErrorMessage(err)}`),

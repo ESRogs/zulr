@@ -91,7 +91,6 @@ async function handleReaction(params: HandleReactionParams): Promise<void> {
     onReaction,
     onError,
   } = params
-  const inboxTarget = inboxName
 
   // Check session cache first to avoid an API call
   let msg = session.getMessage(messageId)
@@ -123,7 +122,7 @@ async function handleReaction(params: HandleReactionParams): Promise<void> {
   const summary = `:${emojiName}: on \u201c${preview}\u201d`
   const text = `${summary}\n[msg:${messageId}]`
 
-  writeToInbox(teamName, inboxTarget, {
+  writeToInbox(teamName, inboxName, {
     from,
     text,
     summary,
