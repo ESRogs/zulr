@@ -172,7 +172,7 @@ export function createDispatcher(
   function startBotWatcher(teammate: Teammate): void {
     if (abortController.signal.aborted) return
 
-    const client: ZulipClient = createClient({
+    const client = createClient({
       site,
       email: teammate.botEmail,
       apiKey: teammate.apiKey,
