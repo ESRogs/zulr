@@ -9,22 +9,25 @@
  * Usage: ZULER_REPO_ROOT=/path/to/repo bun run packages/zuler/src/dispatcher.ts
  */
 
-import { createClient, type ZulipClient } from 'zulip-ts'
-import { createSession, type ZulipSession } from 'zulip-client-ts'
+import { createSession } from 'zulip-client-ts'
+import { createClient } from 'zulip-ts'
+import { getErrorMessage } from './errors.ts'
 import { openDatabase } from './state/db.ts'
 import { listTeammates, type Teammate } from './state/teammates.ts'
-import { getErrorMessage } from './errors.ts'
 import type { TeammateName } from './tagged-types.ts'
 
 const SESSION_EVENT_TYPES = [
   'message',
+  'update_message',
+  'delete_message',
+  'update_message_flags',
   'user_topic',
   'realm_user',
   'reaction',
   'subscription',
 ] as const
 
-type AgentStatus = 'running' | 'stopped' | 'unknown'
+type AgentStatus = 'running' | 'stopped'
 
 type DispatcherOptions = {
   /** Zulip server URL. */
@@ -41,28 +44,43 @@ type DispatcherOptions = {
   readonly onLog?: (msg: string) => void
 }
 
-/** Query mngr for the status of all agents. */
-async function getMngrAgentStatuses(): Promise<Map<string, AgentStatus>> {
+/** Query mngr for the status of all agents. Returns an error string on failure. */
+async function getMngrAgentStatuses(
+  onError?: (err: unknown) => void,
+): Promise<Map<string, AgentStatus>> {
   const statuses = new Map<string, AgentStatus>()
+  const proc = Bun.spawn(['mngr', 'list', '--format', 'json'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const [text, stderrText] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  const exitCode = await proc.exited
+
+  if (exitCode !== 0) {
+    onError?.(`mngr list failed (exit ${exitCode}): ${stderrText.trim()}`)
+    return statuses
+  }
+
   try {
-    const proc = Bun.spawn(['mngr', 'list', '--format', 'json'], {
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const text = await new Response(proc.stdout).text()
-    await proc.exited
     const data = JSON.parse(text)
     const agents = data.agents ?? data ?? []
     for (const agent of agents) {
       const name = agent.name ?? agent.agent_name
       const state = agent.state ?? agent.status
       if (name) {
-        statuses.set(name, state === 'running' ? 'running' : 'stopped')
+        statuses.set(
+          name,
+          state === 'RUNNING' || state === 'WAITING' || state === 'running' ? 'running' : 'stopped',
+        )
       }
     }
-  } catch {
-    // If mngr isn't available, return empty map
+  } catch (err) {
+    onError?.(`failed to parse mngr list output: ${getErrorMessage(err)}`)
   }
+
   return statuses
 }
 
@@ -70,17 +88,20 @@ async function getMngrAgentStatuses(): Promise<Map<string, AgentStatus>> {
 async function wakeAgent(agentName: string, onLog?: (msg: string) => void): Promise<boolean> {
   try {
     onLog?.(`waking agent '${agentName}'...`)
-    const proc = Bun.spawn(['mngr', 'start', agentName], {
+    const proc = Bun.spawn(['mngr', 'start', '--', agentName], {
       stdout: 'pipe',
       stderr: 'pipe',
     })
+    const [, stderrText] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ])
     const exitCode = await proc.exited
     if (exitCode === 0) {
       onLog?.(`agent '${agentName}' started successfully`)
       return true
     }
-    const stderr = await new Response(proc.stderr).text()
-    onLog?.(`failed to start '${agentName}': ${stderr.trim()}`)
+    onLog?.(`failed to start '${agentName}': ${stderrText.trim()}`)
     return false
   } catch (err) {
     onLog?.(`error starting '${agentName}': ${getErrorMessage(err)}`)
@@ -96,7 +117,6 @@ export function createDispatcher(
   const { site, onWake, onError, onLog } = options
   const statusPollIntervalMs = options.statusPollIntervalMs ?? 30_000
 
-  const sessions: Map<TeammateName, ZulipSession> = new Map()
   const abortController = new AbortController()
 
   // Cache of agent statuses, refreshed periodically
@@ -131,11 +151,10 @@ export function createDispatcher(
       return
     }
 
-    wakeCooldowns.set(mngrName, Date.now())
     const success = await wakeAgent(mngrName, onLog)
     if (success) {
+      wakeCooldowns.set(mngrName, Date.now())
       onWake?.(mngrName, reason)
-      // Update cached status
       agentStatuses.set(mngrName, 'running')
     }
   }
@@ -143,7 +162,7 @@ export function createDispatcher(
   // Periodically refresh agent statuses
   const statusPoller = setInterval(async () => {
     try {
-      agentStatuses = await getMngrAgentStatuses()
+      agentStatuses = await getMngrAgentStatuses(onError)
     } catch (err) {
       onError?.(err)
     }
@@ -151,6 +170,8 @@ export function createDispatcher(
 
   // Start a session per bot
   function startBotWatcher(teammate: Teammate): void {
+    if (abortController.signal.aborted) return
+
     const client: ZulipClient = createClient({
       site,
       email: teammate.botEmail,
@@ -165,19 +186,17 @@ export function createDispatcher(
       handler: {
         onNotification: (_event, result) => {
           if (result.shouldNotify) {
-            // Fire and forget — don't block the event loop
             tryWake(teammate.name, result.reason).catch((err) => onError?.(err))
           }
         },
         onError: (err) => {
-          onLog?.(`[${teammate.name}] session error: ${typeof err === 'string' ? err : getErrorMessage(err)}`)
+          onLog?.(
+            `[${teammate.name}] session error: ${typeof err === 'string' ? err : getErrorMessage(err)}`,
+          )
         },
       },
     })
 
-    sessions.set(teammate.name, session)
-
-    // Start the session (runs the event loop)
     session.start().then(
       () => onLog?.(`[${teammate.name}] session exited`),
       (err: unknown) => {
@@ -189,10 +208,11 @@ export function createDispatcher(
 
   // Initialize
   async function init(): Promise<void> {
-    agentStatuses = await getMngrAgentStatuses()
+    agentStatuses = await getMngrAgentStatuses(onError)
     onLog?.(`initial agent statuses: ${JSON.stringify(Object.fromEntries(agentStatuses))}`)
 
     for (const teammate of teammates) {
+      if (abortController.signal.aborted) return
       onLog?.(`starting watcher for ${teammate.name}`)
       startBotWatcher(teammate)
     }
@@ -206,10 +226,6 @@ export function createDispatcher(
     stop: () => {
       clearInterval(statusPoller)
       abortController.abort()
-      for (const session of sessions.values()) {
-        session.stop()
-      }
-      sessions.clear()
       onLog?.('dispatcher stopped')
     },
   }
@@ -248,7 +264,6 @@ if (import.meta.main) {
     onLog: (msg) => console.log(`[dispatcher] ${msg}`),
   })
 
-  // Graceful shutdown
   process.on('SIGINT', () => {
     console.log('\nshutting down...')
     dispatcher.stop()
