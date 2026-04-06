@@ -1,13 +1,15 @@
 #!/bin/bash
 # Spawn a standalone zuler agent via mngr.
-# Usage: ./spawn-agent.sh [--replace] <agent-name>
+# Usage: ./spawn-agent.sh [--replace] [--modal] <agent-name>
 #
 # Prerequisites:
 #   - The bot must already be registered on Zulip (use the `register` MCP tool)
 #   - mngr must be installed
+#   - For --modal: Modal CLI authenticated (`modal token new`)
 #
 # Options:
 #   --replace   Destroy any existing agent with the same name before creating
+#   --modal     Run the agent on Modal instead of a local worktree
 #
 # This script:
 #   1. Extracts bot credentials from the zuler DB
@@ -18,14 +20,16 @@
 set -euo pipefail
 
 REPLACE=false
+MODAL=false
 while [[ "${1:-}" == --* ]]; do
   case "$1" in
     --replace) REPLACE=true; shift ;;
+    --modal) MODAL=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
 
-AGENT="${1:?Usage: spawn-agent.sh [--replace] <agent-name>}"
+AGENT="${1:?Usage: spawn-agent.sh [--replace] [--modal] <agent-name>}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ZULIP_SITE="${ZULIP_SITE:-https://zuler.zulipchat.com}"
@@ -72,10 +76,77 @@ if mngr list --format json 2>/dev/null | grep -q "\"$AGENT\""; then
   fi
 fi
 
-# Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
-ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
-MCP_CONFIG="$ZULER_STATE_DIR/standalone-mcp.json"
-cat > "$MCP_CONFIG" << MCPEOF
+# Common env vars for both local and Modal modes
+COMMON_ENV=(
+  --env "ZULER_TEAM=zuler-$AGENT"
+  --env "ZULER_AGENT=$AGENT"
+  --env "ZULIP_SITE=$ZULIP_SITE"
+  --env "ZULIP_BOT_EMAIL=$BOT_EMAIL"
+  --env "ZULIP_BOT_API_KEY=$BOT_API_KEY"
+)
+
+if [ "$MODAL" = true ]; then
+  GITHUB_TOKEN="${GITHUB_TOKEN:?--modal requires GITHUB_TOKEN env var for remote GitHub access}"
+
+  # Resolve Claude Code auth for the remote sandbox.
+  # CLAUDE_CODE_OAUTH_TOKEN: long-lived token from 'claude setup-token' (subscription billing)
+  # ANTHROPIC_API_KEY: API key (per-token billing)
+  MODAL_AUTH_ENV=()
+  if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    MODAL_AUTH_ENV=(--env "CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN")
+  elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    MODAL_AUTH_ENV=(--env "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
+  else
+    echo "error: --modal requires Claude Code auth. Set one of:"
+    echo "  CLAUDE_CODE_OAUTH_TOKEN  (from 'claude setup-token')"
+    echo "  ANTHROPIC_API_KEY"
+    exit 1
+  fi
+
+  MODAL_TIMEOUT="${MODAL_TIMEOUT:-3600}"
+  MODAL_CPU="${MODAL_CPU:-2}"
+  MODAL_MEMORY="${MODAL_MEMORY:-4}"
+  MODAL_IDLE_TIMEOUT="${MODAL_IDLE_TIMEOUT:-5m}"
+
+  # The default Modal image (debian:bookworm-slim) needs unzip for bun's installer
+  # and nodejs/npm for Claude Code's runtime.
+  INSTALL_DEPS='apt-get update && apt-get install -y --no-install-recommends unzip nodejs npm'
+  INSTALL_BUN='curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun --version'
+  INSTALL_CC='npm install -g @anthropic-ai/claude-code'
+
+  # Generate the MCP config on-sandbox since local paths don't apply.
+  # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
+  GENERATE_MCP='mkdir -p ~/.zuler && printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > ~/.zuler/standalone-mcp.json'
+
+  # Add bun to ~/.bashrc so it's on PATH at agent runtime.
+  # Provision commands run in separate shells, so the bun install step below
+  # uses an inline export instead of relying on this.
+  SETUP_PATH='echo "export BUN_INSTALL=\$HOME/.bun" >> ~/.bashrc && echo "export PATH=\$BUN_INSTALL/bin:\$PATH" >> ~/.bashrc'
+
+  echo "Creating Modal agent '$AGENT'..."
+  mngr create "$AGENT@.modal" claude \
+    "${COMMON_ENV[@]}" \
+    "${MODAL_AUTH_ENV[@]}" \
+    --env "GITHUB_TOKEN=$GITHUB_TOKEN" \
+    -b "timeout=$MODAL_TIMEOUT" \
+    -b "cpu=$MODAL_CPU" \
+    -b "memory=$MODAL_MEMORY" \
+    --idle-timeout "$MODAL_IDLE_TIMEOUT" \
+    --idle-mode io \
+    --no-ensure-clean \
+    --extra-provision-command "$INSTALL_DEPS" \
+    --extra-provision-command "$INSTALL_BUN" \
+    --extra-provision-command "$SETUP_PATH" \
+    --extra-provision-command "$INSTALL_CC" \
+    --extra-provision-command 'export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun install' \
+    --extra-provision-command "$GENERATE_MCP" \
+    --no-connect \
+    -- --mcp-config ~/.zuler/standalone-mcp.json --permission-mode auto
+else
+  # Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
+  ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
+  MCP_CONFIG="$ZULER_STATE_DIR/standalone-mcp.json"
+  cat > "$MCP_CONFIG" << MCPEOF
 {
   "mcpServers": {
     "zuler": {
@@ -87,19 +158,17 @@ cat > "$MCP_CONFIG" << MCPEOF
 }
 MCPEOF
 
-# Create the agent
-echo "Creating agent '$AGENT'..."
-mngr create "$AGENT" claude \
-  --env "ZULER_TEAM=zuler-$AGENT" \
-  --env "ZULER_AGENT=$AGENT" \
-  --env "ZULIP_SITE=$ZULIP_SITE" \
-  --env "ZULIP_BOT_EMAIL=$BOT_EMAIL" \
-  --env "ZULIP_BOT_API_KEY=$BOT_API_KEY" \
-  --no-ensure-clean \
-  --no-connect \
-  -- --mcp-config "$MCP_CONFIG" --permission-mode auto
+  echo "Creating agent '$AGENT'..."
+  mngr create "$AGENT" claude \
+    "${COMMON_ENV[@]}" \
+    --no-ensure-clean \
+    --no-connect \
+    -- --mcp-config "$MCP_CONFIG" --permission-mode auto
+fi
 
-# Approve trust dialog
+# Approve trust dialog and send initial prompt.
+# These steps work for both local and Modal agents — mngr creates a tmux
+# session and `mngr capture` works over SSH for remote sandboxes.
 "$SCRIPT_DIR/approve-trust.sh" "$AGENT"
 
 # Wait for auto mode dialog

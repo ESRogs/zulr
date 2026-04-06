@@ -65,3 +65,50 @@ Claude Code shows a workspace trust dialog on first launch in a new directory. T
 ### Permission Mode
 
 Use `--permission-mode auto` to avoid manual tool approval dialogs. Auto mode checks each tool call for safety before executing — safe calls proceed automatically, risky calls are blocked.
+
+## Modal (Remote Sandboxes)
+
+Run standalone agents on Modal instead of local worktrees. The script runs locally but the agent executes in a remote Modal sandbox.
+
+### Prerequisites
+
+- Modal CLI installed and authenticated: `uv tool install modal && modal token new`
+- `GITHUB_TOKEN` env var set (for the agent to push code / create PRs)
+- Claude Code auth: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`)
+
+### Quick Start
+
+```bash
+# With API key:
+ANTHROPIC_API_KEY=sk-... GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal <agent-name>
+
+# With OAuth token (from 'claude setup-token', uses subscription billing):
+CLAUDE_CODE_OAUTH_TOKEN=... GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --modal <agent-name>
+```
+
+### How It Works
+
+1. Bot credentials are extracted locally from the zuler DB (same as local mode)
+2. `mngr create agent@.modal` provisions the default Modal image (debian:bookworm-slim) with bun and Claude Code via `--extra-provision-command`
+3. The repo is transferred to the sandbox, then `bun install` runs on-sandbox
+4. The MCP config is generated on-sandbox using the correct sandbox paths
+5. The agent starts with `--idle-timeout 5m --idle-mode io` for cost-efficient lifecycle management
+
+### Lifecycle (Idle/Wake)
+
+Modal agents automatically shut down when idle, snapshotting their state:
+
+- **Idle** → mngr detects inactivity → snapshots sandbox → shuts down
+- **Wake** → `mngr start <agent>` → restores from snapshot → resumes
+
+After waking, the Zulip event queue may have expired (~10 min TTL). The session re-registers and backfill recovers any unread messages from the gap.
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MODAL_TIMEOUT` | `3600` | Max sandbox lifetime in seconds |
+| `MODAL_CPU` | `2` | CPU cores (0.25–16) |
+| `MODAL_MEMORY` | `4` | Memory in GB (0.5–32) |
+| `MODAL_IDLE_TIMEOUT` | `5m` | Idle time before auto-shutdown |
+| `GITHUB_TOKEN` | (required) | GitHub PAT for pushing code |
