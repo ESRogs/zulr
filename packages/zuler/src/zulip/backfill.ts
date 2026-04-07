@@ -68,29 +68,19 @@ function buildNarrowGroups(
 ): { readonly groups: readonly NarrowGroup[]; readonly channelCount: number } {
   const unreadFilter: NarrowFilter = { operator: 'is', operand: 'unread' }
 
-  // Group topics by stream ID
-  const byChannel = new Map<StreamId, NarrowFilter[][]>()
-  for (const ft of followedTopics) {
-    let narrows = byChannel.get(ft.streamId)
-    if (!narrows) {
-      narrows = []
-      byChannel.set(ft.streamId, narrows)
-    }
-    narrows.push([
-      { operator: 'stream' as const, operand: ft.streamId },
-      { operator: 'topic' as const, operand: ft.topic },
-      unreadFilter,
-    ])
-  }
+  const byChannel = Map.groupBy(followedTopics, (ft) => ft.streamId)
 
-  const channelGroups: NarrowGroup[] = []
-  for (const [streamId, narrows] of byChannel) {
+  const channelGroups: NarrowGroup[] = [...byChannel.entries()].map(([streamId, topics]) => {
     const name = resolveChannelName(streamId) ?? `channel ${streamId}`
-    channelGroups.push({
-      label: `${narrows.length} topic(s) in ${name}`,
-      narrows,
-    })
-  }
+    return {
+      label: `${topics.length} topic(s) in ${name}`,
+      narrows: topics.map((ft) => [
+        { operator: 'stream' as const, operand: ft.streamId },
+        { operator: 'topic' as const, operand: ft.topic },
+        unreadFilter,
+      ]),
+    }
+  })
 
   return {
     groups: [
