@@ -120,6 +120,10 @@ export type ZulipSession = {
   readonly getUnreadMessageIds: (streamId: StreamId, topic: TopicName) => readonly MessageId[]
   readonly hasUnreads: (streamId: StreamId, topic: TopicName) => boolean
 
+  // Unread state (aggregate)
+  readonly hasAnyUnreadMentions: () => boolean
+  readonly hasAnyUnreadDms: () => boolean
+
   // Unread state (DMs)
   readonly getUnreadDmCount: (userId: UserId) => number
   readonly hasUnreadDms: (userId: UserId) => boolean
@@ -383,6 +387,8 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     getUnreadCount: (streamId, topic) => getUnreadCount(unreads, streamId, topic),
     getUnreadMessageIds: (streamId, topic) => getUnreadMessageIds(unreads, streamId, topic),
     hasUnreads: (streamId, topic) => hasUnreads(unreads, streamId, topic),
+    hasAnyUnreadMentions: () => unreads.mentions.size > 0,
+    hasAnyUnreadDms: () => unreads.dms.size > 0,
     getUnreadDmCount: (userId) => getUnreadDmCount(unreads, userId),
     hasUnreadDms: (userId) => hasUnreadDms(unreads, userId),
     getTopicVisibility: (streamId, topic) => tvGetTopicVisibility(topicVisibility, streamId, topic),
