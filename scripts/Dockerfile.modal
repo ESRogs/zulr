@@ -1,0 +1,15 @@
+FROM debian:bookworm-slim
+
+# mngr required packages + zuler dependencies
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    openssh-server tmux curl rsync git ca-certificates \
+    unzip nodejs npm jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# bun
+RUN curl -fsSL https://bun.sh/install | bash
+ENV BUN_INSTALL="/root/.bun"
+ENV PATH="$BUN_INSTALL/bin:$PATH"
+
+# Claude Code
+RUN npm install -g @anthropic-ai/claude-code
