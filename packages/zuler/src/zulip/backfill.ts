@@ -122,9 +122,10 @@ async function backfillBotImpl(
     followedTopics,
     (streamId) => session.getSubscription(streamId)?.name,
   )
+  const channelCount = new Set(followedTopics.map((ft) => ft.streamId)).size
 
   onLog?.(
-    `[${botName}] backfilling ${followedTopics.length} topics across ${groups.length - 2} channel(s) + mentions + DMs`,
+    `[${botName}] backfilling ${followedTopics.length} topics across ${channelCount} channel(s) + mentions + DMs`,
   )
 
   // Fetch narrows sequentially to avoid hitting Zulip's rate limit
