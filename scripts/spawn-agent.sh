@@ -191,10 +191,14 @@ send_keys() {
 for i in $(seq 1 60); do
   SCREEN=$(mngr capture "$AGENT" 2>/dev/null || true)
 
+  echo "--- poll $i ---"
+  echo "$SCREEN"
+  echo "---"
+
   # Theme picker (first-run only) — accept default with Enter
   if echo "$SCREEN" | grep -q "Dark mode"; then
     send_keys Enter
-    echo "Accepted theme"
+    echo ">> Accepted theme"
     sleep 2
     continue
   fi
@@ -203,7 +207,7 @@ for i in $(seq 1 60); do
   # Select "Yes" (first option) with Up + Enter.
   if echo "$SCREEN" | grep -q "API key"; then
     send_keys Up Enter
-    echo "Accepted API key"
+    echo ">> Accepted API key"
     sleep 2
     continue
   fi
@@ -211,7 +215,7 @@ for i in $(seq 1 60); do
   # Trust dialog
   if echo "$SCREEN" | grep -q "Yes, I trust this folder"; then
     send_keys Enter
-    echo "Approved trust dialog"
+    echo ">> Approved trust dialog"
     sleep 2
     continue
   fi
@@ -219,13 +223,13 @@ for i in $(seq 1 60); do
   # Auto mode dialog
   if echo "$SCREEN" | grep -q "Yes, enable auto mode"; then
     send_keys Down Enter
-    echo "Approved auto mode"
+    echo ">> Approved auto mode"
     sleep 2
     continue
   fi
 
   if echo "$SCREEN" | grep -q "auto mode on"; then
-    echo "Claude Code ready"
+    echo ">> Claude Code ready"
     break
   fi
 
