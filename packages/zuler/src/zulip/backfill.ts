@@ -9,7 +9,7 @@ import type {
   ZulipClient,
   ZulipError,
 } from 'zulip-ts'
-import { getMessages, markAsRead } from 'zulip-ts'
+import { getMessages, getStreams, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates } from '../state/teammates.ts'
@@ -112,9 +112,27 @@ async function backfillBotImpl(
   const inboxTarget = options.inboxName ?? botName
 
   const followedTopics = session.getFollowedTopics()
-  const { groups, channelCount } = buildNarrowGroups(
-    followedTopics,
-    (streamId) => session.getSubscription(streamId)?.name,
+
+  // Build a channel name resolver: subscriptions first, then full stream list as fallback
+  const streamNameIndex = new Map<StreamId, string>()
+  for (const sub of session.getAllSubscriptions()) {
+    streamNameIndex.set(sub.stream_id, sub.name)
+  }
+  // Check if any followed topics are in unsubscribed channels
+  const unresolved = followedTopics.filter((ft) => !streamNameIndex.has(ft.streamId))
+  if (unresolved.length > 0) {
+    const streamsResult = await getStreams(client)
+    if (streamsResult.isOk()) {
+      for (const stream of streamsResult.value.streams) {
+        if (!streamNameIndex.has(stream.stream_id)) {
+          streamNameIndex.set(stream.stream_id, stream.name)
+        }
+      }
+    }
+  }
+
+  const { groups, channelCount } = buildNarrowGroups(followedTopics, (streamId) =>
+    streamNameIndex.get(streamId),
   )
 
   onLog?.(
