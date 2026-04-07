@@ -259,6 +259,7 @@ function startBotSession(
         const backfillOptions: BackfillBotOptions = {
           teamName,
           inboxName: inboxTarget,
+          onLog: (msg) => onLog?.(msg),
           onError: (err) => onError?.(`[${botName}] reconnect backfill: ${err}`),
         }
         const result = await backfillBot(botName, botClient, session, backfillOptions)
