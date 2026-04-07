@@ -212,6 +212,14 @@ for i in $(seq 1 60); do
     continue
   fi
 
+  # Login method selection — select "Anthropic Console account" (option 2).
+  if echo "$SCREEN" | grep -q "Select login method"; then
+    send_keys Down Enter
+    echo ">> Selected Console login"
+    sleep 2
+    continue
+  fi
+
   # Trust dialog
   if echo "$SCREEN" | grep -q "Yes, I trust this folder"; then
     send_keys Enter
