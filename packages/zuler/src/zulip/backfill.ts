@@ -65,9 +65,9 @@ type NarrowGroup = {
 function buildNarrowGroups(
   followedTopics: readonly FollowedTopic[],
   resolveChannelName: (streamId: StreamId) => string | undefined,
-  options?: {
-    readonly hasUnreadMentions?: boolean
-    readonly hasUnreadDms?: boolean
+  options: {
+    readonly hasUnreadMentions: boolean
+    readonly hasUnreadDms: boolean
   },
 ): { readonly groups: readonly NarrowGroup[]; readonly channelCount: number } {
   const unreadFilter: NarrowFilter = { operator: 'is', operand: 'unread' }
@@ -87,13 +87,13 @@ function buildNarrowGroups(
   })
 
   const extraGroups: NarrowGroup[] = []
-  if (options?.hasUnreadMentions !== false) {
+  if (options.hasUnreadMentions) {
     extraGroups.push({
       label: 'mentions',
       narrows: [[{ operator: 'is', operand: 'mentioned' }, unreadFilter]],
     })
   }
-  if (options?.hasUnreadDms !== false) {
+  if (options.hasUnreadDms) {
     extraGroups.push({
       label: 'DMs',
       narrows: [[{ operator: 'is', operand: 'dm' }, unreadFilter]],
@@ -129,9 +129,8 @@ async function backfillBotImpl(
   const followedTopics = allFollowedTopics.filter((ft) => session.hasUnreads(ft.streamId, ft.topic))
   const skipped = allFollowedTopics.length - followedTopics.length
 
-  const { unreads } = session.getState()
-  const hasUnreadMentions = unreads.mentions.size > 0
-  const hasUnreadDms = unreads.dms.size > 0
+  const hasUnreadMentions = session.hasAnyUnreadMentions()
+  const hasUnreadDms = session.hasAnyUnreadDms()
 
   // Build a channel name resolver: subscriptions first, then full stream list as fallback
   const streamNameIndex = new Map<StreamId, string>()
