@@ -1,7 +1,13 @@
 import type { Kysely } from 'kysely'
-import { fromPromise, type ResultAsync } from 'neverthrow'
+import { fromPromise, type Result, type ResultAsync } from 'neverthrow'
 import type { FollowedTopic, ZulipSession } from 'zulip-client-ts'
-import type { MessageId, NarrowFilter, ZulipClient } from 'zulip-ts'
+import type {
+  GetMessagesResponse,
+  MessageId,
+  NarrowFilter,
+  ZulipClient,
+  ZulipError,
+} from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
@@ -91,18 +97,18 @@ async function backfillBotImpl(
   const followedTopics = session.getFollowedTopics()
   const narrows = buildNarrows(followedTopics)
 
-  // Fetch from all narrows in parallel
-  const fetchResults = await Promise.all(
-    narrows.map((narrow) =>
-      getMessages(client, {
-        anchor: 'newest',
-        numBefore: maxPerBot,
-        numAfter: 0,
-        narrow: [...narrow],
-        applyMarkdown: false,
-      }),
-    ),
-  )
+  // Fetch narrows sequentially to avoid hitting Zulip's rate limit
+  const fetchResults: Result<GetMessagesResponse, ZulipError>[] = []
+  for (const narrow of narrows) {
+    const result = await getMessages(client, {
+      anchor: 'newest',
+      numBefore: maxPerBot,
+      numAfter: 0,
+      narrow: [...narrow],
+      applyMarkdown: false,
+    })
+    fetchResults.push(result)
+  }
 
   // Collect all fetched messages, deduplicate by message ID
   const seenIds = new Set<MessageId>()
@@ -217,41 +223,45 @@ export async function backfillAllInboxes(options: BackfillOptions): Promise<void
     botNames.push(...teammatesResult.value.map((t) => t.name))
   }
 
-  const results = await Promise.all(
-    botNames.map(async (name) => {
-      const session = getSession(name)
-      if (!session) {
-        onError?.(`no session for ${name}, skipping backfill`)
-        return { name, count: 0 }
-      }
+  // Backfill bots sequentially to avoid hitting Zulip's rate limit
+  const results: { name: TeammateName; count: number }[] = []
+  for (const name of botNames) {
+    const session = getSession(name)
+    if (!session) {
+      onError?.(`no session for ${name}, skipping backfill`)
+      results.push({ name, count: 0 })
+      continue
+    }
 
-      const ready = await waitForSession(session)
-      if (!ready) {
-        onError?.(`session for ${name} did not initialize in time, skipping backfill`)
-        return { name, count: 0 }
-      }
+    const ready = await waitForSession(session)
+    if (!ready) {
+      onError?.(`session for ${name} did not initialize in time, skipping backfill`)
+      results.push({ name, count: 0 })
+      continue
+    }
 
-      let client: ZulipClient
-      if (standaloneBot) {
-        client = standaloneBot.client
-      } else {
-        // eslint-disable-next-line neverthrow/must-use-result
-        const clientResult = await clientForTeammate(db, site, name)
-        if (clientResult.isErr()) {
-          onError?.(`failed to get client for ${name}: ${JSON.stringify(clientResult.error)}`)
-          return { name, count: 0 }
-        }
-        client = clientResult.value.client
+    let client: ZulipClient
+    if (standaloneBot) {
+      client = standaloneBot.client
+    } else {
+      // eslint-disable-next-line neverthrow/must-use-result
+      const clientResult = await clientForTeammate(db, site, name)
+      if (clientResult.isErr()) {
+        onError?.(`failed to get client for ${name}: ${JSON.stringify(clientResult.error)}`)
+        results.push({ name, count: 0 })
+        continue
       }
+      client = clientResult.value.client
+    }
 
-      const botResult = await backfillBot(name, client, session, options)
-      if (botResult.isErr()) {
-        onError?.(`backfill failed for ${name}: ${botResult.error}`)
-        return { name, count: 0 }
-      }
-      return { name, count: botResult.value }
-    }),
-  )
+    const botResult = await backfillBot(name, client, session, options)
+    if (botResult.isErr()) {
+      onError?.(`backfill failed for ${name}: ${botResult.error}`)
+      results.push({ name, count: 0 })
+      continue
+    }
+    results.push({ name, count: botResult.value })
+  }
 
   const total = results.reduce((sum, r) => sum + r.count, 0)
   const details = results
