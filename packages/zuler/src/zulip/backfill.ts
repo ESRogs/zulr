@@ -65,20 +65,21 @@ type NarrowGroup = {
 function buildNarrowGroups(
   followedTopics: readonly FollowedTopic[],
   resolveChannelName: (streamId: StreamId) => string | undefined,
-): readonly NarrowGroup[] {
+): { readonly groups: readonly NarrowGroup[]; readonly channelCount: number } {
   const unreadFilter: NarrowFilter = { operator: 'is', operand: 'unread' }
 
   // Group topics by stream ID
-  const byChannel = new Map<StreamId, readonly NarrowFilter[][]>()
+  const byChannel = new Map<StreamId, NarrowFilter[][]>()
   for (const ft of followedTopics) {
-    const existing = byChannel.get(ft.streamId) ?? []
-    byChannel.set(ft.streamId, [
-      ...existing,
-      [
-        { operator: 'stream' as const, operand: ft.streamId },
-        { operator: 'topic' as const, operand: ft.topic },
-        unreadFilter,
-      ],
+    let narrows = byChannel.get(ft.streamId)
+    if (!narrows) {
+      narrows = []
+      byChannel.set(ft.streamId, narrows)
+    }
+    narrows.push([
+      { operator: 'stream' as const, operand: ft.streamId },
+      { operator: 'topic' as const, operand: ft.topic },
+      unreadFilter,
     ])
   }
 
@@ -91,11 +92,14 @@ function buildNarrowGroups(
     })
   }
 
-  return [
-    ...channelGroups,
-    { label: 'mentions', narrows: [[{ operator: 'is', operand: 'mentioned' }, unreadFilter]] },
-    { label: 'DMs', narrows: [[{ operator: 'is', operand: 'dm' }, unreadFilter]] },
-  ]
+  return {
+    groups: [
+      ...channelGroups,
+      { label: 'mentions', narrows: [[{ operator: 'is', operand: 'mentioned' }, unreadFilter]] },
+      { label: 'DMs', narrows: [[{ operator: 'is', operand: 'dm' }, unreadFilter]] },
+    ],
+    channelCount: byChannel.size,
+  }
 }
 
 /** Backfill a single bot's inbox with missed unread messages. */
@@ -118,11 +122,10 @@ async function backfillBotImpl(
   const inboxTarget = options.inboxName ?? botName
 
   const followedTopics = session.getFollowedTopics()
-  const groups = buildNarrowGroups(
+  const { groups, channelCount } = buildNarrowGroups(
     followedTopics,
     (streamId) => session.getSubscription(streamId)?.name,
   )
-  const channelCount = new Set(followedTopics.map((ft) => ft.streamId)).size
 
   onLog?.(
     `[${botName}] backfilling ${followedTopics.length} topics across ${channelCount} channel(s) + mentions + DMs`,
