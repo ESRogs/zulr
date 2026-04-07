@@ -241,6 +241,14 @@ for i in $(seq 1 60); do
     break
   fi
 
+  # Detect claude not starting at all
+  if echo "$SCREEN" | grep -q "command not found"; then
+    echo "error: claude command not found on sandbox — npm install -g may have failed during provisioning"
+    echo "last screen:"
+    echo "$SCREEN"
+    exit 1
+  fi
+
   sleep 1
 done
 
