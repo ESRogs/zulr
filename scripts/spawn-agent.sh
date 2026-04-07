@@ -241,12 +241,13 @@ for i in $(seq 1 60); do
     break
   fi
 
-  # Detect claude not starting at all
-  if echo "$SCREEN" | grep -q "command not found"; then
-    echo "error: claude command not found on sandbox — npm install -g may have failed during provisioning"
-    echo "last screen:"
-    echo "$SCREEN"
-    exit 1
+  # mngr starts the agent before running provision commands, so the first
+  # `claude` invocation fails on Modal. Re-launch now that provisions are done.
+  if [ "$MODAL" = true ] && echo "$SCREEN" | grep -q "command not found"; then
+    echo ">> claude not found — re-launching (provisions run after agent start)"
+    send_keys "claude --mcp-config /tmp/zuler-mcp.json --permission-mode auto" Enter
+    sleep 3
+    continue
   fi
 
   sleep 1
