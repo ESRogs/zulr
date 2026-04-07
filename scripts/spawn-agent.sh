@@ -121,7 +121,7 @@ if [ "$MODAL" = true ]; then
 
   # Generate the MCP config on-sandbox since local paths don't apply.
   # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
-  GENERATE_MCP='mkdir -p ~/.zuler && printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > ~/.zuler/standalone-mcp.json'
+  GENERATE_MCP='printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > /tmp/zuler-mcp.json'
 
   # Add bun to ~/.bashrc so it's on PATH at agent runtime.
   # Provision commands run in separate shells, so the bun install step below
@@ -146,7 +146,7 @@ if [ "$MODAL" = true ]; then
     --extra-provision-command 'export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun install' \
     --extra-provision-command "$GENERATE_MCP" \
     --no-connect \
-    -- --mcp-config /root/.zuler/standalone-mcp.json --permission-mode auto
+    -- --mcp-config /tmp/zuler-mcp.json --permission-mode auto
 else
   # Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
   ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
@@ -177,7 +177,9 @@ fi
 TMUX_SESSION="mngr-$AGENT"
 send_keys() {
   if [ "$MODAL" = true ]; then
-    mngr exec "$AGENT" "tmux send-keys -t $TMUX_SESSION $*" 2>/dev/null || true
+    local escaped_args
+    escaped_args=$(printf '%q ' "$@")
+    mngr exec "$AGENT" "tmux send-keys -t $TMUX_SESSION $escaped_args" 2>/dev/null || true
   else
     tmux send-keys -t "$TMUX_SESSION" "$@"
   fi
