@@ -24,6 +24,7 @@ export type BackfillBotOptions = {
   readonly maxPerBot?: number
   /** Override the inbox file name (defaults to the bot name). Used in standalone mode. */
   readonly inboxName?: TeammateName
+  readonly onLog?: (msg: string) => void
   readonly onError?: (error: unknown) => void
 }
 
@@ -53,26 +54,26 @@ async function waitForSession(session: ZulipSession, timeoutMs: number = 10_000)
   return false
 }
 
+type LabeledNarrow = { readonly label: string; readonly filters: readonly NarrowFilter[] }
+
 /** Build narrow filters for a bot's followed topics, mentions, and DMs. */
-function buildNarrows(
-  followedTopics: readonly FollowedTopic[],
-): readonly (readonly NarrowFilter[])[] {
+function buildNarrows(followedTopics: readonly FollowedTopic[]): readonly LabeledNarrow[] {
   const unreadFilter: NarrowFilter = { operator: 'is', operand: 'unread' }
 
-  const topicNarrows = followedTopics.map(
-    (ft) =>
-      [
-        { operator: 'stream' as const, operand: ft.streamId },
-        { operator: 'topic' as const, operand: ft.topic },
-        unreadFilter,
-      ] as const,
-  )
+  const topicNarrows: LabeledNarrow[] = followedTopics.map((ft) => ({
+    label: `topic ${ft.streamId}/${ft.topic}`,
+    filters: [
+      { operator: 'stream' as const, operand: ft.streamId },
+      { operator: 'topic' as const, operand: ft.topic },
+      unreadFilter,
+    ],
+  }))
 
-  const mentionNarrow = [{ operator: 'is' as const, operand: 'mentioned' }, unreadFilter] as const
-
-  const dmNarrow = [{ operator: 'is' as const, operand: 'dm' }, unreadFilter] as const
-
-  return [...topicNarrows, mentionNarrow, dmNarrow]
+  return [
+    ...topicNarrows,
+    { label: 'mentions', filters: [{ operator: 'is', operand: 'mentioned' }, unreadFilter] },
+    { label: 'DMs', filters: [{ operator: 'is', operand: 'dm' }, unreadFilter] },
+  ]
 }
 
 /** Backfill a single bot's inbox with missed unread messages. */
@@ -91,20 +92,25 @@ async function backfillBotImpl(
   session: ZulipSession,
   options: BackfillBotOptions,
 ): Promise<number> {
-  const { teamName, maxPerBot = DEFAULT_MAX_PER_BOT, onError } = options
+  const { teamName, maxPerBot = DEFAULT_MAX_PER_BOT, onLog, onError } = options
   const inboxTarget = options.inboxName ?? botName
 
   const followedTopics = session.getFollowedTopics()
   const narrows = buildNarrows(followedTopics)
 
+  onLog?.(
+    `[${botName}] backfilling ${narrows.length} narrows (${followedTopics.length} topics + mentions + DMs)`,
+  )
+
   // Fetch narrows sequentially to avoid hitting Zulip's rate limit
   const fetchResults: Result<GetMessagesResponse, ZulipError>[] = []
   for (const narrow of narrows) {
+    onLog?.(`[${botName}] fetching ${narrow.label}`)
     const result = await getMessages(client, {
       anchor: 'newest',
       numBefore: maxPerBot,
       numAfter: 0,
-      narrow: [...narrow],
+      narrow: [...narrow.filters],
       applyMarkdown: false,
     })
     fetchResults.push(result)
