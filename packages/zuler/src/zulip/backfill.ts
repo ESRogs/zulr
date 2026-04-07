@@ -128,6 +128,10 @@ async function backfillBotImpl(
           streamNameIndex.set(stream.stream_id, stream.name)
         }
       }
+    } else {
+      onError?.(
+        `getStreams failed for channel name resolution: ${JSON.stringify(streamsResult.error)}`,
+      )
     }
   }
 
