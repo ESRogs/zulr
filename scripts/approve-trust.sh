@@ -30,6 +30,14 @@ for i in $(seq 1 "$TIMEOUT"); do
     exit 0
   fi
 
+  # API key detection — accept with Up + Enter
+  if echo "$SCREEN" | grep -q "API key"; then
+    send_keys Up Enter
+    echo "accepted API key for $AGENT"
+    sleep 2
+    continue
+  fi
+
   # Check for other known dialogs we should NOT approve
   if echo "$SCREEN" | grep -q "Bypass Permissions mode"; then
     echo "error: got bypass permissions dialog instead of trust dialog"

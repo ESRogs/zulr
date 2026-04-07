@@ -197,6 +197,15 @@ for i in $(seq 1 60); do
     continue
   fi
 
+  # API key detection — Claude Code asks whether to use the detected key.
+  # Select "Yes" (first option) with Up + Enter.
+  if echo "$SCREEN" | grep -q "API key"; then
+    send_keys Up Enter
+    echo "Accepted API key"
+    sleep 2
+    continue
+  fi
+
   # Trust dialog
   if echo "$SCREEN" | grep -q "Yes, I trust this folder"; then
     send_keys Enter
