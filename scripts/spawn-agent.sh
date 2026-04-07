@@ -126,7 +126,7 @@ if [ "$MODAL" = true ]; then
   # Add bun to ~/.bashrc so it's on PATH at agent runtime.
   # Provision commands run in separate shells, so the bun install step below
   # uses an inline export instead of relying on this.
-  SETUP_PATH='echo "export BUN_INSTALL=\$HOME/.bun" >> ~/.bashrc && echo "export PATH=\$BUN_INSTALL/bin:\$PATH" >> ~/.bashrc'
+  SETUP_PATH='echo "export BUN_INSTALL=\$HOME/.bun" >> ~/.bashrc && echo "export PATH=/usr/local/bin:\$BUN_INSTALL/bin:\$PATH" >> ~/.bashrc'
 
   echo "Creating Modal agent '$AGENT'..."
   mngr create "$AGENT@.modal" claude \
