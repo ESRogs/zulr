@@ -1,7 +1,13 @@
 import type { Kysely } from 'kysely'
-import { fromPromise, type ResultAsync } from 'neverthrow'
+import { fromPromise, type Result, type ResultAsync } from 'neverthrow'
 import type { FollowedTopic, ZulipSession } from 'zulip-client-ts'
-import type { MessageId, NarrowFilter, ZulipClient } from 'zulip-ts'
+import type {
+  GetMessagesResponse,
+  MessageId,
+  NarrowFilter,
+  ZulipClient,
+  ZulipError,
+} from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
@@ -92,17 +98,16 @@ async function backfillBotImpl(
   const narrows = buildNarrows(followedTopics)
 
   // Fetch narrows sequentially to avoid hitting Zulip's rate limit
-  const fetchResults = []
+  const fetchResults: Result<GetMessagesResponse, ZulipError>[] = []
   for (const narrow of narrows) {
-    fetchResults.push(
-      await getMessages(client, {
-        anchor: 'newest',
-        numBefore: maxPerBot,
-        numAfter: 0,
-        narrow: [...narrow],
-        applyMarkdown: false,
-      }),
-    )
+    const result = await getMessages(client, {
+      anchor: 'newest',
+      numBefore: maxPerBot,
+      numAfter: 0,
+      narrow: [...narrow],
+      applyMarkdown: false,
+    })
+    fetchResults.push(result)
   }
 
   // Collect all fetched messages, deduplicate by message ID
