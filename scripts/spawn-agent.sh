@@ -86,7 +86,12 @@ COMMON_ENV=(
 )
 
 if [ "$MODAL" = true ]; then
-  GITHUB_TOKEN="${GITHUB_TOKEN:?--modal requires GITHUB_TOKEN env var for remote GitHub access}"
+  MODAL_EXTRA_ENV=()
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    MODAL_EXTRA_ENV+=(--env "GITHUB_TOKEN=$GITHUB_TOKEN")
+  else
+    echo "warning: GITHUB_TOKEN not set — Modal agent won't be able to push to GitHub"
+  fi
 
   # Resolve Claude Code auth for the remote sandbox.
   # CLAUDE_CODE_OAUTH_TOKEN: long-lived token from 'claude setup-token' (subscription billing)
@@ -116,7 +121,7 @@ if [ "$MODAL" = true ]; then
 
   # Generate the MCP config on-sandbox since local paths don't apply.
   # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
-  GENERATE_MCP='mkdir -p ~/.zuler && printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > ~/.zuler/standalone-mcp.json'
+  GENERATE_MCP='printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > /tmp/zuler-mcp.json'
 
   # Add bun to ~/.bashrc so it's on PATH at agent runtime.
   # Provision commands run in separate shells, so the bun install step below
@@ -127,7 +132,7 @@ if [ "$MODAL" = true ]; then
   mngr create "$AGENT@.modal" claude \
     "${COMMON_ENV[@]}" \
     "${MODAL_AUTH_ENV[@]}" \
-    --env "GITHUB_TOKEN=$GITHUB_TOKEN" \
+    "${MODAL_EXTRA_ENV[@]}" \
     -b "timeout=$MODAL_TIMEOUT" \
     -b "cpu=$MODAL_CPU" \
     -b "memory=$MODAL_MEMORY" \
@@ -141,7 +146,7 @@ if [ "$MODAL" = true ]; then
     --extra-provision-command 'export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun install' \
     --extra-provision-command "$GENERATE_MCP" \
     --no-connect \
-    -- --mcp-config ~/.zuler/standalone-mcp.json --permission-mode auto
+    -- --mcp-config /tmp/zuler-mcp.json --permission-mode auto
 else
   # Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
   ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
@@ -166,18 +171,54 @@ MCPEOF
     -- --mcp-config "$MCP_CONFIG" --permission-mode auto
 fi
 
-# Approve trust dialog and send initial prompt.
-# These steps work for both local and Modal agents — mngr creates a tmux
-# session and `mngr capture` works over SSH for remote sandboxes.
-"$SCRIPT_DIR/approve-trust.sh" "$AGENT"
-
-# Wait for auto mode dialog
+# Helper: send tmux keys to the agent's session.
+# For local agents, uses tmux directly. For Modal, uses mngr exec to run
+# tmux on the remote sandbox.
 TMUX_SESSION="mngr-$AGENT"
-for i in $(seq 1 30); do
+send_keys() {
+  if [ "$MODAL" = true ]; then
+    local escaped_args
+    escaped_args=$(printf '%q ' "$@")
+    mngr exec "$AGENT" "tmux send-keys -t $TMUX_SESSION $escaped_args" 2>/dev/null || true
+  else
+    tmux send-keys -t "$TMUX_SESSION" "$@"
+  fi
+}
+
+# Navigate Claude Code's startup dialogs (trust, theme, auto mode).
+# On first run (common on Modal), Claude Code shows a theme picker and
+# possibly a login prompt before the trust and auto-mode dialogs.
+for i in $(seq 1 60); do
   SCREEN=$(mngr capture "$AGENT" 2>/dev/null || true)
 
+  # Theme picker (first-run only) — accept default with Enter
+  if echo "$SCREEN" | grep -q "Dark mode"; then
+    send_keys Enter
+    echo "Accepted theme"
+    sleep 2
+    continue
+  fi
+
+  # API key detection — Claude Code asks whether to use the detected key.
+  # Select "Yes" (first option) with Up + Enter.
+  if echo "$SCREEN" | grep -q "API key"; then
+    send_keys Up Enter
+    echo "Accepted API key"
+    sleep 2
+    continue
+  fi
+
+  # Trust dialog
+  if echo "$SCREEN" | grep -q "Yes, I trust this folder"; then
+    send_keys Enter
+    echo "Approved trust dialog"
+    sleep 2
+    continue
+  fi
+
+  # Auto mode dialog
   if echo "$SCREEN" | grep -q "Yes, enable auto mode"; then
-    tmux send-keys -t "$TMUX_SESSION" Down Enter
+    send_keys Down Enter
     echo "Approved auto mode"
     sleep 2
     continue
@@ -194,7 +235,7 @@ done
 # Send the initial prompt
 echo "Sending initial prompt..."
 INITIAL_PROMPT="Create a team called 'zuler-$AGENT' using TeamCreate. Then read the docs channel topic 'getting-started' using the catch-up tool and follow its instructions."
-tmux send-keys -t "$TMUX_SESSION" "$INITIAL_PROMPT" Enter
+send_keys "$INITIAL_PROMPT" Enter
 
 echo ""
 echo "Agent '$AGENT' spawned successfully!"
