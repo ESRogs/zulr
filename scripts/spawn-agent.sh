@@ -117,7 +117,7 @@ if [ "$MODAL" = true ]; then
   # and nodejs/npm for Claude Code's runtime.
   INSTALL_DEPS='apt-get update && apt-get install -y --no-install-recommends unzip nodejs npm'
   INSTALL_BUN='curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun --version'
-  INSTALL_CC='npm install -g @anthropic-ai/claude-code'
+  INSTALL_CC='npm install -g @anthropic-ai/claude-code && ln -sf /usr/local/bin/claude /usr/bin/claude'
 
   # Generate the MCP config on-sandbox since local paths don't apply.
   # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
