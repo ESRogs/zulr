@@ -130,25 +130,30 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
         })
         if (result.isOk()) {
           // Follow the topic so the bot receives notifications for future messages.
+          // Skip resolved topics — they get auto-unfollowed and shouldn't be re-followed.
           // Use the session's optimistic update when available.
-          const session = ctx.getEventListenerManager()?.getSession(senderResult.value)
-          const followErr = await ctx.cache
-            .resolveChannel(channel)
-            .andThen((stream) =>
-              (session
-                ? session.setTopicVisibility(stream.stream_id, topic, TopicVisibility.FOLLOWED)
-                : setTopicVisibility(
-                    clientResult.value.client,
-                    stream.stream_id,
-                    topic,
-                    TopicVisibility.FOLLOWED,
-                  )
-              ).mapErr(getErrorMessage),
-            )
-            .match(
-              () => undefined,
-              (err) => err,
-            )
+          const resolvedPrefix = '✔ '
+          let followErr: string | undefined
+          if (!topic.startsWith(resolvedPrefix)) {
+            const session = ctx.getEventListenerManager()?.getSession(senderResult.value)
+            followErr = await ctx.cache
+              .resolveChannel(channel)
+              .andThen((stream) =>
+                (session
+                  ? session.setTopicVisibility(stream.stream_id, topic, TopicVisibility.FOLLOWED)
+                  : setTopicVisibility(
+                      clientResult.value.client,
+                      stream.stream_id,
+                      topic,
+                      TopicVisibility.FOLLOWED,
+                    )
+                ).mapErr(getErrorMessage),
+              )
+              .match(
+                () => undefined,
+                (err) => err,
+              )
+          }
           const msg = `posted to ${channel}/${topic} (id: ${result.value.id})`
           return textResult(
             followErr ? `${msg} — warning: failed to follow topic: ${followErr}` : msg,
