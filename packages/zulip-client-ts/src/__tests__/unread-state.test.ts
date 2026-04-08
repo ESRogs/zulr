@@ -291,3 +291,36 @@ describe('getUnreadMessageIds', () => {
     expect(getUnreadMessageIds(state, sid(999), topic('nope'))).toEqual([])
   })
 })
+
+describe('case-insensitive topic matching', () => {
+  test('init merges entries with different casing', () => {
+    const state = initUnreadState({
+      streams: [
+        { stream_id: sid(10), topic: topic('Bugs'), unread_message_ids: [msgId(1)] },
+        { stream_id: sid(10), topic: topic('bugs'), unread_message_ids: [msgId(2)] },
+      ],
+      pms: [],
+      mentions: [],
+    })
+    expect(getUnreadCount(state, sid(10), topic('bugs'))).toBe(2)
+    expect(getUnreadCount(state, sid(10), topic('Bugs'))).toBe(2)
+    expect(getUnreadCount(state, sid(10), topic('BUGS'))).toBe(2)
+  })
+
+  test('message events use case-insensitive keys', () => {
+    const state = emptyUnreadState()
+    applyMessageEvent(state, makeMessageEvent({ streamId: 10, subject: 'My Topic', msgId: 1 }))
+
+    expect(getUnreadCount(state, sid(10), topic('my topic'))).toBe(1)
+    expect(getUnreadCount(state, sid(10), topic('My Topic'))).toBe(1)
+    expect(getUnreadMessageIds(state, sid(10), topic('MY TOPIC'))).toEqual([msgId(1)])
+  })
+
+  test('hasUnreads is case-insensitive', () => {
+    const state = emptyUnreadState()
+    applyMessageEvent(state, makeMessageEvent({ streamId: 10, subject: 'Bug Reports', msgId: 1 }))
+
+    expect(hasUnreads(state, sid(10), topic('bug reports'))).toBe(true)
+    expect(hasUnreads(state, sid(10), topic('Bug Reports'))).toBe(true)
+  })
+})

@@ -8,6 +8,11 @@ import type {
 
 export type TopicVisibilityState = Map<StreamId, Map<TopicName, UserTopicVisibility>>
 
+/** Normalize a topic name for case-insensitive lookup (Zulip treats topics as case-insensitive). */
+export function normalizeTopicName(topic: TopicName): TopicName {
+  return topic.toLowerCase() as TopicName
+}
+
 /** Create an empty topic visibility state. */
 export function emptyTopicVisibility(): TopicVisibilityState {
   return new Map()
@@ -24,7 +29,7 @@ export function initTopicVisibility(entries: readonly UserTopicEntry[]): TopicVi
       topicMap = new Map()
       state.set(entry.stream_id, topicMap)
     }
-    topicMap.set(entry.topic_name, policy)
+    topicMap.set(normalizeTopicName(entry.topic_name), policy)
   }
   return state
 }
@@ -32,12 +37,13 @@ export function initTopicVisibility(entries: readonly UserTopicEntry[]): TopicVi
 /** Apply a user_topic event — updates topic visibility policy. */
 export function applyUserTopicEvent(state: TopicVisibilityState, event: UserTopicEvent): void {
   const visibilityPolicy = event.visibility_policy as UserTopicVisibility
+  const topic = normalizeTopicName(event.topic_name)
 
   if (visibilityPolicy === 0) {
     // INHERIT — remove the override, fall back to channel default
     const topicMap = state.get(event.stream_id)
     if (topicMap) {
-      topicMap.delete(event.topic_name)
+      topicMap.delete(topic)
       if (topicMap.size === 0) state.delete(event.stream_id)
     }
     return
@@ -48,7 +54,7 @@ export function applyUserTopicEvent(state: TopicVisibilityState, event: UserTopi
     topicMap = new Map()
     state.set(event.stream_id, topicMap)
   }
-  topicMap.set(event.topic_name, visibilityPolicy)
+  topicMap.set(topic, visibilityPolicy)
 }
 
 /** Get the visibility policy for a topic. Returns 0 (INHERIT) if no override is set. */
@@ -57,7 +63,7 @@ export function getTopicVisibility(
   streamId: StreamId,
   topic: TopicName,
 ): UserTopicVisibility {
-  return state.get(streamId)?.get(topic) ?? 0
+  return state.get(streamId)?.get(normalizeTopicName(topic)) ?? 0
 }
 
 /** Check whether a topic has FOLLOWED visibility policy. */

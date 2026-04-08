@@ -9,6 +9,7 @@ import type {
   UpdateMessageFlagsEvent,
   UserId,
 } from 'zulip-ts'
+import { normalizeTopicName as normalizeTopic } from './topic-visibility.ts'
 
 type StreamLocation = { readonly streamId: StreamId; readonly topic: TopicName }
 
@@ -30,13 +31,19 @@ export function initUnreadState(unreadMsgs: UnreadMsgs): UnreadState {
   const streams = new Map<StreamId, Map<TopicName, Set<MessageId>>>()
   const streamIndex = new Map<MessageId, StreamLocation>()
   for (const entry of unreadMsgs.streams) {
+    const topic = normalizeTopic(entry.topic)
     let topicMap = streams.get(entry.stream_id)
     if (!topicMap) {
       topicMap = new Map()
       streams.set(entry.stream_id, topicMap)
     }
-    topicMap.set(entry.topic, new Set(entry.unread_message_ids))
-    const loc: StreamLocation = { streamId: entry.stream_id, topic: entry.topic }
+    const existing = topicMap.get(topic)
+    if (existing) {
+      for (const id of entry.unread_message_ids) existing.add(id)
+    } else {
+      topicMap.set(topic, new Set(entry.unread_message_ids))
+    }
+    const loc: StreamLocation = { streamId: entry.stream_id, topic }
     for (const id of entry.unread_message_ids) {
       streamIndex.set(id, loc)
     }
@@ -76,18 +83,19 @@ export function applyMessageEvent(state: UnreadState, event: MessageEvent): void
   if (flags.includes('read')) return
 
   if (msg.type === 'stream') {
+    const topic = normalizeTopic(msg.subject)
     let topicMap = state.streams.get(msg.stream_id)
     if (!topicMap) {
       topicMap = new Map()
       state.streams.set(msg.stream_id, topicMap)
     }
-    let msgSet = topicMap.get(msg.subject)
+    let msgSet = topicMap.get(topic)
     if (!msgSet) {
       msgSet = new Set()
-      topicMap.set(msg.subject, msgSet)
+      topicMap.set(topic, msgSet)
     }
     msgSet.add(msg.id)
-    state.streamIndex.set(msg.id, { streamId: msg.stream_id, topic: msg.subject })
+    state.streamIndex.set(msg.id, { streamId: msg.stream_id, topic })
   } else {
     // DM — sender_id is the other user (bot received it; own sends have flags: ['read'])
     const senderId = msg.sender_id
@@ -189,7 +197,7 @@ export function applyUpdateMessageEvent(state: UnreadState, event: UpdateMessage
 
     // Compute new location
     const destStreamId = hasStream ? newStreamId : loc.streamId
-    const destTopic = hasTopic ? newSubject : loc.topic
+    const destTopic = hasTopic ? normalizeTopic(newSubject) : loc.topic
 
     // Add to new location
     let destTopicMap = state.streams.get(destStreamId)
@@ -246,7 +254,7 @@ export function applyDeleteMessageEvent(state: UnreadState, event: DeleteMessage
 
 /** Get the count of unread messages in a stream topic. */
 export function getUnreadCount(state: UnreadState, streamId: StreamId, topic: TopicName): number {
-  return state.streams.get(streamId)?.get(topic)?.size ?? 0
+  return state.streams.get(streamId)?.get(normalizeTopic(topic))?.size ?? 0
 }
 
 /** Check whether a stream topic has any unread messages. */
@@ -260,7 +268,7 @@ export function getUnreadMessageIds(
   streamId: StreamId,
   topic: TopicName,
 ): readonly MessageId[] {
-  const set = state.streams.get(streamId)?.get(topic)
+  const set = state.streams.get(streamId)?.get(normalizeTopic(topic))
   return set ? [...set] : []
 }
 

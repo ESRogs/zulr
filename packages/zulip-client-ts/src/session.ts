@@ -15,6 +15,7 @@ import type {
   Reaction,
   StreamId,
   Subscription,
+  SuccessResponse,
   TopicName,
   UnixEpochSeconds,
   UpdateMessageEvent,
@@ -26,6 +27,7 @@ import type {
   ZulipError,
 } from 'zulip-ts'
 import {
+  setTopicVisibility as apiSetTopicVisibility,
   getEvents,
   getMembers,
   getSentMessages,
@@ -132,6 +134,12 @@ export type ZulipSession = {
   readonly getTopicVisibility: (streamId: StreamId, topic: TopicName) => UserTopicVisibility
   readonly isFollowed: (streamId: StreamId, topic: TopicName) => boolean
   readonly getFollowedTopics: () => readonly FollowedTopic[]
+  /** Set topic visibility via the API and optimistically update local state on success. */
+  readonly setTopicVisibility: (
+    streamId: StreamId,
+    topic: TopicName,
+    visibilityPolicy: UserTopicVisibility,
+  ) => ResultAsync<SuccessResponse, ZulipError>
 
   // Members
   readonly resolveUserId: (id: UserId) => DisplayName | undefined
@@ -394,6 +402,17 @@ export function createSession(params: CreateSessionParams): ZulipSession {
     getTopicVisibility: (streamId, topic) => tvGetTopicVisibility(topicVisibility, streamId, topic),
     isFollowed: (streamId, topic) => tvIsFollowed(topicVisibility, streamId, topic),
     getFollowedTopics: () => tvGetFollowedTopics(topicVisibility),
+    setTopicVisibility: (streamId, topic, visibilityPolicy) =>
+      apiSetTopicVisibility(client, streamId, topic, visibilityPolicy).map((response) => {
+        applyUserTopicEvent(topicVisibility, {
+          type: 'user_topic',
+          id: 0 as EventId,
+          stream_id: streamId,
+          topic_name: topic,
+          visibility_policy: visibilityPolicy,
+        })
+        return response
+      }),
     resolveUserId: (id) => membersResolveUserId(members, id),
     resolveName: (name) => membersResolveName(members, name),
     getMessage: (id) => cacheGetMessage(messageCache, id),

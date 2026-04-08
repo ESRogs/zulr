@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
 import { createSession, type ZulipSession } from 'zulip-client-ts'
 import type { DisplayName, Email, EmojiName, MessageId, UserId, ZulipClient } from 'zulip-ts'
-import { getMessage, isKnownEvent, markAsRead, setTopicVisibility, TopicVisibility } from 'zulip-ts'
+import { getMessage, isKnownEvent, markAsRead, TopicVisibility } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates, type StateError, type Teammate } from '../state/teammates.ts'
@@ -219,9 +219,9 @@ function startBotSession(
           // Follow the topic when this bot is @-mentioned
           if (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') {
             // eslint-disable-next-line neverthrow/must-use-result
-            setTopicVisibility(botClient, msg.stream_id, topic, TopicVisibility.FOLLOWED).mapErr(
-              (err) => onError?.(err),
-            )
+            session
+              .setTopicVisibility(msg.stream_id, topic, TopicVisibility.FOLLOWED)
+              .mapErr((err) => onError?.(err))
           }
 
           onRoute?.({ stream, topic, sender: senderName, botName, summary })
