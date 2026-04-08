@@ -19,6 +19,7 @@ import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { type BackfillBotOptions, backfillBot } from './backfill.ts'
 import { writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
+import { RESOLVED_PREFIX } from './resolved.ts'
 import { routeDm, sanitizeSummary, truncate } from './routing.ts'
 
 type EventListenerManagerOptions = {
@@ -69,7 +70,6 @@ const SESSION_EVENT_TYPES = [
   'subscription',
 ] as const
 
-const RESOLVED_PREFIX = '✔ '
 const UNFOLLOW_DELAY_MS = 60_000
 
 /** Key for the pending-unfollow timer map. */
@@ -183,6 +183,11 @@ function startBotSession(
 
   /** Pending auto-unfollow timers keyed by `streamId:normalizedTopic`. */
   const pendingUnfollows = new Map<string, ReturnType<typeof setTimeout>>()
+
+  signal?.addEventListener('abort', () => {
+    for (const timer of pendingUnfollows.values()) clearTimeout(timer)
+    pendingUnfollows.clear()
+  })
 
   const session = createSession({
     client: botClient,
