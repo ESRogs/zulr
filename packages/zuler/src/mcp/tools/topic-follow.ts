@@ -1,5 +1,15 @@
+import type { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
+import type {
+  StreamId,
+  SuccessResponse,
+  TopicName,
+  UserTopicVisibility,
+  ZulipClient,
+  ZulipError,
+} from 'zulip-ts'
 import { setTopicVisibility, TopicVisibility } from 'zulip-ts'
+import type { TeammateName } from '../../tagged-types.ts'
 import {
   errorResult,
   getErrorMessage,
@@ -11,6 +21,25 @@ import {
   zOptionalTeammateName,
   zTopicName,
 } from '../helpers.ts'
+
+/**
+ * Set topic visibility through the session (optimistic local update) when
+ * available, falling back to the direct API call otherwise.
+ */
+function setVisibility(
+  ctx: ToolContext,
+  senderName: TeammateName,
+  client: ZulipClient,
+  streamId: StreamId,
+  topic: TopicName,
+  policy: UserTopicVisibility,
+): ResultAsync<SuccessResponse, ZulipError> {
+  const session = ctx.getEventListenerManager()?.getSession(senderName)
+  if (session) {
+    return session.setTopicVisibility(streamId, topic, policy)
+  }
+  return setTopicVisibility(client, streamId, topic, policy)
+}
 
 export function registerFollowTool(registrar: ToolRegistrar, ctx: ToolContext): void {
   registrar.registerTool(
@@ -33,7 +62,9 @@ export function registerFollowTool(registrar: ToolRegistrar, ctx: ToolContext): 
       const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
-      const result = await setTopicVisibility(
+      const result = await setVisibility(
+        ctx,
+        senderResult.value,
         clientResult.value.client,
         channelResult.value.stream_id,
         topic,
@@ -67,7 +98,9 @@ export function registerMuteTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
-      const result = await setTopicVisibility(
+      const result = await setVisibility(
+        ctx,
+        senderResult.value,
         clientResult.value.client,
         channelResult.value.stream_id,
         topic,
@@ -102,7 +135,9 @@ export function registerUnmuteTool(registrar: ToolRegistrar, ctx: ToolContext): 
       const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
-      const result = await setTopicVisibility(
+      const result = await setVisibility(
+        ctx,
+        senderResult.value,
         clientResult.value.client,
         channelResult.value.stream_id,
         topic,
@@ -137,7 +172,9 @@ export function registerUnfollowTool(registrar: ToolRegistrar, ctx: ToolContext)
       const channelResult = await ctx.cache.resolveChannel(channel)
       if (channelResult.isErr()) return errorResult(channelResult.error)
 
-      const result = await setTopicVisibility(
+      const result = await setVisibility(
+        ctx,
+        senderResult.value,
         clientResult.value.client,
         channelResult.value.stream_id,
         topic,
