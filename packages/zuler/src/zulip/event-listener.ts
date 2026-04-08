@@ -301,8 +301,8 @@ function startBotSession(
               // eslint-disable-next-line neverthrow/must-use-result
               session
                 .setTopicVisibility(streamId, newTopic, TopicVisibility.INHERIT)
+                .map(() => onLog?.(`[${botName}] auto-unfollowed resolved topic: ${newTopic}`))
                 .mapErr((err) => onError?.(err))
-              onLog?.(`[${botName}] auto-unfollowed resolved topic: ${newTopic}`)
             }, UNFOLLOW_DELAY_MS)
             pendingUnfollows.set(key, timer)
           } else if (
