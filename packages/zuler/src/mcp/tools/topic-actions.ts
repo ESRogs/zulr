@@ -2,6 +2,7 @@ import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 import type { ChannelName, MessageId, TopicName, ZulipClient } from 'zulip-ts'
 import { getMessages, updateMessage } from 'zulip-ts'
+import { RESOLVED_PREFIX } from '../../zulip/resolved.ts'
 import {
   errorResult,
   getErrorMessage,
@@ -14,8 +15,6 @@ import {
   zOptionalTeammateName,
   zTopicName,
 } from '../helpers.ts'
-
-const RESOLVED_PREFIX = '✔ '
 
 /** Find any message ID in a topic (needed for updateMessage). */
 function findMessageIdInTopic(

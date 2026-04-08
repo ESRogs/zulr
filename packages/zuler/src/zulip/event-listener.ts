@@ -1,7 +1,16 @@
 import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
 import { createSession, type ZulipSession } from 'zulip-client-ts'
-import type { DisplayName, Email, EmojiName, MessageId, UserId, ZulipClient } from 'zulip-ts'
+import type {
+  DisplayName,
+  Email,
+  EmojiName,
+  MessageId,
+  StreamId,
+  TopicName,
+  UserId,
+  ZulipClient,
+} from 'zulip-ts'
 import { getMessage, isKnownEvent, markAsRead, TopicVisibility } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
@@ -10,6 +19,7 @@ import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { type BackfillBotOptions, backfillBot } from './backfill.ts'
 import { writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
+import { RESOLVED_PREFIX } from './resolved.ts'
 import { routeDm, sanitizeSummary, truncate } from './routing.ts'
 
 type EventListenerManagerOptions = {
@@ -59,6 +69,13 @@ const SESSION_EVENT_TYPES = [
   'reaction',
   'subscription',
 ] as const
+
+const UNFOLLOW_DELAY_MS = 60_000
+
+/** Key for the pending-unfollow timer map. */
+function unfollowKey(streamId: StreamId, topic: TopicName): string {
+  return `${streamId}:${topic.toLowerCase()}`
+}
 
 type HandleReactionParams = {
   readonly client: ZulipClient
@@ -164,6 +181,14 @@ function startBotSession(
   const { db, teamName, onRoute, onReaction, onError, onLog, signal } = options
   const inboxTarget = options.inboxName ?? botName
 
+  /** Pending auto-unfollow timers keyed by `streamId:normalizedTopic`. */
+  const pendingUnfollows = new Map<string, ReturnType<typeof setTimeout>>()
+
+  signal?.addEventListener('abort', () => {
+    for (const timer of pendingUnfollows.values()) clearTimeout(timer)
+    pendingUnfollows.clear()
+  })
+
   const session = createSession({
     client: botClient,
     eventTypes: [...SESSION_EVENT_TYPES],
@@ -216,8 +241,11 @@ function startBotSession(
             () => {},
             (e) => onError?.(e),
           )
-          // Follow the topic when this bot is @-mentioned
-          if (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') {
+          // Follow the topic when this bot is @-mentioned (skip resolved topics)
+          if (
+            (result.reason === 'mentioned' || result.reason === 'wildcard_mentioned') &&
+            !topic.startsWith(RESOLVED_PREFIX)
+          ) {
             // eslint-disable-next-line neverthrow/must-use-result
             session
               .setTopicVisibility(msg.stream_id, topic, TopicVisibility.FOLLOWED)
@@ -231,22 +259,63 @@ function startBotSession(
       },
 
       onEvent: (event) => {
-        if (isKnownEvent(event) && event.type === 'reaction') {
-          if (event.op === 'add') {
-            handleReaction({
-              client: botClient,
-              session,
-              teamName,
-              botName,
-              inboxName: inboxTarget,
-              botEmail,
-              messageId: event.message_id,
-              reactorUserId: event.user_id,
-              emojiName: event.emoji_name,
-              resolveUserName: (userId) => session.resolveUserId(userId),
-              onReaction,
-              onError,
-            }).catch((err) => onError?.(err))
+        if (!isKnownEvent(event)) return
+
+        if (event.type === 'reaction' && event.op === 'add') {
+          handleReaction({
+            client: botClient,
+            session,
+            teamName,
+            botName,
+            inboxName: inboxTarget,
+            botEmail,
+            messageId: event.message_id,
+            reactorUserId: event.user_id,
+            emojiName: event.emoji_name,
+            resolveUserName: (userId) => session.resolveUserId(userId),
+            onReaction,
+            onError,
+          }).catch((err) => onError?.(err))
+        }
+
+        // Auto-unfollow resolved topics after a grace period
+        if (event.type === 'update_message' && event.subject && event.stream_id) {
+          const newTopic = event.subject
+          const streamId = event.stream_id
+          const key = unfollowKey(streamId, newTopic)
+
+          // Check follow state using the original topic name — our local
+          // TopicVisibilityState still has the pre-rename key because Zulip
+          // doesn't emit a user_topic event on topic rename.
+          const origTopic = event.orig_subject ?? newTopic
+          const wasFollowed =
+            session.isFollowed(streamId, origTopic) || session.isFollowed(streamId, newTopic)
+
+          if (newTopic.startsWith(RESOLVED_PREFIX) && wasFollowed) {
+            // Cancel any existing timer for this topic (e.g. re-resolve)
+            const existing = pendingUnfollows.get(key)
+            if (existing) clearTimeout(existing)
+
+            const timer = setTimeout(() => {
+              pendingUnfollows.delete(key)
+              // eslint-disable-next-line neverthrow/must-use-result
+              session
+                .setTopicVisibility(streamId, newTopic, TopicVisibility.INHERIT)
+                .map(() => onLog?.(`[${botName}] auto-unfollowed resolved topic: ${newTopic}`))
+                .mapErr((err) => onError?.(err))
+            }, UNFOLLOW_DELAY_MS)
+            pendingUnfollows.set(key, timer)
+          } else if (
+            event.orig_subject?.startsWith(RESOLVED_PREFIX) &&
+            !newTopic.startsWith(RESOLVED_PREFIX)
+          ) {
+            // Topic was un-resolved — cancel any pending unfollow
+            const existing = pendingUnfollows.get(unfollowKey(streamId, event.orig_subject))
+            if (existing) {
+              clearTimeout(existing)
+              pendingUnfollows.delete(unfollowKey(streamId, event.orig_subject))
+              onLog?.(`[${botName}] cancelled auto-unfollow for un-resolved topic: ${newTopic}`)
+            }
           }
         }
       },

@@ -6,6 +6,7 @@ import {
   setTopicVisibility,
   TopicVisibility,
 } from 'zulip-ts'
+import { RESOLVED_PREFIX } from '../../zulip/resolved.ts'
 import { checkUnreadBeforeDm, checkUnreadBeforePost } from '../../zulip/unread-check.ts'
 import {
   errorResult,
@@ -130,25 +131,33 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
         })
         if (result.isOk()) {
           // Follow the topic so the bot receives notifications for future messages.
+          // Skip resolved topics — they get auto-unfollowed and shouldn't be re-followed.
           // Use the session's optimistic update when available.
-          const session = ctx.getEventListenerManager()?.getSession(senderResult.value)
-          const followErr = await ctx.cache
-            .resolveChannel(channel)
-            .andThen((stream) =>
-              (session
-                ? session.setTopicVisibility(stream.stream_id, topic, TopicVisibility.FOLLOWED)
-                : setTopicVisibility(
-                    clientResult.value.client,
-                    stream.stream_id,
-                    topic,
-                    TopicVisibility.FOLLOWED,
-                  )
-              ).mapErr(getErrorMessage),
-            )
-            .match(
-              () => undefined,
-              (err) => err,
-            )
+          const followErr = topic.startsWith(RESOLVED_PREFIX)
+            ? undefined
+            : await ctx.cache
+                .resolveChannel(channel)
+                .andThen((stream) => {
+                  const session = ctx.getEventListenerManager()?.getSession(senderResult.value)
+                  return (
+                    session
+                      ? session.setTopicVisibility(
+                          stream.stream_id,
+                          topic,
+                          TopicVisibility.FOLLOWED,
+                        )
+                      : setTopicVisibility(
+                          clientResult.value.client,
+                          stream.stream_id,
+                          topic,
+                          TopicVisibility.FOLLOWED,
+                        )
+                  ).mapErr(getErrorMessage)
+                })
+                .match(
+                  () => undefined,
+                  (err) => err,
+                )
           const msg = `posted to ${channel}/${topic} (id: ${result.value.id})`
           return textResult(
             followErr ? `${msg} — warning: failed to follow topic: ${followErr}` : msg,
