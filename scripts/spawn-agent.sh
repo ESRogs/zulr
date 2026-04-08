@@ -125,7 +125,7 @@ if [ "$MODAL" = true ]; then
 
   # Pre-seed Claude Code config to skip the first-run wizard (theme picker,
   # login method, etc.). The key fields are hasCompletedOnboarding and numStartups.
-  PRESEED_CC='mkdir -p ~/.claude && printf '"'"'{"hasCompletedOnboarding":true,"numStartups":1}'"'"' > ~/.claude.json'
+  PRESEED_CC='printf '"'"'{"hasCompletedOnboarding":true,"numStartups":1}'"'"' > ~/.claude.json'
 
   echo "Creating Modal agent '$AGENT'..."
   mngr create "$AGENT@.modal" claude \
