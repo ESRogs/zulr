@@ -129,15 +129,20 @@ export function registerPostTool(registrar: ToolRegistrar, ctx: ToolContext): vo
           content,
         })
         if (result.isOk()) {
-          // Follow the topic so the bot receives notifications for future messages
+          // Follow the topic so the bot receives notifications for future messages.
+          // Use the session's optimistic update when available.
+          const session = ctx.getEventListenerManager()?.getSession(senderResult.value)
           const followErr = await ctx.cache
             .resolveChannel(channel)
             .andThen((stream) =>
-              setTopicVisibility(
-                clientResult.value.client,
-                stream.stream_id,
-                topic,
-                TopicVisibility.FOLLOWED,
+              (session
+                ? session.setTopicVisibility(stream.stream_id, topic, TopicVisibility.FOLLOWED)
+                : setTopicVisibility(
+                    clientResult.value.client,
+                    stream.stream_id,
+                    topic,
+                    TopicVisibility.FOLLOWED,
+                  )
               ).mapErr(getErrorMessage),
             )
             .match(
