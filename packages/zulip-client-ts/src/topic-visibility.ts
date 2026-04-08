@@ -9,7 +9,7 @@ import type {
 export type TopicVisibilityState = Map<StreamId, Map<TopicName, UserTopicVisibility>>
 
 /** Normalize a topic name for case-insensitive lookup (Zulip treats topics as case-insensitive). */
-function normalizeTopicName(topic: TopicName): TopicName {
+export function normalizeTopicName(topic: TopicName): TopicName {
   return topic.toLowerCase() as TopicName
 }
 

@@ -51,6 +51,7 @@ export {
   getTopicVisibility,
   initTopicVisibility,
   isFollowed,
+  normalizeTopicName,
 } from './topic-visibility.ts'
 
 export type { UnreadState } from './unread-state.ts'

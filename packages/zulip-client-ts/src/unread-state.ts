@@ -9,13 +9,9 @@ import type {
   UpdateMessageFlagsEvent,
   UserId,
 } from 'zulip-ts'
+import { normalizeTopicName as normalizeTopic } from './topic-visibility.ts'
 
 type StreamLocation = { readonly streamId: StreamId; readonly topic: TopicName }
-
-/** Normalize a topic name for case-insensitive lookup (Zulip treats topics as case-insensitive). */
-function normalizeTopic(topic: TopicName): TopicName {
-  return topic.toLowerCase() as TopicName
-}
 
 export type UnreadState = {
   /** Nested map: streamId → topicName → set of unread message IDs. */
