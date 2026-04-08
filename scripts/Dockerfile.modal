@@ -13,3 +13,6 @@ ENV PATH="$BUN_INSTALL/bin:/usr/local/bin:$PATH"
 
 # Claude Code
 RUN npm install -g @anthropic-ai/claude-code
+
+# Skip first-run wizard (theme picker, login dialog, onboarding)
+RUN printf '{"hasCompletedOnboarding":true,"numStartups":1}' > /root/.claude.json
