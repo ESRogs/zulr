@@ -113,20 +113,9 @@ if [ "$MODAL" = true ]; then
   MODAL_MEMORY="${MODAL_MEMORY:-4}"
   MODAL_IDLE_TIMEOUT="${MODAL_IDLE_TIMEOUT:-5m}"
 
-  # The default Modal image (debian:bookworm-slim) needs unzip for bun's installer
-  # and nodejs/npm for Claude Code's runtime.
-  INSTALL_DEPS='apt-get update && apt-get install -y --no-install-recommends unzip nodejs npm'
-  INSTALL_BUN='curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun --version'
-  INSTALL_CC='npm install -g @anthropic-ai/claude-code'
-
   # Generate the MCP config on-sandbox since local paths don't apply.
   # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
   GENERATE_MCP='printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > /tmp/zuler-mcp.json'
-
-  # Add bun to ~/.bashrc so it's on PATH at agent runtime.
-  # Provision commands run in separate shells, so the bun install step below
-  # uses an inline export instead of relying on this.
-  SETUP_PATH='echo "export BUN_INSTALL=\$HOME/.bun" >> ~/.bashrc && echo "export PATH=\$BUN_INSTALL/bin:\$PATH" >> ~/.bashrc'
 
   echo "Creating Modal agent '$AGENT'..."
   mngr create "$AGENT@.modal" claude \
@@ -136,14 +125,11 @@ if [ "$MODAL" = true ]; then
     -b "timeout=$MODAL_TIMEOUT" \
     -b "cpu=$MODAL_CPU" \
     -b "memory=$MODAL_MEMORY" \
+    -b "file=$SCRIPT_DIR/Dockerfile.modal" \
     --idle-timeout "$MODAL_IDLE_TIMEOUT" \
     --idle-mode io \
     --no-ensure-clean \
-    --extra-provision-command "$INSTALL_DEPS" \
-    --extra-provision-command "$INSTALL_BUN" \
-    --extra-provision-command "$SETUP_PATH" \
-    --extra-provision-command "$INSTALL_CC" \
-    --extra-provision-command 'export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH" && bun install' \
+    --extra-provision-command 'bun install' \
     --extra-provision-command "$GENERATE_MCP" \
     --no-connect \
     -- --mcp-config /tmp/zuler-mcp.json --permission-mode auto
@@ -204,6 +190,14 @@ for i in $(seq 1 60); do
   if echo "$SCREEN" | grep -q "API key"; then
     send_keys Up Enter
     echo "Accepted API key"
+    sleep 2
+    continue
+  fi
+
+  # Login method selection — select "Anthropic Console account" (option 2).
+  if echo "$SCREEN" | grep -q "Select login method"; then
+    send_keys Down Enter
+    echo "Selected Console login"
     sleep 2
     continue
   fi
