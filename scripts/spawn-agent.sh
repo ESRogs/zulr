@@ -123,6 +123,10 @@ if [ "$MODAL" = true ]; then
   # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
   GENERATE_MCP='printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > /tmp/zuler-mcp.json'
 
+  # Pre-seed Claude Code config to skip the first-run wizard (theme picker,
+  # login method, etc.). The key fields are hasCompletedOnboarding and numStartups.
+  PRESEED_CC='mkdir -p ~/.claude && printf '"'"'{"hasCompletedOnboarding":true,"numStartups":1}'"'"' > ~/.claude.json'
+
   echo "Creating Modal agent '$AGENT'..."
   mngr create "$AGENT@.modal" claude \
     "${COMMON_ENV[@]}" \
@@ -135,6 +139,7 @@ if [ "$MODAL" = true ]; then
     --idle-timeout "$MODAL_IDLE_TIMEOUT" \
     --idle-mode io \
     --no-ensure-clean \
+    --extra-provision-command "$PRESEED_CC" \
     --extra-provision-command 'bun install' \
     --extra-provision-command "$GENERATE_MCP" \
     --no-connect \
