@@ -89,7 +89,7 @@ CLAUDE_CODE_OAUTH_TOKEN=... GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --moda
 ### How It Works
 
 1. Bot credentials are extracted locally from the zuler DB (same as local mode)
-2. `mngr create agent@.modal` provisions the default Modal image (debian:bookworm-slim) with bun and Claude Code via `--extra-provision-command`
+2. `mngr create agent@.modal` builds a custom image from `scripts/Dockerfile.modal` (debian:bookworm-slim + mngr packages + bun + Claude Code)
 3. The repo is transferred to the sandbox, then `bun install` runs on-sandbox
 4. The MCP config is generated on-sandbox using the correct sandbox paths
 5. The agent starts with `--idle-timeout 5m --idle-mode io` for cost-efficient lifecycle management
