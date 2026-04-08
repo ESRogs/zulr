@@ -140,4 +140,56 @@ describe('topic visibility', () => {
     expect(isFollowed(state, sid(20), topic('bugs'))).toBe(false)
     expect(getTopicVisibility(state, sid(20), topic('bugs'))).toBe(2)
   })
+
+  test('topic name matching is case-insensitive', () => {
+    const state = emptyTopicVisibility()
+    applyUserTopicEvent(
+      state,
+      makeUserTopicEvent({ streamId: 10, topicName: 'My Topic', visibilityPolicy: 3 }),
+    )
+
+    expect(isFollowed(state, sid(10), topic('My Topic'))).toBe(true)
+    expect(isFollowed(state, sid(10), topic('my topic'))).toBe(true)
+    expect(isFollowed(state, sid(10), topic('MY TOPIC'))).toBe(true)
+  })
+
+  test('case-insensitive init from /register entries', () => {
+    const entries: UserTopicEntry[] = [
+      { stream_id: sid(10), topic_name: topic('Bug Reports'), visibility_policy: 3 },
+    ]
+
+    const state = initTopicVisibility(entries)
+    expect(isFollowed(state, sid(10), topic('bug reports'))).toBe(true)
+    expect(isFollowed(state, sid(10), topic('Bug Reports'))).toBe(true)
+  })
+
+  test('case-insensitive event updates existing entry', () => {
+    const state = emptyTopicVisibility()
+    applyUserTopicEvent(
+      state,
+      makeUserTopicEvent({ streamId: 10, topicName: 'bugs', visibilityPolicy: 3 }),
+    )
+    applyUserTopicEvent(
+      state,
+      makeUserTopicEvent({ streamId: 10, topicName: 'Bugs', visibilityPolicy: 1 }),
+    )
+
+    expect(isFollowed(state, sid(10), topic('bugs'))).toBe(false)
+    expect(getTopicVisibility(state, sid(10), topic('BUGS'))).toBe(1)
+  })
+
+  test('case-insensitive INHERIT removal', () => {
+    const state = emptyTopicVisibility()
+    applyUserTopicEvent(
+      state,
+      makeUserTopicEvent({ streamId: 10, topicName: 'Bugs', visibilityPolicy: 3 }),
+    )
+    applyUserTopicEvent(
+      state,
+      makeUserTopicEvent({ streamId: 10, topicName: 'bugs', visibilityPolicy: 0 }),
+    )
+
+    expect(getTopicVisibility(state, sid(10), topic('Bugs'))).toBe(0)
+    expect(state.has(sid(10))).toBe(false)
+  })
 })
