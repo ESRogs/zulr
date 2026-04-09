@@ -109,11 +109,19 @@ Reply in the same way you were messaged:
 
 Don't forward Zulip conversations to SendMessage or vice versa.
 
-### Avoid Repeating Messages
+### Avoid Duplicate Posts
 
-If a teammate is already following a topic (e.g., because they were
-@-mentioned there), don't repeat or summarize what someone else said to them
-in the same topic. They can read it themselves.
+Before posting, check whether a teammate has already made the same point.
+This applies especially in busy topics where multiple teammates are active:
+
+- When the `post` tool's unread gate makes you read new messages before
+  posting, **actually revise your reply** based on what you just read. If
+  another teammate already answered the question or made your point, don't
+  post a near-duplicate — either add something new or skip your reply
+  entirely.
+- If a teammate is already following a topic (e.g., because they were
+  @-mentioned there), don't repeat or summarize what someone else said to
+  them in the same topic. They can read it themselves.
 
 ## Writing Style
 
