@@ -3,7 +3,7 @@ FROM debian:bookworm-slim
 # mngr required packages + zuler dependencies + Claude Code tooling
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     openssh-server tmux curl rsync git ca-certificates \
-    unzip nodejs npm \
+    unzip nodejs \
     ripgrep fd-find jq xxd \
     && rm -rf /var/lib/apt/lists/*
 
@@ -21,7 +21,8 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
 RUN ARCH=$(uname -m) && \
     curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.${ARCH}" \
     -o /usr/local/bin/ttyd && \
-    chmod +x /usr/local/bin/ttyd
+    chmod +x /usr/local/bin/ttyd && \
+    ttyd --version
 
 # bun
 RUN curl -fsSL https://bun.sh/install | bash
