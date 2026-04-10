@@ -158,6 +158,7 @@ MCPEOF
   echo "Creating agent '$AGENT'..."
   mngr create "$AGENT" claude \
     "${COMMON_ENV[@]}" \
+    --env "CLAUDE_CONFIG_DIR=$HOME/.claude" \
     --no-ensure-clean \
     --no-connect \
     -- --mcp-config "$MCP_CONFIG" --permission-mode auto
