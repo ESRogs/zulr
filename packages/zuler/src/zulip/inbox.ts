@@ -28,9 +28,14 @@ type InboxMessage = {
 
 type InboxEntry = Omit<InboxMessage, 'timestamp' | 'read'>
 
+/** Resolve the Claude Code config base directory, respecting CLAUDE_CONFIG_DIR if set. */
+function claudeConfigDir(): string {
+  return process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+}
+
 /** Resolve the inbox directory for a given team name. */
 export function inboxDir(teamName: TeamName): string {
-  return join(homedir(), '.claude', 'teams', teamName, 'inboxes')
+  return join(claudeConfigDir(), 'teams', teamName, 'inboxes')
 }
 
 /** Resolve the inbox file path for a teammate within a team. */
