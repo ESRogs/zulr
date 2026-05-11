@@ -1,12 +1,14 @@
 import { z } from 'zod'
-import { getSubscriptions, markAsRead } from 'zulip-ts'
+import type { Message, MessageId } from 'zulip-ts'
+import { getMessages, markAsRead } from 'zulip-ts'
+import { buildFollowedNarrowGroups } from '../../zulip/followed-narrows.ts'
 import {
   consumeAllUnreadDmMessages,
   consumeAllUnreadStreamMessages,
   inboxToFormattedMessages,
   mergeWithInbox,
 } from '../../zulip/inbox.ts'
-import { fetchMessages, formatMessages } from '../../zulip/message-reader.ts'
+import { formatMessages, toFormattedMessage } from '../../zulip/message-reader.ts'
 import {
   buildUserIdResolver,
   errorResult,
@@ -24,7 +26,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
     'catch-up',
     {
       description:
-        "Fetch recent messages from all subscribed streams/topics and DMs. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart). Consider reacting to important messages after catching up to signal you've read them.",
+        "Fetch recent messages from all followed topics, mentions, and DMs. By default fetches all recent messages (useful after context compaction). With unreadOnly: true, fetches only unread messages and marks them as read (useful after a restart). Consider reacting to important messages after catching up to signal you've read them.",
       inputSchema: z.object({
         sender: zOptionalTeammateName.describe('Teammate name'),
         maxMessages: z.coerce
@@ -46,50 +48,65 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
     async ({ sender, maxMessages, maxHours, unreadOnly }) => {
       const senderResult = resolveSender(ctx, sender)
       if (senderResult.isErr()) return errorResult(senderResult.error)
+
       const botClientResult = await ctx.credentials.getTeammateClient(senderResult.value)
-      if (botClientResult.isErr()) {
-        return errorResult(botClientResult.error)
-      }
+      if (botClientResult.isErr()) return errorResult(botClientResult.error)
       const { client: botClient, botUserId } = botClientResult.value
 
-      // Get the bot's channel subscriptions from Zulip
-
-      const subsResult = await getSubscriptions(botClient)
-      if (subsResult.isErr()) {
-        return errorResult(getErrorMessage(subsResult.error))
+      const session = ctx.getEventListenerManager()?.getSession(senderResult.value)
+      if (!session) {
+        return errorResult(
+          `No active session for "${senderResult.value}". The bot may not be registered or the event listener may not be running.`,
+        )
       }
-      const channels = subsResult.value.subscriptions.map((s) => s.name)
 
       const cutoff = Date.now() / 1000 - maxHours * 3600
 
       // eslint-disable-next-line neverthrow/must-use-result
       const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
-      const fetchConfig = unreadOnly
-        ? { anchor: 'first_unread' as const, numBefore: 0, numAfter: maxMessages }
-        : { anchor: 'newest' as const, numBefore: maxMessages, numAfter: 0 }
+      // No channel-name resolver needed: catch-up only iterates narrows, not group labels.
+      const { groups } = buildFollowedNarrowGroups(session, { unreadOnly })
 
-      // Fetch from all subscribed channels + DMs in parallel (without marking read)
-      const fetchResults = await Promise.all([
-        ...channels.map((channel) => {
-          const narrow = [{ operator: 'stream' as const, operand: channel }]
-          return fetchMessages(
-            botClient,
-            { ...fetchConfig, narrow, applyMarkdown: false },
-            { markRead: false, streamFallback: channel, resolveUserId },
-          )
-        }),
-        // eslint-disable-next-line neverthrow/must-use-result
-        fetchMessages(
-          botClient,
-          { ...fetchConfig, narrow: [{ operator: 'is', operand: 'dm' }], applyMarkdown: false },
-          { markRead: false, botUserId, resolveUserId },
-        ),
-      ])
+      // Per-narrow fetch budget. We sort and trim to maxMessages at the end, so each
+      // narrow only needs roughly its share of the total — plus oversampling for the
+      // case where one narrow dominates (e.g. a busy topic), and a floor so quiet
+      // narrows still get enough samples to be useful. The 2× oversample and floor of
+      // 10 are heuristics; tune if catch-up latency becomes a concern with many
+      // followed topics.
+      const totalNarrows = groups.reduce((sum, g) => sum + g.narrows.length, 0)
+      const perNarrowLimit = Math.max(10, Math.ceil((maxMessages * 2) / Math.max(totalNarrows, 1)))
 
-      const failedCount = fetchResults.filter((r) => r.isErr()).length
+      // Fetch narrows sequentially to avoid hitting Zulip's rate limit
+      const seenIds = new Set<MessageId>()
+      const rawMessages: Message[] = []
+      let failedCount = 0
+      for (const group of groups) {
+        for (const narrow of group.narrows) {
+          const result = await getMessages(botClient, {
+            anchor: 'newest',
+            numBefore: perNarrowLimit,
+            numAfter: 0,
+            narrow: [...narrow],
+            applyMarkdown: false,
+          })
+          if (result.isErr()) {
+            failedCount++
+            continue
+          }
+          for (const msg of result.value.messages) {
+            if (seenIds.has(msg.id)) continue
+            seenIds.add(msg.id)
+            rawMessages.push(msg)
+          }
+        }
+      }
 
-      // Consume inbox after fetch attempts complete (stream messages + DMs)
+      const zulipFormatted = rawMessages.map((msg) =>
+        toFormattedMessage(msg, { botUserId, resolveUserId }),
+      )
+
+      // Merge with locally-routed inbox messages and consume them (clears the posting gate)
       const streamInbox = consumeAllUnreadStreamMessages(
         ctx.config.teamName,
         senderResult.value,
@@ -98,34 +115,27 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
         [],
       )
       const inboxFormatted = inboxToFormattedMessages([...streamInbox, ...dmInbox])
+      const allFetched = mergeWithInbox(zulipFormatted, inboxFormatted)
 
-      // Merge Zulip results with inbox-only messages, deduplicate by ID
-      const zulipMessages = fetchResults.flatMap((r) => (r.isOk() ? [...r.value] : []))
-      const allFetched = mergeWithInbox(zulipMessages, inboxFormatted)
-
-      // Filter out group DMs (not supported yet)
+      // Filter out group DMs (not supported yet) and apply the time window
       const groupDmCount = allFetched.filter((m) => m.type === 'dm' && m.isGroupDm).length
-      const merged = allFetched.filter((m) => !(m.type === 'dm' && m.isGroupDm))
+      const filtered = allFetched.filter((m) => !(m.type === 'dm' && m.isGroupDm))
+      const inWindow = filtered.filter((msg) => msg.timestamp >= cutoff)
+      const olderCount = filtered.length - inWindow.length
 
-      // Apply time filter and count how many were excluded
-      const timeFiltered = merged.filter((msg) => msg.timestamp >= cutoff)
-      const olderCount = merged.length - timeFiltered.length
-      const allMessages = timeFiltered.toSorted((a, b) => a.timestamp - b.timestamp)
-
-      const trimmed = allMessages.slice(-maxMessages)
+      const sorted = inWindow.toSorted((a, b) => a.timestamp - b.timestamp)
+      const trimmed = sorted.slice(-maxMessages)
 
       if (trimmed.length === 0) {
         return textResult(
           unreadOnly
-            ? `(no unread messages in the last ${maxHours} hours across your subscriptions)`
-            : `(no messages in the last ${maxHours} hours across your subscriptions)`,
+            ? `(no unread messages in the last ${maxHours} hours across your followed topics, mentions, and DMs)`
+            : `(no messages in the last ${maxHours} hours across your followed topics, mentions, and DMs)`,
         )
       }
 
-      // Only use real Zulip IDs (positive) for API calls
-      const trimmedZulipIds = trimmed.filter((m) => m.id > 0).map((m) => m.id)
-
       // Mark as read on Zulip (unreadOnly mode only — default mode doesn't change Zulip state)
+      const trimmedZulipIds = trimmed.filter((m) => m.id > 0).map((m) => m.id)
       let markWarning = ''
       if (unreadOnly && trimmedZulipIds.length > 0) {
         const markResult = await markAsRead(botClient, trimmedZulipIds)
@@ -134,7 +144,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
         }
       }
 
-      const additionalInWindow = allMessages.length - trimmed.length
+      const additionalInWindow = sorted.length - trimmed.length
       const infos = [
         additionalInWindow > 0
           ? `Showing the ${trimmed.length} most recent messages. There are ${additionalInWindow} more within the last ${maxHours}h — increase maxMessages to see more.`
@@ -149,7 +159,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
               `${groupDmCount} group DM${groupDmCount === 1 ? '' : 's'} skipped (not supported yet).`,
             ]
           : []),
-        ...(failedCount > 0 ? [`Warning: ${failedCount} subscription(s) failed to fetch.`] : []),
+        ...(failedCount > 0 ? [`Warning: ${failedCount} narrow(s) failed to fetch.`] : []),
       ]
       const header = `${markWarning}${infos.join(' ')}\n\n`
 
