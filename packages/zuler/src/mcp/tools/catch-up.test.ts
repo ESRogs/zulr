@@ -105,7 +105,7 @@ test('applyCatchUpFilters: trimmed slice keeps the newest, sorted oldest → new
     streamMsg(5, 5000),
   ]
   const result = applyCatchUpFilters({ messages, cutoff: 0, maxMessages: 3 })
-  // Newest 3 by timestamp: ids 3 (2000), 2 (3000), 4 (4000), 5 (5000) — take last 3
+  // Sorted oldest → newest: 1(1000), 3(2000), 2(3000), 4(4000), 5(5000); keep the last 3.
   expect(result.trimmed.map((m) => m.id)).toEqual([mid(2), mid(4), mid(5)])
   expect(result.additionalInWindow).toBe(2)
 })

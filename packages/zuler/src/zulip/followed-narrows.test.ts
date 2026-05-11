@@ -64,8 +64,9 @@ test('unreadOnly: false keeps all followed topics and omits is:unread', () => {
   expect(result.skippedNoUnreads).toBe(0)
   expect(result.channelCount).toBe(2)
   const topicNarrows = result.groups
-    .filter((g) => g.label.includes('topic'))
+    .filter((g) => g.narrows.some((n) => n.some((f) => f.operator === 'stream')))
     .flatMap((g) => g.narrows)
+  expect(topicNarrows).toHaveLength(2)
   for (const n of topicNarrows) {
     expect(n.some((f) => f.operator === 'is' && f.operand === 'unread')).toBe(false)
   }
@@ -122,7 +123,9 @@ test('groups topics by channel and labels with resolved name', () => {
     resolveChannelName: (s) => (s === sid(1) ? 'general' : undefined),
   })
 
-  const topicGroups = result.groups.filter((g) => g.label.includes('topic'))
+  const topicGroups = result.groups.filter((g) =>
+    g.narrows.some((n) => n.some((f) => f.operator === 'stream')),
+  )
   expect(topicGroups).toHaveLength(2)
   const generalGroup = topicGroups.find((g) => g.label.includes('general'))
   expect(generalGroup?.label).toBe('2 topic(s) in general')

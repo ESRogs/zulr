@@ -99,7 +99,7 @@ export function buildFollowedNarrowGroups(
   }
 }
 
-/** The mentions and DMs sources, in the order they should appear in catch-up output. */
+/** The mentions and DMs sources, ordered for consistent group/log output in backfill. */
 function extraSources(
   session: ZulipSession,
 ): readonly (readonly [label: string, filter: NarrowFilter, hasUnread: () => boolean])[] {
