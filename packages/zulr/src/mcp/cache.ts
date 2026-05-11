@@ -1,5 +1,5 @@
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { Member, Stream, UserId, ZulipClient } from 'zulip-ts'
+import type { Member, Stream, StreamId, UserId, ZulipClient } from 'zulip-ts'
 import { getMembers, getStreams } from 'zulip-ts'
 
 export const NOT_CONFIGURED_MESSAGE = 'Zulip credentials not configured. Call the init tool first.'
@@ -31,6 +31,16 @@ export type CacheContext = {
   readonly invalidateChannelsCache: () => void
   /** Resolve a channel name to a Stream object. */
   readonly resolveChannel: (name: string) => ResultAsync<Stream, string>
+  /**
+   * Build a synchronous stream ID → channel name resolver, warming the channels cache
+   * once. Use when many lookups are needed in a sync context (e.g. building log labels
+   * in a `Map.groupBy` callback). The returned function reads from a snapshot taken at
+   * call time; later cache invalidations do not propagate.
+   */
+  readonly buildChannelNameLookup: () => ResultAsync<
+    (streamId: StreamId) => string | undefined,
+    string
+  >
 }
 
 export function createCacheContext(getClient: () => ZulipClient | undefined): CacheContext {
@@ -126,6 +136,16 @@ export function createCacheContext(getClient: () => ZulipClient | undefined): Ca
         if (found) return okAsync(found)
         return errAsync(`channel "${name}" not found`)
       })
+    },
+    buildChannelNameLookup: () => {
+      function buildIndex(streams: readonly Stream[]): (streamId: StreamId) => string | undefined {
+        const index = new Map(streams.map((s) => [s.stream_id, s.name]))
+        return (streamId) => index.get(streamId)
+      }
+      if (isCacheValid(channelsCache)) {
+        return okAsync(buildIndex(channelsCache.data))
+      }
+      return refreshChannelsCache().map(buildIndex)
     },
   }
 }
