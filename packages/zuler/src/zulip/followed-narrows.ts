@@ -1,6 +1,5 @@
 import type { FollowedTopic, ZulipSession } from 'zulip-client-ts'
-import type { NarrowFilter, StreamId, ZulipClient } from 'zulip-ts'
-import { getStreams } from 'zulip-ts'
+import type { NarrowFilter, StreamId } from 'zulip-ts'
 
 /** A group of narrow filters to fetch, with a log label and the individual filters. */
 export type NarrowGroup = {
@@ -8,25 +7,32 @@ export type NarrowGroup = {
   readonly narrows: readonly (readonly NarrowFilter[])[]
 }
 
-export type FollowedNarrowGroups = {
-  readonly groups: readonly NarrowGroup[]
-  /** Number of channels covered by the topic narrows. */
-  readonly channelCount: number
+/** Counts describing a session's followed-topic narrow set. */
+export type FollowedNarrowCounts = {
   /** Number of followed topics that produced narrows (excludes those skipped for no unreads). */
   readonly topicCount: number
   /** Number of followed topics skipped because they had no unreads (only nonzero in unreadOnly mode). */
   readonly skippedNoUnreads: number
+  /** Number of channels covered by the topic narrows. */
+  readonly channelCount: number
 }
 
-export type BuildFollowedNarrowGroupsOptions = {
+export type FollowedNarrows = FollowedNarrowCounts & {
+  readonly narrows: readonly (readonly NarrowFilter[])[]
+}
+
+export type FollowedNarrowGroups = FollowedNarrowCounts & {
+  readonly groups: readonly NarrowGroup[]
+}
+
+export type BuildFollowedNarrowsOptions = {
   /** When true, append `is:unread` to every narrow and filter topics/mentions/DMs by unread state. */
   readonly unreadOnly: boolean
-  /**
-   * Resolve a stream ID to its display name for use in group labels. When omitted, labels
-   * fall back to `channel ${streamId}`. Callers that ignore labels (e.g. catch-up, which
-   * only iterates the narrows) can leave this unset to skip the resolver setup.
-   */
-  readonly resolveChannelName?: (streamId: StreamId) => string | undefined
+}
+
+export type BuildFollowedNarrowGroupsOptions = BuildFollowedNarrowsOptions & {
+  /** Resolve a stream ID to its display name for use in group labels. Falls back to `channel ${streamId}` when undefined or returns undefined. */
+  readonly resolveChannelName: (streamId: StreamId) => string | undefined
 }
 
 const UNREAD_FILTER: NarrowFilter = { operator: 'is', operand: 'unread' }
@@ -34,30 +40,50 @@ const MENTIONED_FILTER: NarrowFilter = { operator: 'is', operand: 'mentioned' }
 const DM_FILTER: NarrowFilter = { operator: 'is', operand: 'dm' }
 
 /**
- * Build narrow groups from a session's followed topics, plus mentions and DMs groups.
+ * Build narrow filters for a session's followed topics, mentions, and DMs. Returns a flat
+ * list of narrow filters suitable for `getMessages` calls — no labels, no per-channel
+ * grouping. Use this when you just need to fan out fetches.
  *
- * When `unreadOnly` is true, each narrow includes `is:unread`; topics without unread messages
- * are skipped, and mentions/DMs groups are added only when their unread sets are non-empty.
+ * When `unreadOnly` is true, each narrow includes `is:unread`; topics without unread
+ * messages are skipped, and mentions/DMs narrows are added only when their unread sets are
+ * non-empty.
  *
  * When `unreadOnly` is false, every followed topic produces a narrow regardless of unread
- * state, and mentions/DMs groups are always added.
+ * state, and mentions/DMs narrows are always added.
+ */
+export function buildFollowedNarrows(
+  session: ZulipSession,
+  options: BuildFollowedNarrowsOptions,
+): FollowedNarrows {
+  const { unreadOnly } = options
+  const { followed, counts } = selectFollowedTopics(session, unreadOnly)
+
+  const topicNarrows = followed.map((ft) => topicNarrow(ft, unreadOnly))
+  const extraNarrows = collectExtraNarrows(session, unreadOnly)
+
+  return {
+    narrows: [...topicNarrows, ...extraNarrows],
+    ...counts,
+  }
+}
+
+/**
+ * Build narrow groups (labeled, grouped by channel) for a session's followed topics,
+ * mentions, and DMs. Used by backfill, which surfaces group labels in log output.
+ *
+ * Same filtering rules as `buildFollowedNarrows`; this function adds labels and per-channel
+ * grouping on top.
  */
 export function buildFollowedNarrowGroups(
   session: ZulipSession,
   options: BuildFollowedNarrowGroupsOptions,
 ): FollowedNarrowGroups {
   const { unreadOnly, resolveChannelName } = options
-
-  const allFollowed = session.getFollowedTopics()
-  const followed = unreadOnly
-    ? allFollowed.filter((ft) => session.hasUnreads(ft.streamId, ft.topic))
-    : allFollowed
-  const skippedNoUnreads = allFollowed.length - followed.length
+  const { followed, counts } = selectFollowedTopics(session, unreadOnly)
 
   const byChannel = Map.groupBy(followed, (ft) => ft.streamId)
-
   const channelGroups: NarrowGroup[] = [...byChannel.entries()].map(([streamId, topics]) => ({
-    label: `${topics.length} topic(s) in ${resolveChannelName?.(streamId) ?? `channel ${streamId}`}`,
+    label: `${topics.length} topic(s) in ${resolveChannelName(streamId) ?? `channel ${streamId}`}`,
     narrows: topics.map((ft) => topicNarrow(ft, unreadOnly)),
   }))
 
@@ -68,10 +94,39 @@ export function buildFollowedNarrowGroups(
 
   return {
     groups: [...channelGroups, ...extraGroups],
-    channelCount: byChannel.size,
-    topicCount: followed.length,
-    skippedNoUnreads,
+    ...counts,
   }
+}
+
+/**
+ * Apply the followed-topic filter rule and compute shared counts. Single source of truth
+ * for which topics produce narrows in both `buildFollowedNarrows` and `buildFollowedNarrowGroups`.
+ */
+function selectFollowedTopics(
+  session: ZulipSession,
+  unreadOnly: boolean,
+): { readonly followed: readonly FollowedTopic[]; readonly counts: FollowedNarrowCounts } {
+  const all = session.getFollowedTopics()
+  const followed = unreadOnly ? all.filter((ft) => session.hasUnreads(ft.streamId, ft.topic)) : all
+  const channelCount = new Set(followed.map((ft) => ft.streamId)).size
+  return {
+    followed,
+    counts: {
+      topicCount: followed.length,
+      skippedNoUnreads: all.length - followed.length,
+      channelCount,
+    },
+  }
+}
+
+function collectExtraNarrows(
+  session: ZulipSession,
+  unreadOnly: boolean,
+): readonly (readonly NarrowFilter[])[] {
+  return [
+    includeExtraNarrow(MENTIONED_FILTER, unreadOnly, () => session.hasAnyUnreadMentions()),
+    includeExtraNarrow(DM_FILTER, unreadOnly, () => session.hasAnyUnreadDms()),
+  ].filter((n): n is readonly NarrowFilter[] => n !== undefined)
 }
 
 function topicNarrow(ft: FollowedTopic, unreadOnly: boolean): readonly NarrowFilter[] {
@@ -90,49 +145,19 @@ function maybeExtraGroup(
   unreadOnly: boolean,
   hasUnread: () => boolean,
 ): NarrowGroup | undefined {
+  const narrow = includeExtraNarrow(baseFilter, unreadOnly, hasUnread)
+  return narrow ? { label, narrows: [narrow] } : undefined
+}
+
+function includeExtraNarrow(
+  baseFilter: NarrowFilter,
+  unreadOnly: boolean,
+  hasUnread: () => boolean,
+): readonly NarrowFilter[] | undefined {
   if (unreadOnly && !hasUnread()) return undefined
-  return { label, narrows: [withUnread([baseFilter], unreadOnly)] }
+  return withUnread([baseFilter], unreadOnly)
 }
 
 function withUnread(base: readonly NarrowFilter[], unreadOnly: boolean): readonly NarrowFilter[] {
   return unreadOnly ? [...base, UNREAD_FILTER] : base
-}
-
-/**
- * Build a stream ID → channel name resolver. Uses the session's known subscriptions first,
- * then falls back to a `getStreams` lookup when any followed topics live in unsubscribed
- * channels. Returns a synchronous lookup function plus the side-effect of populating the
- * index from the API.
- *
- * The `onError` callback fires (without throwing) if the `getStreams` fallback fails —
- * the resolver will still work for streams covered by subscriptions.
- */
-export async function buildChannelNameResolver(
-  session: ZulipSession,
-  client: ZulipClient,
-  onError?: (message: string) => void,
-): Promise<(streamId: StreamId) => string | undefined> {
-  const index = new Map<StreamId, string>()
-  for (const sub of session.getAllSubscriptions()) {
-    index.set(sub.stream_id, sub.name)
-  }
-
-  const followed = session.getFollowedTopics()
-  const hasUnresolved = followed.some((ft) => !index.has(ft.streamId))
-  if (hasUnresolved) {
-    const streamsResult = await getStreams(client)
-    if (streamsResult.isOk()) {
-      for (const stream of streamsResult.value.streams) {
-        if (!index.has(stream.stream_id)) {
-          index.set(stream.stream_id, stream.name)
-        }
-      }
-    } else {
-      onError?.(
-        `getStreams failed for channel name resolution: ${JSON.stringify(streamsResult.error)}`,
-      )
-    }
-  }
-
-  return (streamId: StreamId) => index.get(streamId)
 }

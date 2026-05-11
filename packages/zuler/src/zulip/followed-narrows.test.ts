@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { FollowedTopic, ZulipSession } from 'zulip-client-ts'
 import type { StreamId, TopicName } from 'zulip-ts'
-import { buildFollowedNarrowGroups } from './followed-narrows.ts'
+import { buildFollowedNarrowGroups, buildFollowedNarrows } from './followed-narrows.ts'
 
 const sid = (n: number) => n as StreamId
 const tp = (s: string) => s as TopicName
@@ -146,4 +146,63 @@ test('topic narrow uses streamId in stream operator', () => {
   expect(streamFilter?.operand).toBe(sid(42))
   const topicFilter = narrow.find((f) => f.operator === 'topic')
   expect(topicFilter?.operand).toBe(tp('hello'))
+})
+
+test('buildFollowedNarrows returns flat narrows with topic counts', () => {
+  const session = fakeSession({
+    followedTopics: [
+      { streamId: sid(1), topic: tp('a') },
+      { streamId: sid(1), topic: tp('b') },
+      { streamId: sid(2), topic: tp('c') },
+    ],
+    hasUnreads: () => true,
+    hasAnyUnreadMentions: true,
+    hasAnyUnreadDms: true,
+  })
+
+  const result = buildFollowedNarrows(session, { unreadOnly: true })
+
+  expect(result.topicCount).toBe(3)
+  expect(result.channelCount).toBe(2)
+  expect(result.skippedNoUnreads).toBe(0)
+  // 3 topics + mentions + DMs = 5 narrows
+  expect(result.narrows).toHaveLength(5)
+  // All include is:unread when unreadOnly
+  for (const n of result.narrows) {
+    expect(n.some((f) => f.operator === 'is' && f.operand === 'unread')).toBe(true)
+  }
+})
+
+test('buildFollowedNarrows respects unreadOnly skip rules', () => {
+  const session = fakeSession({
+    followedTopics: [
+      { streamId: sid(1), topic: tp('a') },
+      { streamId: sid(2), topic: tp('b') },
+    ],
+    hasUnreads: (s) => s === sid(1), // only s=1 has unreads
+    hasAnyUnreadMentions: false,
+    hasAnyUnreadDms: false,
+  })
+
+  const result = buildFollowedNarrows(session, { unreadOnly: true })
+
+  expect(result.topicCount).toBe(1)
+  expect(result.skippedNoUnreads).toBe(1)
+  // Only the s=1 topic narrow, no mentions or DMs (no unreads)
+  expect(result.narrows).toHaveLength(1)
+})
+
+test('buildFollowedNarrows in unreadOnly: false includes all narrows without is:unread', () => {
+  const session = fakeSession({
+    followedTopics: [{ streamId: sid(1), topic: tp('a') }],
+    hasUnreads: () => false,
+  })
+
+  const result = buildFollowedNarrows(session, { unreadOnly: false })
+
+  // 1 topic + mentions + DMs = 3 narrows, none with is:unread
+  expect(result.narrows).toHaveLength(3)
+  for (const n of result.narrows) {
+    expect(n.some((f) => f.operator === 'is' && f.operand === 'unread')).toBe(false)
+  }
 })

@@ -1,14 +1,18 @@
 import { z } from 'zod'
 import type { Message, MessageId } from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
-import { buildFollowedNarrowGroups } from '../../zulip/followed-narrows.ts'
+import { buildFollowedNarrows } from '../../zulip/followed-narrows.ts'
 import {
   consumeAllUnreadDmMessages,
   consumeAllUnreadStreamMessages,
   inboxToFormattedMessages,
   mergeWithInbox,
 } from '../../zulip/inbox.ts'
-import { formatMessages, toFormattedMessage } from '../../zulip/message-reader.ts'
+import {
+  type FormattedMessage,
+  formatMessages,
+  toFormattedMessage,
+} from '../../zulip/message-reader.ts'
 import {
   buildUserIdResolver,
   errorResult,
@@ -20,6 +24,65 @@ import {
   zBool,
   zOptionalTeammateName,
 } from '../helpers.ts'
+
+/**
+ * Compute the per-narrow message limit so that the total fetched across all narrows is
+ * bounded. We sort + trim to `maxMessages` at the end, so each narrow only needs a slice
+ * of the total budget. The total fetch budget is `maxMessages × 4` — generous enough that
+ * a few busy narrows can fill the final window, but bounded so a bot following 100+ topics
+ * doesn't trigger a flood of API calls. The minimum per narrow is 1 so every narrow gets
+ * at least its most recent message.
+ */
+export function computePerNarrowLimit(maxMessages: number, narrowCount: number): number {
+  if (narrowCount === 0) return 0
+  const totalBudget = maxMessages * 4
+  return Math.max(1, Math.ceil(totalBudget / narrowCount))
+}
+
+export type FilterPipelineInput = {
+  readonly messages: readonly FormattedMessage[]
+  /** Unix-epoch-seconds cutoff: messages with `timestamp < cutoff` are excluded from the in-window result. */
+  readonly cutoff: number
+  /** Maximum messages to return after sorting and trimming. */
+  readonly maxMessages: number
+}
+
+export type FilterPipelineOutput = {
+  /** Messages within the time window, sorted oldest → newest, trimmed to maxMessages. */
+  readonly trimmed: readonly FormattedMessage[]
+  /** Count of group DMs filtered out (not supported yet). */
+  readonly groupDmCount: number
+  /** Count of messages older than the cutoff (excluded from `trimmed`). */
+  readonly olderCount: number
+  /** Count of messages within the window but trimmed off (older end of the window). */
+  readonly additionalInWindow: number
+  /** Subset of `trimmed` IDs that correspond to real Zulip messages (positive IDs). */
+  readonly trimmedZulipIds: readonly MessageId[]
+}
+
+/**
+ * Apply the catch-up message pipeline: filter group DMs, apply the time window, sort
+ * oldest-first, trim to maxMessages, and extract real Zulip IDs (positive IDs only —
+ * inbox-only messages use negative IDs as placeholders).
+ *
+ * Pure function for testability. Caller handles fetching, inbox merging, and mark-as-read.
+ */
+export function applyCatchUpFilters(input: FilterPipelineInput): FilterPipelineOutput {
+  const { messages, cutoff, maxMessages } = input
+
+  const groupDmCount = messages.filter((m) => m.type === 'dm' && m.isGroupDm).length
+  const withoutGroupDms = messages.filter((m) => !(m.type === 'dm' && m.isGroupDm))
+  const inWindow = withoutGroupDms.filter((m) => m.timestamp >= cutoff)
+  const olderCount = withoutGroupDms.length - inWindow.length
+
+  const sorted = inWindow.toSorted((a, b) => a.timestamp - b.timestamp)
+  const trimmed = sorted.slice(-maxMessages)
+  const additionalInWindow = sorted.length - trimmed.length
+
+  const trimmedZulipIds = trimmed.filter((m) => m.id > 0).map((m) => m.id)
+
+  return { trimmed, groupDmCount, olderCount, additionalInWindow, trimmedZulipIds }
+}
 
 export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext): void {
   registrar.registerTool(
@@ -65,40 +128,30 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       // eslint-disable-next-line neverthrow/must-use-result
       const resolveUserId = (await buildUserIdResolver(ctx)).unwrapOr(() => undefined)
 
-      // No channel-name resolver needed: catch-up only iterates narrows, not group labels.
-      const { groups } = buildFollowedNarrowGroups(session, { unreadOnly })
+      const { narrows } = buildFollowedNarrows(session, { unreadOnly })
 
-      // Per-narrow fetch budget. We sort and trim to maxMessages at the end, so each
-      // narrow only needs roughly its share of the total — plus oversampling for the
-      // case where one narrow dominates (e.g. a busy topic), and a floor so quiet
-      // narrows still get enough samples to be useful. The 2× oversample and floor of
-      // 10 are heuristics; tune if catch-up latency becomes a concern with many
-      // followed topics.
-      const totalNarrows = groups.reduce((sum, g) => sum + g.narrows.length, 0)
-      const perNarrowLimit = Math.max(10, Math.ceil((maxMessages * 2) / Math.max(totalNarrows, 1)))
+      const perNarrowLimit = computePerNarrowLimit(maxMessages, narrows.length)
 
       // Fetch narrows sequentially to avoid hitting Zulip's rate limit
       const seenIds = new Set<MessageId>()
       const rawMessages: Message[] = []
       let failedCount = 0
-      for (const group of groups) {
-        for (const narrow of group.narrows) {
-          const result = await getMessages(botClient, {
-            anchor: 'newest',
-            numBefore: perNarrowLimit,
-            numAfter: 0,
-            narrow: [...narrow],
-            applyMarkdown: false,
-          })
-          if (result.isErr()) {
-            failedCount++
-            continue
-          }
-          for (const msg of result.value.messages) {
-            if (seenIds.has(msg.id)) continue
-            seenIds.add(msg.id)
-            rawMessages.push(msg)
-          }
+      for (const narrow of narrows) {
+        const result = await getMessages(botClient, {
+          anchor: 'newest',
+          numBefore: perNarrowLimit,
+          numAfter: 0,
+          narrow: [...narrow],
+          applyMarkdown: false,
+        })
+        if (result.isErr()) {
+          failedCount++
+          continue
+        }
+        for (const msg of result.value.messages) {
+          if (seenIds.has(msg.id)) continue
+          seenIds.add(msg.id)
+          rawMessages.push(msg)
         }
       }
 
@@ -117,14 +170,8 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       const inboxFormatted = inboxToFormattedMessages([...streamInbox, ...dmInbox])
       const allFetched = mergeWithInbox(zulipFormatted, inboxFormatted)
 
-      // Filter out group DMs (not supported yet) and apply the time window
-      const groupDmCount = allFetched.filter((m) => m.type === 'dm' && m.isGroupDm).length
-      const filtered = allFetched.filter((m) => !(m.type === 'dm' && m.isGroupDm))
-      const inWindow = filtered.filter((msg) => msg.timestamp >= cutoff)
-      const olderCount = filtered.length - inWindow.length
-
-      const sorted = inWindow.toSorted((a, b) => a.timestamp - b.timestamp)
-      const trimmed = sorted.slice(-maxMessages)
+      const { trimmed, groupDmCount, olderCount, additionalInWindow, trimmedZulipIds } =
+        applyCatchUpFilters({ messages: allFetched, cutoff, maxMessages })
 
       if (trimmed.length === 0) {
         return textResult(
@@ -135,16 +182,13 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       }
 
       // Mark as read on Zulip (unreadOnly mode only — default mode doesn't change Zulip state)
-      const trimmedZulipIds = trimmed.filter((m) => m.id > 0).map((m) => m.id)
       let markWarning = ''
       if (unreadOnly && trimmedZulipIds.length > 0) {
-        const markResult = await markAsRead(botClient, trimmedZulipIds)
+        const markResult = await markAsRead(botClient, [...trimmedZulipIds])
         if (markResult.isErr()) {
           markWarning = `(warning: failed to mark messages as read: ${getErrorMessage(markResult.error)})\n`
         }
       }
-
-      const additionalInWindow = sorted.length - trimmed.length
       const infos = [
         additionalInWindow > 0
           ? `Showing the ${trimmed.length} most recent messages. There are ${additionalInWindow} more within the last ${maxHours}h — increase maxMessages to see more.`
