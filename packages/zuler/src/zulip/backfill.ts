@@ -94,7 +94,7 @@ async function backfillBotImpl(
         anchor: 'newest',
         numBefore: maxPerBot,
         numAfter: 0,
-        narrow: [...narrow],
+        narrow,
         applyMarkdown: false,
       })
       fetchResults.push(result)

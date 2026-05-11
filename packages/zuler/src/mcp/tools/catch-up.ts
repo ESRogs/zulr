@@ -141,7 +141,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
           anchor: 'newest',
           numBefore: perNarrowLimit,
           numAfter: 0,
-          narrow: [...narrow],
+          narrow,
           applyMarkdown: false,
         })
         if (result.isErr()) {
@@ -184,7 +184,7 @@ export function registerCatchUpTool(registrar: ToolRegistrar, ctx: ToolContext):
       // Mark as read on Zulip (unreadOnly mode only — default mode doesn't change Zulip state)
       let markWarning = ''
       if (unreadOnly && trimmedZulipIds.length > 0) {
-        const markResult = await markAsRead(botClient, [...trimmedZulipIds])
+        const markResult = await markAsRead(botClient, trimmedZulipIds)
         if (markResult.isErr()) {
           markWarning = `(warning: failed to mark messages as read: ${getErrorMessage(markResult.error)})\n`
         }

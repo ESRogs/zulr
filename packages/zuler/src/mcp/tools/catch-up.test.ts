@@ -123,15 +123,15 @@ test('applyCatchUpFilters: trimmedZulipIds filters out non-positive IDs', () => 
   expect(result.trimmedZulipIds).toEqual([mid(1), mid(2)])
 })
 
-test('applyCatchUpFilters: cutoff filter applies before group DM filter for olderCount', () => {
-  // A group DM that's older than cutoff: it's removed by group DM filter, not counted as older.
+test('applyCatchUpFilters: group DMs are filtered before the cutoff, so they do not inflate olderCount', () => {
+  // An old group DM is removed by the group-DM filter first, so it is not double-counted in olderCount.
   const messages = [
-    dmMsg(1, 500, true), // group DM, older — excluded as group DM
-    streamMsg(2, 600), // older
+    dmMsg(1, 500, true), // group DM, older — excluded as group DM (not as older)
+    streamMsg(2, 600), // older — counts toward olderCount
     streamMsg(3, 1500), // in window
   ]
   const result = applyCatchUpFilters({ messages, cutoff: 1000, maxMessages: 50 })
   expect(result.groupDmCount).toBe(1)
-  expect(result.olderCount).toBe(1) // only the stream message
+  expect(result.olderCount).toBe(1)
   expect(result.trimmed.map((m) => m.id)).toEqual([mid(3)])
 })

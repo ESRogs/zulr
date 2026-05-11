@@ -87,15 +87,26 @@ export function buildFollowedNarrowGroups(
     narrows: topics.map((ft) => topicNarrow(ft, unreadOnly)),
   }))
 
-  const extraGroups = [
-    maybeExtraGroup('mentions', MENTIONED_FILTER, unreadOnly, () => session.hasAnyUnreadMentions()),
-    maybeExtraGroup('DMs', DM_FILTER, unreadOnly, () => session.hasAnyUnreadDms()),
-  ].filter((g): g is NarrowGroup => g !== undefined)
+  const extraGroups: NarrowGroup[] = []
+  for (const [label, filter, hasUnread] of extraSources(session)) {
+    const narrow = includeExtraNarrow(filter, unreadOnly, hasUnread)
+    if (narrow) extraGroups.push({ label, narrows: [narrow] })
+  }
 
   return {
     groups: [...channelGroups, ...extraGroups],
     ...counts,
   }
+}
+
+/** The mentions and DMs sources, in the order they should appear in catch-up output. */
+function extraSources(
+  session: ZulipSession,
+): readonly (readonly [label: string, filter: NarrowFilter, hasUnread: () => boolean])[] {
+  return [
+    ['mentions', MENTIONED_FILTER, () => session.hasAnyUnreadMentions()],
+    ['DMs', DM_FILTER, () => session.hasAnyUnreadDms()],
+  ]
 }
 
 /**
@@ -123,10 +134,12 @@ function collectExtraNarrows(
   session: ZulipSession,
   unreadOnly: boolean,
 ): readonly (readonly NarrowFilter[])[] {
-  return [
-    includeExtraNarrow(MENTIONED_FILTER, unreadOnly, () => session.hasAnyUnreadMentions()),
-    includeExtraNarrow(DM_FILTER, unreadOnly, () => session.hasAnyUnreadDms()),
-  ].filter((n): n is readonly NarrowFilter[] => n !== undefined)
+  const narrows: (readonly NarrowFilter[])[] = []
+  for (const [, filter, hasUnread] of extraSources(session)) {
+    const narrow = includeExtraNarrow(filter, unreadOnly, hasUnread)
+    if (narrow) narrows.push(narrow)
+  }
+  return narrows
 }
 
 function topicNarrow(ft: FollowedTopic, unreadOnly: boolean): readonly NarrowFilter[] {
@@ -137,16 +150,6 @@ function topicNarrow(ft: FollowedTopic, unreadOnly: boolean): readonly NarrowFil
     ],
     unreadOnly,
   )
-}
-
-function maybeExtraGroup(
-  label: string,
-  baseFilter: NarrowFilter,
-  unreadOnly: boolean,
-  hasUnread: () => boolean,
-): NarrowGroup | undefined {
-  const narrow = includeExtraNarrow(baseFilter, unreadOnly, hasUnread)
-  return narrow ? { label, narrows: [narrow] } : undefined
 }
 
 function includeExtraNarrow(
