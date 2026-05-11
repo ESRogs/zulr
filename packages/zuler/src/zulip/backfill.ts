@@ -1,19 +1,14 @@
 import type { Kysely } from 'kysely'
 import { fromPromise, type Result, type ResultAsync } from 'neverthrow'
-import type { FollowedTopic, ZulipSession } from 'zulip-client-ts'
-import type {
-  GetMessagesResponse,
-  MessageId,
-  NarrowFilter,
-  StreamId,
-  ZulipClient,
-  ZulipError,
-} from 'zulip-ts'
-import { getMessages, getStreams, markAsRead } from 'zulip-ts'
+import type { ZulipSession } from 'zulip-client-ts'
+import type { GetMessagesResponse, MessageId, ZulipClient, ZulipError } from 'zulip-ts'
+import { getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
+import { buildChannelNameResolver } from './channel-name-resolver.ts'
+import { buildFollowedNarrowGroups } from './followed-narrows.ts'
 import { readInbox, writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
 import { sanitizeSummary, truncate } from './routing.ts'
@@ -55,57 +50,6 @@ async function waitForSession(session: ZulipSession, timeoutMs: number = 10_000)
   return false
 }
 
-/** A group of narrow filters to fetch, with a log label and the individual filters. */
-type NarrowGroup = {
-  readonly label: string
-  readonly narrows: readonly (readonly NarrowFilter[])[]
-}
-
-/** Group followed topics by channel and add mentions + DMs. */
-function buildNarrowGroups(
-  followedTopics: readonly FollowedTopic[],
-  resolveChannelName: (streamId: StreamId) => string | undefined,
-  options: {
-    readonly hasUnreadMentions: boolean
-    readonly hasUnreadDms: boolean
-  },
-): { readonly groups: readonly NarrowGroup[]; readonly channelCount: number } {
-  const unreadFilter: NarrowFilter = { operator: 'is', operand: 'unread' }
-
-  const byChannel = Map.groupBy(followedTopics, (ft) => ft.streamId)
-
-  const channelGroups: NarrowGroup[] = [...byChannel.entries()].map(([streamId, topics]) => {
-    const name = resolveChannelName(streamId) ?? `channel ${streamId}`
-    return {
-      label: `${topics.length} topic(s) in ${name}`,
-      narrows: topics.map((ft) => [
-        { operator: 'stream' as const, operand: ft.streamId },
-        { operator: 'topic' as const, operand: ft.topic },
-        unreadFilter,
-      ]),
-    }
-  })
-
-  const extraGroups: NarrowGroup[] = []
-  if (options.hasUnreadMentions) {
-    extraGroups.push({
-      label: 'mentions',
-      narrows: [[{ operator: 'is', operand: 'mentioned' }, unreadFilter]],
-    })
-  }
-  if (options.hasUnreadDms) {
-    extraGroups.push({
-      label: 'DMs',
-      narrows: [[{ operator: 'is', operand: 'dm' }, unreadFilter]],
-    })
-  }
-
-  return {
-    groups: [...channelGroups, ...extraGroups],
-    channelCount: byChannel.size,
-  }
-}
-
 /** Backfill a single bot's inbox with missed unread messages. */
 export function backfillBot(
   botName: TeammateName,
@@ -125,45 +69,20 @@ async function backfillBotImpl(
   const { teamName, maxPerBot = DEFAULT_MAX_PER_BOT, onLog, onError } = options
   const inboxTarget = options.inboxName ?? botName
 
-  const allFollowedTopics = session.getFollowedTopics()
-  const followedTopics = allFollowedTopics.filter((ft) => session.hasUnreads(ft.streamId, ft.topic))
-  const skipped = allFollowedTopics.length - followedTopics.length
+  const resolveChannelName = await buildChannelNameResolver(session, client, onError)
+
+  const { groups, channelCount, topicCount, skippedNoUnreads } = buildFollowedNarrowGroups(
+    session,
+    { unreadOnly: true, resolveChannelName },
+  )
 
   const hasUnreadMentions = session.hasAnyUnreadMentions()
   const hasUnreadDms = session.hasAnyUnreadDms()
 
-  // Build a channel name resolver: subscriptions first, then full stream list as fallback
-  const streamNameIndex = new Map<StreamId, string>()
-  for (const sub of session.getAllSubscriptions()) {
-    streamNameIndex.set(sub.stream_id, sub.name)
-  }
-  // Check if any followed topics (with unreads) are in unsubscribed channels
-  const unresolved = followedTopics.filter((ft) => !streamNameIndex.has(ft.streamId))
-  if (unresolved.length > 0) {
-    const streamsResult = await getStreams(client)
-    if (streamsResult.isOk()) {
-      for (const stream of streamsResult.value.streams) {
-        if (!streamNameIndex.has(stream.stream_id)) {
-          streamNameIndex.set(stream.stream_id, stream.name)
-        }
-      }
-    } else {
-      onError?.(
-        `getStreams failed for channel name resolution: ${JSON.stringify(streamsResult.error)}`,
-      )
-    }
-  }
-
-  const { groups, channelCount } = buildNarrowGroups(
-    followedTopics,
-    (streamId) => streamNameIndex.get(streamId),
-    { hasUnreadMentions, hasUnreadDms },
-  )
-
-  const parts = [`${followedTopics.length} topic(s) across ${channelCount} channel(s)`]
+  const parts = [`${topicCount} topic(s) across ${channelCount} channel(s)`]
   if (hasUnreadMentions) parts.push('mentions')
   if (hasUnreadDms) parts.push('DMs')
-  if (skipped > 0) parts.push(`${skipped} topic(s) skipped (no unreads)`)
+  if (skippedNoUnreads > 0) parts.push(`${skippedNoUnreads} topic(s) skipped (no unreads)`)
   onLog?.(`[${botName}] backfilling ${parts.join(', ')}`)
 
   // Fetch narrows sequentially to avoid hitting Zulip's rate limit
@@ -175,7 +94,7 @@ async function backfillBotImpl(
         anchor: 'newest',
         numBefore: maxPerBot,
         numAfter: 0,
-        narrow: [...narrow],
+        narrow,
         applyMarkdown: false,
       })
       fetchResults.push(result)
