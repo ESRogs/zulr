@@ -82,6 +82,14 @@ async function bootEventListeners(): Promise<void> {
   const standaloneBot =
     agentName && standaloneClient ? { client: standaloneClient, email: creds.email } : undefined
 
+  const channelLookup = await ctx.cache.buildChannelNameLookup().match(
+    (fn) => fn,
+    (err) => {
+      log(`channel-name lookup unavailable: ${err}`)
+      return () => undefined
+    },
+  )
+
   const manager = createEventListenerManager({
     db,
     teamName,
@@ -89,6 +97,7 @@ async function bootEventListeners(): Promise<void> {
     standaloneBot,
     inboxName: agentName ? STANDALONE_INBOX_NAME : undefined,
     signal: new AbortController().signal,
+    resolveChannelName: channelLookup,
     onRoute: (info) => {
       const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
       log(`[${info.botName}] ${location} from ${info.sender}: ${info.summary}`)
@@ -121,6 +130,7 @@ async function bootEventListeners(): Promise<void> {
       agentName && standaloneClient ? { name: agentName, client: standaloneClient } : undefined,
     inboxName: agentName ? STANDALONE_INBOX_NAME : undefined,
     getSession: manager.getSession,
+    resolveChannelName: channelLookup,
     onLog: log,
     onError: (err) => log(`backfill error: ${getErrorMessage(err)}`),
   }).catch((err) => log(`backfill failed: ${getErrorMessage(err)}`))

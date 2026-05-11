@@ -55,6 +55,11 @@ type EventListenerManagerOptions = {
   readonly onLog?: (message: string) => void
   /** If set, listeners stop when this signal is aborted. */
   readonly signal?: AbortSignal
+  /**
+   * Resolve a stream ID to its channel name for reconnect-backfill log labels.
+   * When undefined, labels fall back to `channel ${streamId}`.
+   */
+  readonly resolveChannelName?: (streamId: StreamId) => string | undefined
 }
 
 // 'reaction' is not processed by ZulipSession internally — it flows through
@@ -328,6 +333,7 @@ function startBotSession(
         const backfillOptions: BackfillBotOptions = {
           teamName,
           inboxName: inboxTarget,
+          resolveChannelName: options.resolveChannelName,
           onLog,
           onError: (err) => onError?.(`[${botName}] reconnect backfill: ${err}`),
         }
