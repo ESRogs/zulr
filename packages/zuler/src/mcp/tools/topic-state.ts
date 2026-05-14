@@ -126,7 +126,7 @@ export function registerFollowedTopicsTool(registrar: ToolRegistrar, ctx: ToolCo
     'followed-topics',
     {
       description:
-        'List all topics the bot is currently following across all channels. Uses session state — no API call needed.',
+        'List all topics the bot is currently following across all channels. Resolves channel names for topics in unsubscribed channels too (may trigger a `getStreams` API call to populate the 5-min channels cache).',
       inputSchema: z.object({
         sender: zOptionalTeammateName.describe('Teammate name'),
       }),
@@ -146,10 +146,11 @@ export function registerFollowedTopicsTool(registrar: ToolRegistrar, ctx: ToolCo
       const followed = session.getFollowedTopics()
       if (followed.length === 0) return textResult('Not following any topics.')
 
+      const channelsMap = await ctx.cache.getChannelsMap().unwrapOr(new Map())
+
       const grouped = Map.groupBy(followed, (f) => f.streamId)
       const byStream = [...grouped.entries()].map(([streamId, topics]) => {
-        const sub = session.getSubscription(streamId)
-        const name = sub?.name ?? `stream ${streamId}`
+        const name = channelsMap.get(streamId)?.name ?? `channel ${streamId}`
         return { name, topics: topics.map((t) => t.topic) }
       })
 

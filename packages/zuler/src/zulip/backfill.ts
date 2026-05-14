@@ -1,13 +1,12 @@
 import type { Kysely } from 'kysely'
 import { fromPromise, type Result, type ResultAsync } from 'neverthrow'
 import type { ZulipSession } from 'zulip-client-ts'
-import type { GetMessagesResponse, MessageId, ZulipClient, ZulipError } from 'zulip-ts'
+import type { GetMessagesResponse, MessageId, StreamId, ZulipClient, ZulipError } from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
 import type { ZulerDatabase } from '../state/db.ts'
 import { listTeammates } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
-import { buildChannelNameResolver } from './channel-name-resolver.ts'
 import { buildFollowedNarrowGroups } from './followed-narrows.ts'
 import { readInbox, writeToInbox } from './inbox.ts'
 import { formatMessageFooter } from './message-reader.ts'
@@ -20,6 +19,12 @@ export type BackfillBotOptions = {
   readonly maxPerBot?: number
   /** Override the inbox file name (defaults to the bot name). Used in standalone mode. */
   readonly inboxName?: TeammateName
+  /**
+   * Resolve a stream ID to its channel name for use in log labels. Falls back to
+   * `channel ${streamId}` when undefined. Backfill works fine without this — labels
+   * just become numeric.
+   */
+  readonly resolveChannelName?: (streamId: StreamId) => string | undefined
   readonly onLog?: (msg: string) => void
   readonly onError?: (error: unknown) => void
 }
@@ -68,8 +73,7 @@ async function backfillBotImpl(
 ): Promise<number> {
   const { teamName, maxPerBot = DEFAULT_MAX_PER_BOT, onLog, onError } = options
   const inboxTarget = options.inboxName ?? botName
-
-  const resolveChannelName = await buildChannelNameResolver(session, client, onError)
+  const resolveChannelName = options.resolveChannelName ?? (() => undefined)
 
   const { groups, channelCount, topicCount, skippedNoUnreads } = buildFollowedNarrowGroups(
     session,

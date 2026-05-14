@@ -1,5 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import type { StreamId } from 'zulip-ts'
 import { getErrorMessage } from './errors.ts'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
@@ -82,6 +83,15 @@ async function bootEventListeners(): Promise<void> {
   const standaloneBot =
     agentName && standaloneClient ? { client: standaloneClient, email: creds.email } : undefined
 
+  const channelsMap = await ctx.cache.getChannelsMap().match(
+    (m) => m,
+    (err) => {
+      log(`channel-name lookup unavailable: ${err}`)
+      return new Map()
+    },
+  )
+  const channelLookup = (streamId: StreamId) => channelsMap.get(streamId)?.name
+
   const manager = createEventListenerManager({
     db,
     teamName,
@@ -89,6 +99,7 @@ async function bootEventListeners(): Promise<void> {
     standaloneBot,
     inboxName: agentName ? STANDALONE_INBOX_NAME : undefined,
     signal: new AbortController().signal,
+    resolveChannelName: channelLookup,
     onRoute: (info) => {
       const location = info.stream ? `${info.stream}/${info.topic}` : 'DM'
       log(`[${info.botName}] ${location} from ${info.sender}: ${info.summary}`)
@@ -121,6 +132,7 @@ async function bootEventListeners(): Promise<void> {
       agentName && standaloneClient ? { name: agentName, client: standaloneClient } : undefined,
     inboxName: agentName ? STANDALONE_INBOX_NAME : undefined,
     getSession: manager.getSession,
+    resolveChannelName: channelLookup,
     onLog: log,
     onError: (err) => log(`backfill error: ${getErrorMessage(err)}`),
   }).catch((err) => log(`backfill failed: ${getErrorMessage(err)}`))

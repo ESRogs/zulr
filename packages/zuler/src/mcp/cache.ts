@@ -1,5 +1,5 @@
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
-import type { Member, Stream, UserId, ZulipClient } from 'zulip-ts'
+import type { Member, Stream, StreamId, UserId, ZulipClient } from 'zulip-ts'
 import { getMembers, getStreams } from 'zulip-ts'
 
 export const NOT_CONFIGURED_MESSAGE = 'Zulip credentials not configured. Call the init tool first.'
@@ -28,6 +28,8 @@ export type CacheContext = {
   readonly resolveUser: (identifier: string | number) => ResultAsync<Member, string>
   /** List all channels (uses cache). */
   readonly listChannels: () => ResultAsync<readonly Stream[], string>
+  /** Get the channels map (stream_id -> Stream), refreshing the cache if needed. */
+  readonly getChannelsMap: () => ResultAsync<ReadonlyMap<StreamId, Stream>, string>
   readonly invalidateChannelsCache: () => void
   /** Resolve a channel name to a Stream object. */
   readonly resolveChannel: (name: string) => ResultAsync<Stream, string>
@@ -35,7 +37,7 @@ export type CacheContext = {
 
 export function createCacheContext(getClient: () => ZulipClient | undefined): CacheContext {
   let membersCache: TimedCache<Map<UserId, Member>> | null = null
-  let channelsCache: TimedCache<readonly Stream[]> | null = null
+  let channelsCache: TimedCache<Map<StreamId, Stream>> | null = null
 
   function refreshMembersCache(): ResultAsync<Map<UserId, Member>, string> {
     const client = getClient()
@@ -57,13 +59,14 @@ export function createCacheContext(getClient: () => ZulipClient | undefined): Ca
     return refreshMembersCache().andThen((cache) => okAsync(cache.get(userId)))
   }
 
-  function refreshChannelsCache(): ResultAsync<readonly Stream[], string> {
+  function refreshChannelsCache(): ResultAsync<Map<StreamId, Stream>, string> {
     const client = getClient()
     if (!client) return errAsync(NOT_CONFIGURED_MESSAGE)
     return getStreams(client)
       .map((res) => {
-        channelsCache = { data: res.streams, fetchedAt: Date.now() }
-        return res.streams
+        const data = new Map(res.streams.map((s) => [s.stream_id, s]))
+        channelsCache = { data, fetchedAt: Date.now() }
+        return data
       })
       .mapErr((err) => `failed to fetch channels: ${JSON.stringify(err)}`)
   }
@@ -107,22 +110,30 @@ export function createCacheContext(getClient: () => ZulipClient | undefined): Ca
       })
     },
     listChannels: () => {
-      if (isCacheValid(channelsCache)) return okAsync(channelsCache.data)
-      return refreshChannelsCache()
+      if (isCacheValid(channelsCache)) return okAsync([...channelsCache.data.values()])
+      return refreshChannelsCache().map((data) => [...data.values()])
+    },
+    getChannelsMap: () => {
+      if (isCacheValid(channelsCache))
+        return okAsync(channelsCache.data as ReadonlyMap<StreamId, Stream>)
+      return refreshChannelsCache().map((data) => data as ReadonlyMap<StreamId, Stream>)
     },
     invalidateChannelsCache: () => {
       channelsCache = null
     },
     resolveChannel: (name: string) => {
-      function findInList(streams: readonly Stream[]): Stream | undefined {
-        return streams.find((s) => s.name === name)
+      function findInCache(cache: Map<StreamId, Stream>): Stream | undefined {
+        for (const s of cache.values()) {
+          if (s.name === name) return s
+        }
+        return undefined
       }
       if (isCacheValid(channelsCache)) {
-        const found = findInList(channelsCache.data)
+        const found = findInCache(channelsCache.data)
         if (found) return okAsync(found)
       }
-      return refreshChannelsCache().andThen((streams) => {
-        const found = findInList(streams)
+      return refreshChannelsCache().andThen((cache) => {
+        const found = findInCache(cache)
         if (found) return okAsync(found)
         return errAsync(`channel "${name}" not found`)
       })
