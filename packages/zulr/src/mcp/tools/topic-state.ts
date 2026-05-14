@@ -126,7 +126,7 @@ export function registerFollowedTopicsTool(registrar: ToolRegistrar, ctx: ToolCo
     'followed-topics',
     {
       description:
-        'List all topics the bot is currently following across all channels. Resolves channel names for topics in unsubscribed channels too (may trigger a cached `getStreams` lookup).',
+        'List all topics the bot is currently following across all channels. Resolves channel names for topics in unsubscribed channels too (may trigger a `getStreams` API call to populate the 5-min channels cache).',
       inputSchema: z.object({
         sender: zOptionalTeammateName.describe('Teammate name'),
       }),
