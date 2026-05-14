@@ -15,6 +15,11 @@
 #   - Rename the local repo directory. That's a developer choice.
 #   - Clean up stale `~/.claude/teams/zuler-*/` team directories left behind by old standalone
 #     agents. Nothing writes to them after migration, but you can `rm -rf` them by hand.
+#
+# IMPORTANT: stop any running zulr MCP servers (Claude Code sessions, mngr standalone agents)
+# before running this script. A running MCP server has `~/.zuler/<repo-slug>/state.db` open
+# and will silently recreate the directory after the move, leaving you with two state dirs
+# and a confused process. If in doubt, restart your Claude Code session after running this.
 
 set -euo pipefail
 
