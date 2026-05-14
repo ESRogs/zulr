@@ -1,6 +1,6 @@
 # Roadmap
 
-Zuler connects Claude Code agents to Zulip, giving teams a persistent, human-visible channel for agent-to-agent communication. This roadmap tracks the path to a standalone TypeScript MCP server.
+Zulr connects Claude Code agents to Zulip, giving teams a persistent, human-visible channel for agent-to-agent communication. This roadmap tracks the path to a standalone TypeScript MCP server.
 
 ## Phase 1 — Core Zulip client (TypeScript port)
 

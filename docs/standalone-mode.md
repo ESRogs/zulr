@@ -1,11 +1,11 @@
 # Standalone Mode
 
-Run a zuler agent as an independent Claude Code instance (not a teammate in a shared team). Each agent gets its own MCP server process, event listener, and inbox.
+Run a zulr agent as an independent Claude Code instance (not a teammate in a shared team). Each agent gets its own MCP server process, event listener, and inbox.
 
 ## Quick Start
 
 ```bash
-# 1. Register a bot (from the main zuler session)
+# 1. Register a bot (from the main zulr session)
 #    Use the `register` MCP tool to create a bot on Zulip
 
 # 2. Spawn the agent
@@ -21,9 +21,9 @@ The script extracts bot credentials from the DB, creates the mngr agent with cor
 
 For reference, here are the individual steps that `spawn-agent.sh` automates:
 
-1. Extract bot credentials from the zuler DB
+1. Extract bot credentials from the zulr DB
 2. Create a mngr agent with env vars (`ZULER_TEAM`, `ZULER_AGENT`, `ZULIP_SITE`, `ZULIP_BOT_EMAIL`, `ZULIP_BOT_API_KEY`)
-3. Generate `zuler-standalone-mcp.json` pointing to the zuler entry point
+3. Generate `zulr-standalone-mcp.json` pointing to the zulr entry point
 4. Approve the trust dialog (`scripts/approve-trust.sh`)
 5. Send the initial prompt (create team + getting-started)
 
@@ -34,18 +34,18 @@ For reference, here are the individual steps that `spawn-agent.sh` automates:
 | Variable | Description |
 |----------|-------------|
 | `ZULER_AGENT` | Bot identity (e.g. `ranger`). Activates standalone mode. |
-| `ZULER_TEAM` | Team name for inbox routing. Use `zuler-<agent-name>` for per-agent teams. |
+| `ZULER_TEAM` | Team name for inbox routing. Use `zulr-<agent-name>` for per-agent teams. |
 | `ZULIP_SITE` | Zulip server URL |
 | `ZULIP_BOT_EMAIL` | Bot's email from Zulip |
 | `ZULIP_BOT_API_KEY` | Bot's API key from Zulip |
 
 ### MCP Config
 
-The `spawn-agent.sh` script generates `~/.zuler/<repo-slug>/standalone-mcp.json` with the correct repo path. The file contains only the bun command — env vars are inherited from the mngr environment.
+The `spawn-agent.sh` script generates `~/.zulr/<repo-slug>/standalone-mcp.json` with the correct repo path. The file contains only the bun command — env vars are inherited from the mngr environment.
 
 ### Per-Agent Teams
 
-Each standalone agent creates its own Claude Code team (`zuler-<agent-name>`) to enable inbox polling. The zuler MCP server writes to `~/.claude/teams/<ZULER_TEAM>/inboxes/team-lead.json` in standalone mode, since the agent is always the team-lead of its own team.
+Each standalone agent creates its own Claude Code team (`zulr-<agent-name>`) to enable inbox polling. The zulr MCP server writes to `~/.claude/teams/<ZULER_TEAM>/inboxes/team-lead.json` in standalone mode, since the agent is always the team-lead of its own team.
 
 ### Differences from Team Mode
 
@@ -54,7 +54,7 @@ Each standalone agent creates its own Claude Code team (`zuler-<agent-name>`) to
 | MCP server | One shared process | One per agent |
 | Credentials | DB lookup via admin key | Env vars (`ZULIP_BOT_*`) |
 | `sender` param | Required on tools | Optional (defaults to `ZULER_AGENT`) |
-| Inbox routing | `~/.claude/teams/zuler/inboxes/<name>.json` | `~/.claude/teams/zuler-<name>/inboxes/team-lead.json` |
+| Inbox routing | `~/.claude/teams/zulr/inboxes/<name>.json` | `~/.claude/teams/zulr-<name>/inboxes/team-lead.json` |
 | Event listener | One per bot, all in one process | One per agent process |
 | `register` tool | Creates bots via admin API | Returns error (no admin key) |
 
@@ -88,7 +88,7 @@ CLAUDE_CODE_OAUTH_TOKEN=... GITHUB_TOKEN=ghp_... ./scripts/spawn-agent.sh --moda
 
 ### How It Works
 
-1. Bot credentials are extracted locally from the zuler DB (same as local mode)
+1. Bot credentials are extracted locally from the zulr DB (same as local mode)
 2. `mngr create agent@.modal` builds a custom image from `scripts/Dockerfile.modal` (debian:bookworm-slim + mngr packages + bun + Claude Code)
 3. The repo is transferred to the sandbox, then `bun install` runs on-sandbox
 4. The MCP config is generated on-sandbox using the correct sandbox paths

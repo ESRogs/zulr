@@ -255,7 +255,7 @@ if (import.meta.main) {
     process.exit(1)
   }
 
-  console.log(`zuler dispatcher starting — watching ${teammates.length} bot(s) on ${site}`)
+  console.log(`zulr dispatcher starting — watching ${teammates.length} bot(s) on ${site}`)
 
   const dispatcher = createDispatcher(teammates, {
     site,

@@ -1,10 +1,11 @@
 #!/bin/bash
-# Spawn a standalone zuler agent via mngr.
+# Spawn a standalone zulr agent via mngr.
 # Usage: ./spawn-agent.sh [--replace] [--modal] <agent-name>
 #
 # Prerequisites:
 #   - The bot must already be registered on Zulip (use the `register` MCP tool)
 #   - mngr must be installed
+#   - ZULIP_SITE env var set (e.g. https://your-org.zulipchat.com)
 #   - For --modal: Modal CLI authenticated (`modal token new`)
 #
 # Options:
@@ -12,7 +13,7 @@
 #   --modal     Run the agent on Modal instead of a local worktree
 #
 # This script:
-#   1. Extracts bot credentials from the zuler DB
+#   1. Extracts bot credentials from the zulr DB
 #   2. Creates a mngr agent with the right env vars and MCP config
 #   3. Approves the trust dialog if needed
 #   4. Sends the initial prompt (create team + getting-started)
@@ -32,14 +33,14 @@ done
 AGENT="${1:?Usage: spawn-agent.sh [--replace] [--modal] <agent-name>}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ZULIP_SITE="${ZULIP_SITE:-https://zuler.zulipchat.com}"
+ZULIP_SITE="${ZULIP_SITE:?ZULIP_SITE must be set (e.g. https://your-org.zulipchat.com)}"
 
-# Find the zuler DB
+# Find the zulr DB
 REPO_SLUG=$(echo "$REPO_ROOT" | sed 's|/|-|g')
 DB_PATH="$HOME/.zuler/$REPO_SLUG/state.db"
 
 if [ ! -f "$DB_PATH" ]; then
-  echo "error: zuler DB not found at $DB_PATH"
+  echo "error: zulr DB not found at $DB_PATH"
   echo "Make sure the bot is registered via the register MCP tool first."
   exit 1
 fi

@@ -10,7 +10,7 @@ export function registerOnboardingPromptTool(registrar: ToolRegistrar, ctx: Tool
     'onboarding-prompt',
     {
       description:
-        'Get the zuler onboarding agent prompt. Use this to spawn a teammate that walks through Zulip setup step by step.',
+        'Get the zulr onboarding agent prompt. Use this to spawn a teammate that walks through Zulip setup step by step.',
       inputSchema: z.object({}),
     },
     async () => {
@@ -21,7 +21,7 @@ export function registerOnboardingPromptTool(registrar: ToolRegistrar, ctx: Tool
         : 'Call TeamCreate with a team_name matching the project (e.g. the repo name)'
       const spawnTeamName = hasTeamName ? `"${teamName}"` : 'the team name from step 1'
 
-      return textResult(`# How to spawn the zuler onboarding teammate
+      return textResult(`# How to spawn the zulr onboarding teammate
 
 Follow these steps exactly:
 

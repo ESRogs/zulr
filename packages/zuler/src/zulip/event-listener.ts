@@ -58,7 +58,7 @@ type EventListenerManagerOptions = {
 }
 
 // 'reaction' is not processed by ZulipSession internally — it flows through
-// to the onEvent callback where zuler handles it for inbox delivery.
+// to the onEvent callback where zulr handles it for inbox delivery.
 const SESSION_EVENT_TYPES = [
   'message',
   'update_message',

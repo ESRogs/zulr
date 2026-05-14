@@ -27,7 +27,7 @@ const SCHEMA_SQL = `
   );
 `
 
-/** Derive the zuler state directory for a given repo root, matching Claude Code's path convention. */
+/** Derive the zulr state directory for a given repo root, matching Claude Code's path convention. */
 export function stateDir(repoRoot: string): string {
   const absolute = resolve(repoRoot)
   const slug = absolute.replace(/\//g, '-')
@@ -39,7 +39,7 @@ export function statePath(repoRoot: string): string {
   return join(stateDir(repoRoot), 'state.db')
 }
 
-/** Open (or create) the zuler database for a given repo root. */
+/** Open (or create) the zulr database for a given repo root. */
 export function openDatabase(repoRoot: string): Kysely<ZulerDatabase> {
   const dir = stateDir(repoRoot)
   mkdirSync(dir, { recursive: true })
