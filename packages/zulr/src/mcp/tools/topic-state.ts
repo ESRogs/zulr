@@ -146,14 +146,11 @@ export function registerFollowedTopicsTool(registrar: ToolRegistrar, ctx: ToolCo
       const followed = session.getFollowedTopics()
       if (followed.length === 0) return textResult('Not following any topics.')
 
-      const resolveName = await ctx.cache.buildChannelNameLookup().match(
-        (fn) => fn,
-        () => () => undefined,
-      )
+      const channelsMap = await ctx.cache.getChannelsMap().unwrapOr(new Map())
 
       const grouped = Map.groupBy(followed, (f) => f.streamId)
       const byStream = [...grouped.entries()].map(([streamId, topics]) => {
-        const name = resolveName(streamId) ?? `channel ${streamId}`
+        const name = channelsMap.get(streamId)?.name ?? `channel ${streamId}`
         return { name, topics: topics.map((t) => t.topic) }
       })
 
