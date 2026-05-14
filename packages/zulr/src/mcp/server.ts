@@ -42,7 +42,7 @@ export function createMcpServer(config: ServerConfig) {
   const ctx = createToolContext(config)
 
   const server = new McpServer({
-    name: 'zuler',
+    name: 'zulr',
     version: '0.1.0',
   })
 

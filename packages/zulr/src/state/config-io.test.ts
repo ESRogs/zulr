@@ -3,10 +3,10 @@ import type { Kysely } from 'kysely'
 import type { ApiKey, Email } from 'zulip-ts'
 import type { TeammateName } from '../tagged-types.ts'
 import { exportConfig, parseConfig } from './config-io.ts'
-import { createDatabase, type ZulerDatabase } from './db.ts'
+import { createDatabase, type ZulrDatabase } from './db.ts'
 import { registerTeammate } from './teammates.ts'
 
-let db: Kysely<ZulerDatabase>
+let db: Kysely<ZulrDatabase>
 
 beforeEach(() => {
   db = createDatabase(':memory:')

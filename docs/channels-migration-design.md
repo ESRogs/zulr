@@ -2,7 +2,7 @@
 
 ## Motivation
 
-Zuler delivers inbound Zulip messages to Claude Code agents by writing to teammate inbox files (`~/.claude/teams/<team>/inboxes/<agent>.json`). This works, but it's a workaround — the teammate inbox system wasn't designed for MCP servers to push arbitrary content into agent context. It couples zuler to Claude Code's internal file layout and team naming conventions.
+Zulr delivers inbound Zulip messages to Claude Code agents by writing to teammate inbox files (`~/.claude/teams/<team>/inboxes/<agent>.json`). This works, but it's a workaround — the teammate inbox system wasn't designed for MCP servers to push arbitrary content into agent context. It couples zulr to Claude Code's internal file layout and team naming conventions.
 
 Claude Code v2.1.80 introduces **channels**: an MCP-native mechanism for servers to push events into a running session. A channel server emits `notifications/claude/channel` notifications, and Claude Code surfaces them directly in the agent's context. This is the supported way to do what we're doing with inbox files.
 
@@ -23,7 +23,7 @@ await mcp.notification({
 The agent sees:
 
 ```
-<channel source="zuler" stream="general" topic="standup" sender="Eric Rogstad">
+<channel source="zulr" stream="general" topic="standup" sender="Eric Rogstad">
 message body
 </channel>
 ```
@@ -76,13 +76,13 @@ The MCP server constructor needs `capabilities: { experimental: { 'claude/channe
 
 ```ts
 const server = new Server(
-  { name: 'zuler', version: '...' },
+  { name: 'zulr', version: '...' },
   {
     capabilities: {
       tools: {},
       experimental: { 'claude/channel': {} },
     },
-    instructions: 'Zulip messages arrive as <channel source="zuler" stream="..." topic="..." sender="...">. React to these as you would to teammate inbox messages.',
+    instructions: 'Zulip messages arrive as <channel source="zulr" stream="..." topic="..." sender="...">. React to these as you would to teammate inbox messages.',
   },
 )
 ```
@@ -116,7 +116,7 @@ This is acceptable because:
 ### 5. Removing team dependency
 
 With channels handling notification delivery, agents no longer need to be "team members" in Claude Code's team system for **inbox delivery**. This removes:
-- Dependency on `ZULER_TEAM` matching Claude Code's team name
+- Dependency on `ZULR_TEAM` matching Claude Code's team name
 - Dependency on Claude Code's inbox file format/location
 - The `~/.claude/teams/` directory structure
 
@@ -152,7 +152,7 @@ These are complementary and touch the same delivery path:
 
 ### Phase 3: Clean up team dependency
 
-- Remove `ZULER_TEAM` env var requirement
+- Remove `ZULR_TEAM` env var requirement
 - Remove `inboxDir`/`inboxPath` functions
 - Remove `sanitizeSummary` (no longer writing to inbox `summary` field)
 - Update onboarding to skip team setup

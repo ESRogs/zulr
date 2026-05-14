@@ -9,17 +9,17 @@ import { createEventListenerManager } from './zulip/event-listener.ts'
 
 const t0 = performance.now()
 
-const rawTeamName = process.env.ZULER_TEAM ?? 'default'
+const rawTeamName = process.env.ZULR_TEAM ?? 'default'
 if (rawTeamName.length === 0) {
-  throw new Error('ZULER_TEAM must not be empty')
+  throw new Error('ZULR_TEAM must not be empty')
 }
 const teamName = rawTeamName as TeamName
-const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
-const agentName = process.env.ZULER_AGENT ? (process.env.ZULER_AGENT as TeammateName) : undefined
+const repoRoot = process.env.ZULR_REPO_ROOT ?? process.cwd()
+const agentName = process.env.ZULR_AGENT ? (process.env.ZULR_AGENT as TeammateName) : undefined
 /** In standalone mode, route all messages to the "team-lead" inbox since the agent is team-lead of its own per-agent team. */
 const STANDALONE_INBOX_NAME = 'team-lead' as TeammateName
 
-const logFile = `${stateDir(repoRoot)}/zuler.log`
+const logFile = `${stateDir(repoRoot)}/zulr.log`
 
 /** Pick the most useful params for each tool to keep log lines concise. */
 function summarizeToolParams(_tool: string, params: Record<string, unknown>): string {

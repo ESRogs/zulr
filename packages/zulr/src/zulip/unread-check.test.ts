@@ -309,12 +309,12 @@ test('writeToInbox skips duplicate zulipMessageId', () => {
 
 test('writeToInbox allows messages without zulipMessageId (non-Zulip messages)', () => {
   writeToInbox(teamName, tm('alice'), {
-    from: 'zuler:system',
+    from: 'zulr:system',
     text: 'system msg 1',
     summary: 'system',
   })
   writeToInbox(teamName, tm('alice'), {
-    from: 'zuler:system',
+    from: 'zulr:system',
     text: 'system msg 2',
     summary: 'system',
   })

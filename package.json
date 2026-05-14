@@ -1,5 +1,5 @@
 {
-  "name": "zuler-monorepo",
+  "name": "zulr-monorepo",
   "private": true,
   "type": "module",
   "workspaces": ["packages/*"],

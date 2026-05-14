@@ -12,13 +12,13 @@ import type {
   UnixEpochSeconds,
   UserId,
 } from 'zulip-ts'
-import { createDatabase, type ZulerDatabase } from '../state/db.ts'
+import { createDatabase, type ZulrDatabase } from '../state/db.ts'
 import { registerTeammate } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { readInbox } from './inbox.ts'
 import { routeDm } from './routing.ts'
 
-let db: Kysely<ZulerDatabase>
+let db: Kysely<ZulrDatabase>
 
 // Use a unique team name per test to avoid inbox file collisions
 let teamName: TeamName

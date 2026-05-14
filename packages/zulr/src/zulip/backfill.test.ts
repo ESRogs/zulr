@@ -129,19 +129,19 @@ test('backfill deduplicates across multiple narrows', () => {
 
 // --- Overflow summary message format ---
 
-test('overflow summary uses zuler:system as from field', () => {
+test('overflow summary uses zulr:system as from field', () => {
   const overflow = 3
   const summary = `${overflow} more unread message(s) — run catch-up`
   const text = `${overflow} additional unread message(s) were not loaded during startup backfill. Run catch-up to see them.`
 
   writeToInbox(teamName, tm('bot'), {
-    from: 'zuler:system',
+    from: 'zulr:system',
     text,
     summary,
   })
 
   const inbox = readInbox(teamName, tm('bot'))._unsafeUnwrap()
   expect(inbox).toHaveLength(1)
-  expect(inbox[0]!.from).toBe('zuler:system')
+  expect(inbox[0]!.from).toBe('zulr:system')
   expect(inbox[0]!.summary).toContain('run catch-up')
 })

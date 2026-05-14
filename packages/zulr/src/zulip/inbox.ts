@@ -214,4 +214,4 @@ export function consumeAllUnreadMessages(
   return consumeMatching(inboxPath(teamName, teammate), () => true)
 }
 
-export type { InboxMessage, InboxEntry }
+export type { InboxEntry, InboxMessage }

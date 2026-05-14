@@ -6,7 +6,7 @@
  * notification-worthy event arrives (DM, @-mention, followed topic), checks
  * if the target agent is stopped and calls `mngr start` to wake it.
  *
- * Usage: ZULER_REPO_ROOT=/path/to/repo bun run packages/zuler/src/dispatcher.ts
+ * Usage: ZULR_REPO_ROOT=/path/to/repo bun run packages/zulr/src/dispatcher.ts
  */
 
 import { createSession } from 'zulip-client-ts'
@@ -233,7 +233,7 @@ export function createDispatcher(
 
 // --- CLI entry point ---
 if (import.meta.main) {
-  const repoRoot = process.env.ZULER_REPO_ROOT ?? process.cwd()
+  const repoRoot = process.env.ZULR_REPO_ROOT ?? process.cwd()
   const site = process.env.ZULIP_SITE
 
   if (!site) {
@@ -255,7 +255,7 @@ if (import.meta.main) {
     process.exit(1)
   }
 
-  console.log(`zuler dispatcher starting — watching ${teammates.length} bot(s) on ${site}`)
+  console.log(`zulr dispatcher starting — watching ${teammates.length} bot(s) on ${site}`)
 
   const dispatcher = createDispatcher(teammates, {
     site,

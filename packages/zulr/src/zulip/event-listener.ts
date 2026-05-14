@@ -13,7 +13,7 @@ import type {
 } from 'zulip-ts'
 import { getMessage, isKnownEvent, markAsRead, TopicVisibility } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
-import type { ZulerDatabase } from '../state/db.ts'
+import type { ZulrDatabase } from '../state/db.ts'
 import { listTeammates, type StateError, type Teammate } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { type BackfillBotOptions, backfillBot } from './backfill.ts'
@@ -23,7 +23,7 @@ import { RESOLVED_PREFIX } from './resolved.ts'
 import { routeDm, sanitizeSummary, truncate } from './routing.ts'
 
 type EventListenerManagerOptions = {
-  readonly db: Kysely<ZulerDatabase>
+  readonly db: Kysely<ZulrDatabase>
   readonly teamName: TeamName
   readonly site: string
   /** Pre-built bot client and email for standalone mode (bypasses DB lookup in startBot). */
@@ -58,7 +58,7 @@ type EventListenerManagerOptions = {
 }
 
 // 'reaction' is not processed by ZulipSession internally — it flows through
-// to the onEvent callback where zuler handles it for inbox delivery.
+// to the onEvent callback where zulr handles it for inbox delivery.
 const SESSION_EVENT_TYPES = [
   'message',
   'update_message',

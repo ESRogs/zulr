@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely'
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import type { ApiKey, Email, UserId, ZulipClient, ZulipError } from 'zulip-ts'
 import { createBot, createClient, getBots, getMembers } from 'zulip-ts'
-import type { ZulerDatabase } from './state/db.ts'
+import type { ZulrDatabase } from './state/db.ts'
 import {
   getTeammate,
   registerTeammate,
@@ -113,7 +113,7 @@ function createNewBot(
  */
 export function registerBot(
   adminClient: ZulipClient,
-  db: Kysely<ZulerDatabase>,
+  db: Kysely<ZulrDatabase>,
   name: TeammateName,
 ): ResultAsync<{ readonly botEmail: Email; readonly apiKey: ApiKey }, BotManagerError> {
   const email = botEmail(name, adminClient.config.site)
@@ -184,7 +184,7 @@ export type TeammateClient = {
 
 /** Create a ZulipClient for a registered teammate's bot. */
 export function clientForTeammate(
-  db: Kysely<ZulerDatabase>,
+  db: Kysely<ZulrDatabase>,
   site: string,
   name: TeammateName,
 ): ResultAsync<TeammateClient, BotManagerError> {

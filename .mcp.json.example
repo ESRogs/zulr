@@ -1,15 +1,15 @@
 {
   "mcpServers": {
-    "zuler": {
+    "zulr": {
       "type": "stdio",
       "command": "bun",
       "args": [
         "run",
-        "packages/zuler/src/index.ts"
+        "packages/zulr/src/index.ts"
       ],
       "env": {
-        "ZULER_TEAM": "<team-name>",
-        "ZULER_REPO_ROOT": "<path-to-repo>"
+        "ZULR_TEAM": "<team-name>",
+        "ZULR_REPO_ROOT": "<path-to-repo>"
       }
     }
   }

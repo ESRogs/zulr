@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
 import type { ApiKey, Email, UserId } from 'zulip-ts'
 import type { TeammateName } from '../tagged-types.ts'
-import type { ZulerDatabase } from './db.ts'
+import type { ZulrDatabase } from './db.ts'
 
 import { AlreadyExistsError, dbOp, NotFoundError, type StateError } from './db-utils.ts'
 
@@ -16,7 +16,7 @@ export type Teammate = {
 }
 
 export function registerTeammate(
-  db: Kysely<ZulerDatabase>,
+  db: Kysely<ZulrDatabase>,
   teammate: Teammate,
 ): ResultAsync<Teammate, StateError> {
   return dbOp(async () => {
@@ -45,7 +45,7 @@ export function registerTeammate(
 }
 
 export function getTeammate(
-  db: Kysely<ZulerDatabase>,
+  db: Kysely<ZulrDatabase>,
   name: TeammateName,
 ): ResultAsync<Teammate, StateError> {
   return dbOp(async () => {
@@ -69,7 +69,7 @@ export function getTeammate(
 }
 
 export function listTeammates(
-  db: Kysely<ZulerDatabase>,
+  db: Kysely<ZulrDatabase>,
 ): ResultAsync<readonly Teammate[], StateError> {
   return dbOp(async () => {
     const rows = await db.selectFrom('teammates').selectAll().execute()
@@ -83,7 +83,7 @@ export function listTeammates(
 }
 
 export function updateTeammateCredentials(
-  db: Kysely<ZulerDatabase>,
+  db: Kysely<ZulrDatabase>,
   name: TeammateName,
   updates: {
     readonly apiKey: ApiKey
