@@ -130,8 +130,26 @@ This applies especially in busy topics where multiple teammates are active:
   language tags.
 - Quote previous messages with `> ` or Zulip's quote syntax when referencing
   them.
-- @-mention teammates when you need their attention: `@**name**`. This
-  auto-follows them on the topic.
+
+### Referring vs. Mentioning Teammates
+
+Distinguish between *referring to* a teammate and *summoning* one. They look
+similar but have very different effects.
+
+- **Plain text (`coder`, `priest`, ...)** — use when you're just *referring*
+  to a teammate. No notification, no auto-follow. Examples:
+  - "I had coder review this earlier."
+  - "Tag priest when the PR is ready."
+  - "team-lead handles merges."
+- **`@**name**`** — use when you actually want that teammate's attention.
+  This both notifies them AND auto-follows them on the topic. Examples:
+  - "@**coder** please review this PR."
+  - "@**priest** can you take a look?"
+
+Reserve `@**name**` for genuine asks. Casual use pulls teammates into topics
+they don't need to follow and creates notification clutter. If you're
+describing a workflow ("tag priest when ready") rather than asking priest to
+do something, write the name as plain text.
 
 ## Git and PRs
 
