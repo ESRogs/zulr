@@ -4,7 +4,8 @@
 # What this does:
 #   - Moves ~/.zuler/ → ~/.zulr/ if it exists (preserves SQLite DB, log file, standalone MCP config)
 #   - Rewrites standalone-mcp.json paths from /.zuler/ to /.zulr/ and packages/zuler/ to packages/zulr/
-#   - Reports any .env files in the cwd that reference ZULER_* env vars (does NOT auto-modify)
+#   - Rewrites ZULER_* env var names to ZULR_* in ./.env (value-preserving — only the key is renamed)
+#   - Exits non-zero if any running mngr standalone agents are detected (they need destroy + respawn)
 #
 # Idempotent — running twice is a no-op.
 #
@@ -58,29 +59,45 @@ if [ -d "$NEW_DIR" ]; then
   done < <(find "$NEW_DIR" -name 'standalone-mcp.json' -type f -print0 2>/dev/null)
 fi
 
-# Report (but don't modify) .env files referencing ZULER_*
+# Auto-rewrite ZULER_* → ZULR_* env var names in ./.env. The transform is name-only
+# (the value after the `=` is untouched), and incomplete migrations would silently fail at
+# runtime since the code only reads ZULR_*. Backup the file before rewriting in case the
+# user wants to compare.
 if [ -f ".env" ] && grep -qE '^ZULER_' ".env"; then
-  echo ""
-  echo "note: ./.env references ZULER_* env vars. Rename them to ZULR_* manually:"
-  grep -nE '^ZULER_' ".env" | sed 's/^/  /'
+  echo "Rewriting ZULER_* → ZULR_* in ./.env (backup at ./.env.zuler-bak)"
+  cp ".env" ".env.zuler-bak"
+  tmp=".env.tmp.$$"
+  sed -E 's/^ZULER_([A-Z_]+)=/ZULR_\1=/' ".env" > "$tmp" && mv "$tmp" ".env"
+  migrated=true
 fi
 
-# Report running standalone agents that will need a respawn
+# Detect running mngr standalone agents. They have ZULER_* env vars and old paths baked
+# into their `mngr create` invocations; the script can't safely rewrite a running process.
+# Exit non-zero so the user has to handle this explicitly — silent reports are easy to miss.
+agents_blocking=false
 if command -v mngr >/dev/null 2>&1; then
   running=$(mngr list --format json 2>/dev/null || echo '[]')
   if echo "$running" | grep -q '"running"'; then
     echo ""
-    echo "note: running mngr agents will have stale ZULER_* env vars baked in."
-    echo "  Destroy and respawn them via scripts/spawn-agent.sh:"
+    echo "error: running mngr agents detected — they have stale ZULER_* env vars baked in."
+    echo "  Destroy and respawn each one before the rename takes effect:"
     echo "    mngr list                    # see the names"
     echo "    mngr destroy --force <name>"
     echo "    scripts/spawn-agent.sh <name>"
+    agents_blocking=true
   fi
 fi
 
 if [ "$migrated" = true ]; then
   echo ""
+  if [ "$agents_blocking" = true ]; then
+    echo "Migration partially done — exiting non-zero because of running mngr agents (see above)."
+    exit 1
+  fi
   echo "Migration done."
 else
+  if [ "$agents_blocking" = true ]; then
+    exit 1
+  fi
   echo "Nothing to migrate."
 fi
