@@ -1,5 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import type { StreamId } from 'zulip-ts'
 import { getErrorMessage } from './errors.ts'
 import { createMcpServer } from './mcp/server.ts'
 import { openDatabase, stateDir } from './state/db.ts'
@@ -82,13 +83,14 @@ async function bootEventListeners(): Promise<void> {
   const standaloneBot =
     agentName && standaloneClient ? { client: standaloneClient, email: creds.email } : undefined
 
-  const channelLookup = await ctx.cache.buildChannelNameLookup().match(
-    (fn) => fn,
+  const channelsMap = await ctx.cache.getChannelsMap().match(
+    (m) => m,
     (err) => {
       log(`channel-name lookup unavailable: ${err}`)
-      return () => undefined
+      return new Map()
     },
   )
+  const channelLookup = (streamId: StreamId) => channelsMap.get(streamId)?.name
 
   const manager = createEventListenerManager({
     db,
