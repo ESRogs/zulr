@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely'
 import type { ResultAsync } from 'neverthrow'
 import type { DmMessage, Email, MessageId, UnixEpochSeconds } from 'zulip-ts'
-import type { ZulerDatabase } from '../state/db.ts'
+import type { ZulrDatabase } from '../state/db.ts'
 import { listTeammates, type StateError } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { writeToInbox } from './inbox.ts'
@@ -36,7 +36,7 @@ function appendFooter(content: string, messageId: MessageId, timestamp: UnixEpoc
  * When targetBot is provided, only delivers to that bot.
  */
 export function routeDm(
-  db: Kysely<ZulerDatabase>,
+  db: Kysely<ZulrDatabase>,
   teamName: TeamName,
   message: DmMessage,
   targetBot?: TeammateName,

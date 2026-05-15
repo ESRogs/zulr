@@ -4,7 +4,7 @@ import type { ZulipSession } from 'zulip-client-ts'
 import type { GetMessagesResponse, MessageId, ZulipClient, ZulipError } from 'zulip-ts'
 import { getMessages, markAsRead } from 'zulip-ts'
 import { clientForTeammate } from '../bot-manager.ts'
-import type { ZulerDatabase } from '../state/db.ts'
+import type { ZulrDatabase } from '../state/db.ts'
 import { listTeammates } from '../state/teammates.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import { buildChannelNameResolver } from './channel-name-resolver.ts'
@@ -26,7 +26,7 @@ export type BackfillBotOptions = {
 
 /** Options for backfilling all bots' inboxes at startup. */
 export type BackfillOptions = BackfillBotOptions & {
-  readonly db: Kysely<ZulerDatabase>
+  readonly db: Kysely<ZulrDatabase>
   readonly site: string
   /** In standalone mode, only backfill this single agent using the provided client. */
   readonly standaloneBot?: { readonly name: TeammateName; readonly client: ZulipClient }
@@ -180,7 +180,7 @@ async function backfillBotImpl(
   if (sorted.length > maxPerBot) {
     const overflow = sorted.length - maxPerBot
     writeToInbox(teamName, inboxTarget, {
-      from: 'zuler:system',
+      from: 'zulr:system',
       text: `${overflow} additional unread message(s) were not loaded during startup backfill. Run catch-up to see them.`,
       summary: `${overflow} more unread message(s) — run catch-up`,
     }).match(

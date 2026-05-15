@@ -1,10 +1,11 @@
 #!/bin/bash
-# Spawn a standalone zuler agent via mngr.
+# Spawn a standalone zulr agent via mngr.
 # Usage: ./spawn-agent.sh [--replace] [--modal] <agent-name>
 #
 # Prerequisites:
 #   - The bot must already be registered on Zulip (use the `register` MCP tool)
 #   - mngr must be installed
+#   - ZULIP_SITE env var set (e.g. https://your-org.zulipchat.com)
 #   - For --modal: Modal CLI authenticated (`modal token new`)
 #
 # Options:
@@ -12,7 +13,7 @@
 #   --modal     Run the agent on Modal instead of a local worktree
 #
 # This script:
-#   1. Extracts bot credentials from the zuler DB
+#   1. Extracts bot credentials from the zulr DB
 #   2. Creates a mngr agent with the right env vars and MCP config
 #   3. Approves the trust dialog if needed
 #   4. Sends the initial prompt (create team + getting-started)
@@ -32,24 +33,24 @@ done
 AGENT="${1:?Usage: spawn-agent.sh [--replace] [--modal] <agent-name>}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ZULIP_SITE="${ZULIP_SITE:-https://zuler.zulipchat.com}"
+ZULIP_SITE="${ZULIP_SITE:?ZULIP_SITE must be set (e.g. https://your-org.zulipchat.com)}"
 
-# Find the zuler DB
+# Find the zulr DB
 REPO_SLUG=$(echo "$REPO_ROOT" | sed 's|/|-|g')
-DB_PATH="$HOME/.zuler/$REPO_SLUG/state.db"
+DB_PATH="$HOME/.zulr/$REPO_SLUG/state.db"
 
 if [ ! -f "$DB_PATH" ]; then
-  echo "error: zuler DB not found at $DB_PATH"
+  echo "error: zulr DB not found at $DB_PATH"
   echo "Make sure the bot is registered via the register MCP tool first."
   exit 1
 fi
 
 # Extract bot credentials (pass values via env vars to avoid injection)
-CREDS=$(ZULER_DB_PATH="$DB_PATH" ZULER_BOT_NAME="$AGENT" bun -e "
+CREDS=$(ZULR_DB_PATH="$DB_PATH" ZULR_BOT_NAME="$AGENT" bun -e "
 import { Database } from 'bun:sqlite';
-const db = new Database(process.env.ZULER_DB_PATH!);
-const row = db.query('SELECT bot_email, api_key FROM teammates WHERE name = ?').get(process.env.ZULER_BOT_NAME!);
-if (!row) { console.error('Bot not found: ' + process.env.ZULER_BOT_NAME); process.exit(1); }
+const db = new Database(process.env.ZULR_DB_PATH!);
+const row = db.query('SELECT bot_email, api_key FROM teammates WHERE name = ?').get(process.env.ZULR_BOT_NAME!);
+if (!row) { console.error('Bot not found: ' + process.env.ZULR_BOT_NAME); process.exit(1); }
 console.log(JSON.stringify(row));
 " 2>&1)
 
@@ -78,8 +79,8 @@ fi
 
 # Common env vars for both local and Modal modes
 COMMON_ENV=(
-  --env "ZULER_TEAM=zuler-$AGENT"
-  --env "ZULER_AGENT=$AGENT"
+  --env "ZULR_TEAM=zulr-$AGENT"
+  --env "ZULR_AGENT=$AGENT"
   --env "ZULIP_SITE=$ZULIP_SITE"
   --env "ZULIP_BOT_EMAIL=$BOT_EMAIL"
   --env "ZULIP_BOT_API_KEY=$BOT_API_KEY"
@@ -121,7 +122,7 @@ if [ "$MODAL" = true ]; then
 
   # Generate the MCP config on-sandbox since local paths don't apply.
   # mngr places the repo at /mngr/projects/agent-<id>/ which is the work_dir.
-  GENERATE_MCP='printf '"'"'{"mcpServers":{"zuler":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zuler/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > /tmp/zuler-mcp.json'
+  GENERATE_MCP='printf '"'"'{"mcpServers":{"zulr":{"type":"stdio","command":"%s/.bun/bin/bun","args":["run","%s/packages/zulr/src/index.ts"]}}}'"'"' "$HOME" "$(pwd)" > /tmp/zulr-mcp.json'
 
   echo "Creating Modal agent '$AGENT'..."
   mngr create "$AGENT@.modal" claude \
@@ -138,18 +139,18 @@ if [ "$MODAL" = true ]; then
     --extra-provision-command 'bun install' \
     --extra-provision-command "$GENERATE_MCP" \
     --no-connect \
-    -- --mcp-config /tmp/zuler-mcp.json --permission-mode auto
+    -- --mcp-config /tmp/zulr-mcp.json --permission-mode auto
 else
-  # Generate the MCP config in ~/.zuler/<repo-slug>/ alongside the DB
-  ZULER_STATE_DIR="$HOME/.zuler/$REPO_SLUG"
-  MCP_CONFIG="$ZULER_STATE_DIR/standalone-mcp.json"
+  # Generate the MCP config in ~/.zulr/<repo-slug>/ alongside the DB
+  ZULR_STATE_DIR="$HOME/.zulr/$REPO_SLUG"
+  MCP_CONFIG="$ZULR_STATE_DIR/standalone-mcp.json"
   cat > "$MCP_CONFIG" << MCPEOF
 {
   "mcpServers": {
-    "zuler": {
+    "zulr": {
       "type": "stdio",
       "command": "bun",
-      "args": ["run", "$REPO_ROOT/packages/zuler/src/index.ts"]
+      "args": ["run", "$REPO_ROOT/packages/zulr/src/index.ts"]
     }
   }
 }
@@ -226,7 +227,7 @@ done
 
 # Send the initial prompt
 echo "Sending initial prompt..."
-INITIAL_PROMPT="Create a team called 'zuler-$AGENT' using TeamCreate. Then read the docs channel topic 'getting-started' using the catch-up tool and follow its instructions."
+INITIAL_PROMPT="Create a team called 'zulr-$AGENT' using TeamCreate. Then read the docs channel topic 'getting-started' using the catch-up tool and follow its instructions."
 send_keys "$INITIAL_PROMPT" Enter
 
 echo ""

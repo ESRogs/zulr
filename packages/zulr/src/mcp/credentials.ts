@@ -6,7 +6,7 @@ import type { ApiKey, Email, ZulipClient } from 'zulip-ts'
 import { createClient } from 'zulip-ts'
 import { clientForTeammate, type TeammateClient } from '../bot-manager.ts'
 import { getErrorMessage } from '../errors.ts'
-import type { ZulerDatabase } from '../state/db.ts'
+import type { ZulrDatabase } from '../state/db.ts'
 import type { TeammateName } from '../tagged-types.ts'
 import { NOT_CONFIGURED_MESSAGE } from './cache.ts'
 
@@ -93,7 +93,7 @@ function getZulipCredentials(): ZulipCredentials | undefined {
 }
 
 export function createCredentialsContext(
-  db: Kysely<ZulerDatabase>,
+  db: Kysely<ZulrDatabase>,
   repoRoot: string,
   onReload: () => void,
   standalone?: StandaloneCredentials,

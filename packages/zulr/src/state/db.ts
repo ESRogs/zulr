@@ -14,7 +14,7 @@ type TeammatesTable = {
   bot_user_id: UserId | null
 }
 
-type ZulerDatabase = {
+type ZulrDatabase = {
   teammates: TeammatesTable
 }
 
@@ -27,11 +27,11 @@ const SCHEMA_SQL = `
   );
 `
 
-/** Derive the zuler state directory for a given repo root, matching Claude Code's path convention. */
+/** Derive the zulr state directory for a given repo root, matching Claude Code's path convention. */
 export function stateDir(repoRoot: string): string {
   const absolute = resolve(repoRoot)
   const slug = absolute.replace(/\//g, '-')
-  return join(homedir(), '.zuler', slug)
+  return join(homedir(), '.zulr', slug)
 }
 
 /** Resolve the DB path for a repo root. */
@@ -39,8 +39,8 @@ export function statePath(repoRoot: string): string {
   return join(stateDir(repoRoot), 'state.db')
 }
 
-/** Open (or create) the zuler database for a given repo root. */
-export function openDatabase(repoRoot: string): Kysely<ZulerDatabase> {
+/** Open (or create) the zulr database for a given repo root. */
+export function openDatabase(repoRoot: string): Kysely<ZulrDatabase> {
   const dir = stateDir(repoRoot)
   mkdirSync(dir, { recursive: true })
   return createDatabase(join(dir, 'state.db'))
@@ -70,7 +70,7 @@ function runMigrations(db: Database): void {
 }
 
 /** Open a database at an explicit path (for tests or custom locations). */
-export function createDatabase(path: string): Kysely<ZulerDatabase> {
+export function createDatabase(path: string): Kysely<ZulrDatabase> {
   const sqliteDb = new Database(path)
   sqliteDb.exec('PRAGMA journal_mode = WAL;')
   sqliteDb.exec('PRAGMA foreign_keys = ON;')
@@ -88,9 +88,9 @@ export function createDatabase(path: string): Kysely<ZulerDatabase> {
     runMigrations(sqliteDb)
   }
 
-  return new Kysely<ZulerDatabase>({
+  return new Kysely<ZulrDatabase>({
     dialect: new BunSqliteDialect({ database: sqliteDb }),
   })
 }
 
-export type { ZulerDatabase }
+export type { ZulrDatabase }

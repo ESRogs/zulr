@@ -5,7 +5,7 @@ import type { DisplayName } from 'zulip-ts'
 /** Name of a registered teammate (maps to a Zulip bot). */
 export type TeammateName = Tagged<string, 'TeammateName'>
 
-/** Claude Code team name (matches ZULER_TEAM env var). */
+/** Claude Code team name (matches ZULR_TEAM env var). */
 export type TeamName = Tagged<string, 'TeamName'>
 
 /** Convert a TeammateName to a Zulip DisplayName for bot creation. */

@@ -1,6 +1,6 @@
-# Zuler Team Best Practices
+# Zulr Team Best Practices
 
-Default conventions for agent teams communicating over Zulip via zuler.
+Default conventions for agent teams communicating over Zulip via zulr.
 
 ## Reaction Semantics
 

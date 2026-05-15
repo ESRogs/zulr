@@ -2,7 +2,7 @@
 
 ## Motivation
 
-Zuler currently treats the Zulip API as a request-response service: each MCP tool call makes fresh API requests, and the event listener is a simple message forwarder. This creates several problems:
+Zulr currently treats the Zulip API as a request-response service: each MCP tool call makes fresh API requests, and the event listener is a simple message forwarder. This creates several problems:
 
 1. **Inbox flooding**: The per-bot event listener delivers ALL messages from all public channels (via `all_public_streams`) to the Claude Code inbox, even when the bot isn't following the topic and wasn't mentioned. Agents get overwhelmed with irrelevant messages.
 
@@ -18,10 +18,10 @@ Zuler currently treats the Zulip API as a request-response service: each MCP too
 
 - **`neverthrow`** Result/ResultAsync for error handling — errors are values, not exceptions
 - **`zod`** for schema validation at external boundaries (Zulip API responses, event payloads)
-- **`type-fest` Tagged** for opaque types — already in place via PR #61. Numeric IDs: `UserId`, `MessageId`, `StreamId`, `EventId`, `UnixEpochSeconds`. String types: `ChannelName`, `TopicName`, `Email`, `DisplayName`, `EmojiName`, `QueueId`, `ApiKey`. Zuler-specific: `TeammateName`, `TeamName`.
+- **`type-fest` Tagged** for opaque types — already in place via PR #61. Numeric IDs: `UserId`, `MessageId`, `StreamId`, `EventId`, `UnixEpochSeconds`. String types: `ChannelName`, `TopicName`, `Email`, `DisplayName`, `EmojiName`, `QueueId`, `ApiKey`. Zulr-specific: `TeammateName`, `TeamName`.
 - **Functional style** with standalone functions, not classes. Imperative loops when clearer (e.g. event processing with side effects)
 - **No database** — `zulip-client-ts` is pure in-memory state, no Kysely or SQLite
-- **No web server** — it's a library consumed by `zuler`, not a standalone service
+- **No web server** — it's a library consumed by `zulr`, not a standalone service
 
 ## Proposed Architecture
 
@@ -30,7 +30,7 @@ Zuler currently treats the Zulip API as a request-response service: each MCP too
 ```
 zulip-ts          — Stateless API wrapper (exists today)
 zulip-client-ts   — Stateful per-user Zulip client (new)
-zuler             — MCP server + Claude Code integration (exists, uses the above)
+zulr             — MCP server + Claude Code integration (exists, uses the above)
 ```
 
 ### `zulip-client-ts`: Per-user stateful client
@@ -88,11 +88,11 @@ type ZulipSession = {
 }
 ```
 
-`ZulipSession.start()` owns the event loop — it replaces the current `runBotListener` function in zuler's event-listener.ts. The `EventListenerManager` in zuler becomes a session manager: it creates and starts `ZulipSession` instances instead of running event loops directly.
+`ZulipSession.start()` owns the event loop — it replaces the current `runBotListener` function in zulr's event-listener.ts. The `EventListenerManager` in zulr becomes a session manager: it creates and starts `ZulipSession` instances instead of running event loops directly.
 
-### Changes to `zuler`
+### Changes to `zulr`
 
-**Inbox delivery**: The session calls a `zuler`-provided callback when a notification-worthy message arrives. `zuler` writes it to the Claude Code inbox. Non-notification messages update the session's unread state silently — no inbox write.
+**Inbox delivery**: The session calls a `zulr`-provided callback when a notification-worthy message arrives. `zulr` writes it to the Claude Code inbox. Non-notification messages update the session's unread state silently — no inbox write.
 
 **`reply` tool** (new): Posts to a channel/topic or DM, but first checks `session.hasUnreads(streamId, topic)` (or `session.hasUnreadDms(userId)` for DMs). If unreads exist, returns an error with context:
 ```
@@ -146,11 +146,11 @@ Add to `ZulipSession`:
 - `getTopicVisibility`, `isFollowed`, `resolveUserId`, `resolveName` query methods
 - Tests for notification trigger logic
 
-### Step 3: Integrate with zuler event listener
+### Step 3: Integrate with zulr event listener
 
 Replace the current "deliver everything to inbox" with:
 - `EventListenerManager` creates `ZulipSession` per bot (replaces `runBotListener`)
-- Session calls zuler-provided callback on notification-worthy messages
+- Session calls zulr-provided callback on notification-worthy messages
 - Non-notification messages update session state silently
 - Bots explicitly follow topics via `setTopicVisibility(FOLLOWED)` when posting or being @-mentioned
 
@@ -178,6 +178,6 @@ Replace the current "deliver everything to inbox" with:
 
 **Unread state is Zulip-native**: Tracked via Zulip's own unread_msgs + event updates. No custom SQLite tables or inbox-based approximations.
 
-**Tagged types (already landed)**: PR #61 introduced branded types for all numeric IDs (`UserId`, `MessageId`, `StreamId`, `EventId`, `UnixEpochSeconds`) and string values (`ChannelName`, `TopicName`, `Email`, `DisplayName`, etc.) across both `zulip-ts` and `zuler`. The `ZulipSession` interface uses these throughout.
+**Tagged types (already landed)**: PR #61 introduced branded types for all numeric IDs (`UserId`, `MessageId`, `StreamId`, `EventId`, `UnixEpochSeconds`) and string values (`ChannelName`, `TopicName`, `Email`, `DisplayName`, etc.) across both `zulip-ts` and `zulr`. The `ZulipSession` interface uses these throughout.
 
 **Full state reset on reconnection**: When the event queue expires, the session re-registers and replaces all local state from the fresh initial snapshot. Simple and correct — avoids incremental patching of potentially stale state.

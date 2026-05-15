@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely'
 import { err, ok, type Result, type ResultAsync } from 'neverthrow'
-import type { ZulerDatabase } from './db.ts'
+import type { ZulrDatabase } from './db.ts'
 import { dbOp, type StateError } from './db-utils.ts'
 
 /**
@@ -15,7 +15,7 @@ type ExportedTeammate = {
 type ExportedRecord = ExportedTeammate
 
 /** Export all teammates as JSONL (one JSON object per line). No API keys. */
-export function exportConfig(db: Kysely<ZulerDatabase>): ResultAsync<string, StateError> {
+export function exportConfig(db: Kysely<ZulrDatabase>): ResultAsync<string, StateError> {
   return dbOp(() => db.selectFrom('teammates').select('name').execute()).map((teammates) =>
     teammates.map(({ name }) => JSON.stringify({ type: 'teammate', name })).join('\n'),
   )

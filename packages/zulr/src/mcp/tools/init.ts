@@ -13,7 +13,7 @@ export function registerInitTool(registrar: ToolRegistrar, ctx: ToolContext): vo
     'init',
     {
       description:
-        'Get started with zuler. Returns setup status and next steps. Call this first when setting up Zulip integration.',
+        'Get started with zulr. Returns setup status and next steps. Call this first when setting up Zulip integration.',
       inputSchema: z.object({}),
     },
     async () => {
@@ -23,11 +23,11 @@ export function registerInitTool(registrar: ToolRegistrar, ctx: ToolContext): vo
       }
 
       if (!ctx.credentials.isConfigured()) {
-        return textResult(`# Zuler Setup Required
+        return textResult(`# Zulr Setup Required
 
 Zulip credentials are not configured. Ask the user which option they prefer:
 
-1. **Guided setup (recommended)** — spawn a zuler-onboarding teammate that walks through setup step by step. Call the \`onboarding-prompt\` tool to get the agent prompt.
+1. **Guided setup (recommended)** — spawn a zulr-onboarding teammate that walks through setup step by step. Call the \`onboarding-prompt\` tool to get the agent prompt.
 2. **Manual setup** — the user creates a \`.env\` file in the repo root with ZULIP_SITE, ZULIP_EMAIL, and ZULIP_API_KEY, then calls init again to verify.
 
 Present both options to the user and wait for their choice before proceeding.`)
@@ -45,7 +45,7 @@ Present both options to the user and wait for their choice before proceeding.`)
           ? `Registered teammates (${teammates.length}):
 ${teammates.map((t) => `  ${t.name} <${t.botEmail}>`).join('\n')}
 
-Zuler is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and \`catch-up\` tools to communicate via Zulip.`
+Zulr is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and \`catch-up\` tools to communicate via Zulip.`
           : `Zulip credentials are configured. No teammates registered yet.
 
 ## Quick Start
@@ -67,7 +67,7 @@ Zuler is configured and running. Use the \`post\`, \`read\`, \`subscribe\`, and 
           ? `\n\n## Guided Setup (recommended)\n\nFor guided setup, call the \`onboarding-prompt\` tool to get the agent prompt, then spawn a teammate with it.`
           : ''
 
-      return textResult(`# Zuler Setup Status\n\n${status}${guidedSetup}`)
+      return textResult(`# Zulr Setup Status\n\n${status}${guidedSetup}`)
     },
   )
 }

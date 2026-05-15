@@ -6,7 +6,7 @@ import { z } from 'zod'
 import type { ApiKey, ChannelName, Email, EmojiName, TopicName, UserId } from 'zulip-ts'
 import { createClient } from 'zulip-ts'
 import { getErrorMessage } from '../errors.ts'
-import type { ZulerDatabase } from '../state/db.ts'
+import type { ZulrDatabase } from '../state/db.ts'
 import type { TeammateName, TeamName } from '../tagged-types.ts'
 import type { EventListenerManager } from '../zulip/event-listener.ts'
 import { type CacheContext, createCacheContext, NOT_CONFIGURED_MESSAGE } from './cache.ts'
@@ -27,7 +27,7 @@ function getStandaloneCredentials(agentName: TeammateName): StandaloneCredential
   const botApiKey = process.env.ZULIP_BOT_API_KEY
   if (!site || !botEmail || !botApiKey) {
     throw new Error(
-      'standalone mode (ZULER_AGENT set) requires ZULIP_SITE, ZULIP_BOT_EMAIL, and ZULIP_BOT_API_KEY env vars',
+      'standalone mode (ZULR_AGENT set) requires ZULIP_SITE, ZULIP_BOT_EMAIL, and ZULIP_BOT_API_KEY env vars',
     )
   }
   const client = createClient({ site, email: botEmail as Email, apiKey: botApiKey as ApiKey })
@@ -92,7 +92,7 @@ export function buildUserIdResolver(
 }
 
 export type ServerConfig = {
-  readonly db: Kysely<ZulerDatabase>
+  readonly db: Kysely<ZulrDatabase>
   readonly teamName: TeamName
   readonly repoRoot: string
   /** Called on each MCP tool invocation (for logging). */
@@ -116,7 +116,7 @@ export type ToolContext = {
 
 /**
  * Resolve the sender for a tool call. Uses the explicit `sender` param if provided,
- * falls back to `ZULER_AGENT` in standalone mode.
+ * falls back to `ZULR_AGENT` in standalone mode.
  */
 export function resolveSender(
   ctx: ToolContext,
@@ -124,7 +124,7 @@ export function resolveSender(
 ): Result<TeammateName, string> {
   if (sender) return ok(sender)
   if (ctx.config.agentName) return ok(ctx.config.agentName)
-  return err('sender is required (set ZULER_AGENT env var for standalone mode)')
+  return err('sender is required (set ZULR_AGENT env var for standalone mode)')
 }
 
 export function createToolContext(config: ServerConfig): ToolContext {
