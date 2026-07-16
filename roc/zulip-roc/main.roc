@@ -4,6 +4,7 @@ package
 		Base64,
 		Events,
 		FormUrlEncoded,
+		Client,
 		Messages,
 		Notify,
 	]
