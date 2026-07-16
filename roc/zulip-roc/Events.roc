@@ -129,6 +129,28 @@ Events := [].{
 		Request.from_method(DELETE).with_uri("${base}/api/v1/events?${query}")
 	}
 
+	## Zulip visibility_policy values (a subset; see UserTopic).
+	followed_policy : I64
+	followed_policy = 3
+
+	inherit_policy : I64
+	inherit_policy = 0
+
+	## Build POST /api/v1/user_topics — set a topic's visibility policy for
+	## the requesting user (mention auto-follow, resolved auto-unfollow).
+	set_visibility_request : Str, { stream_id : I64, topic : Str, visibility_policy : I64 } -> Request.Request
+	set_visibility_request = |base, opts| {
+		pairs = [
+			("stream_id", I64.to_str(opts.stream_id)),
+			("topic", opts.topic),
+			("visibility_policy", I64.to_str(opts.visibility_policy)),
+		]
+		Request.from_method(POST)
+			.with_uri("${base}/api/v1/user_topics")
+			.add_header("Content-Type", "application/x-www-form-urlencoded")
+			.with_body(Str.to_utf8(FormUrlEncoded.encode_pairs(pairs)))
+	}
+
 	## A message payload as it appears inside a message event, limited to the
 	## fields shared by stream and DM messages. `display_recipient` is
 	## deliberately absent: its JSON type differs by message type (stream name
@@ -337,3 +359,7 @@ expect
 expect
 	Events.decode_listener_poll("{\"result\":\"error\",\"msg\":\"Bad event queue ID: q:9\",\"code\":\"BAD_EVENT_QUEUE_ID\"}")
 		== Err(ApiError({ code: "BAD_EVENT_QUEUE_ID", msg: "Bad event queue ID: q:9" }))
+
+expect
+	Events.set_visibility_request("https://x.zulipchat.com", { stream_id: 7, topic: "pr-9", visibility_policy: Events.followed_policy }).body()
+		== Str.to_utf8("stream_id=7&topic=pr-9&visibility_policy=3")
