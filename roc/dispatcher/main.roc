@@ -13,7 +13,7 @@
 ## ZULR_REPO_ROOT + HOME to derive ~/.zulr/<slug>/state.db.
 
 app [main!] {
-	pf: platform "../../../../roc/basic-cli/platform/main.roc",
+	pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.21.0-rc4/FvCh4vdqm3nBY6DWEfZ8RuGCVfjuMY43HA8KSNk9qVDn.tar.zst",
 	zulip: "../zulip-roc/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -427,7 +427,7 @@ wake_agent! = |name| {
 read_teammates! : Str => Try(List(Teammate), _)
 read_teammates! = |db_path|
 	Sqlite.query_many!({
-		path: Path.from_str(db_path),
+		path: Path.unix(db_path),
 		query: "SELECT name, bot_email, api_key FROM teammates ORDER BY name;",
 		bindings: [],
 		rows: decode_teammate,

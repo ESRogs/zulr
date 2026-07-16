@@ -20,16 +20,11 @@ packages changed.
 | Component | Version |
 |---|---|
 | roc | nightly 2026-07-14 (`c9147c2`) from roc-lang/nightlies |
-| basic-cli | branch `migrate-zig-compiler` @ `3ebf1f7`, host built locally with `./build.sh` (needs Rust 1.82) |
+| basic-cli | 0.21.0-rc4 (URL platform dep — no local clone or host build needed) |
 | roc-lang/http | 1.0.0 (URL package dep) |
 
-The basic-cli branch has no URL release yet, so the platform is referenced by
-**relative path** (absolute paths are rejected): the app header expects the
-clone at `../../../../roc/basic-cli` relative to `dispatcher/`, i.e. a
-`roc/basic-cli` checkout sitting next to this repo's parent — adjust the
-`platform` line in `dispatcher/main.roc` for your layout. Both halves of the
-pin move fast and independently; upgrading either is a deliberate step, not
-automatic.
+Both halves of the pin move fast and independently; upgrading either is a
+deliberate step, not automatic.
 
 ## Build / test / run
 
