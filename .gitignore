@@ -38,3 +38,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # local scratch files
 scratch/
+
+# roc build output
+roc/dispatcher/main
