@@ -43,9 +43,30 @@ Api := [].{
 			Ok(err_body) => ApiError(err_body)
 			Err(NotAnApiError) => BadResponse(body)
 		}
+
+	## Decode a response whose only interesting content is success/failure.
+	## Only a real success payload is Ok; an error payload is ApiError and
+	## anything else (e.g. a proxy's HTML 502) is BadResponse.
+	decode_ack : Str -> Try({}, [ApiError(ErrorBody), BadResponse(Str), ..])
+	decode_ack = |body|
+		match decode_error(body) {
+			Ok(err_body) => Err(ApiError(err_body))
+			Err(NotAnApiError) => {
+				probe : Try({ result : Str }, _)
+				probe = Json.parse(body)
+				match probe {
+					Ok(p) => if p.result == "success" Ok({}) else Err(BadResponse(body))
+					Err(_) => Err(BadResponse(body))
+				}
+			}
+		}
 }
 
 expect Api.decode_error("{\"result\": \"error\", \"msg\": \"Bad event queue ID\", \"code\": \"BAD_EVENT_QUEUE_ID\"}") == Ok({ code: "BAD_EVENT_QUEUE_ID", msg: "Bad event queue ID" })
+
+expect Api.decode_ack("{\"result\":\"success\",\"msg\":\"\"}") == Ok({})
+expect Api.decode_ack("{\"result\":\"error\",\"msg\":\"no\",\"code\":\"BAD_REQUEST\"}") == Err(ApiError({ code: "BAD_REQUEST", msg: "no" }))
+expect Api.decode_ack("<html>502</html>") == Err(BadResponse("<html>502</html>"))
 
 # an error body whose msg contains escapes decodes them faithfully
 expect

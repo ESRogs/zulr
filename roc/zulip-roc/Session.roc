@@ -54,19 +54,7 @@ Session := {
 	delete! : Client.Client, Session => Try({}, [Transport(Str), ApiError(Api.ErrorBody), BadResponse(Str), ..])
 	delete! = |client, session| {
 		response = client.send_authed!(Events.delete_request(client.site, session.queue_id))?
-		match Api.decode_error(response.body) {
-			Ok(err_body) => Err(ApiError(err_body))
-			Err(NotAnApiError) => {
-				# not an error payload — but only a real success payload is
-				# success; anything else (e.g. a proxy's HTML 502) is not
-				probe : Try({ result : Str }, _)
-				probe = Json.parse(response.body)
-				match probe {
-					Ok(p) => if p.result == "success" Ok({}) else Err(BadResponse(response.body))
-					Err(_) => Err(BadResponse(response.body))
-				}
-			}
-		}
+		Api.decode_ack(response.body)
 	}
 
 	## Advance the event cursor past every event in the batch.
