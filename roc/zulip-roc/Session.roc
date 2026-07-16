@@ -50,6 +50,16 @@ Session := {
 		Ok(({ ..session, last_event_id: next_cursor(session.last_event_id, polled.events) }, polled))
 	}
 
+	## Non-blocking poll with full event payloads — the listener flavor of
+	## poll! (the dispatcher's poll! decodes only metadata + message ids).
+	poll_inbound! : Client.Client, Session => Try((Session, Events.ListenerPolled), [Transport(Str), QueueInvalid(Str), ApiError(Api.ErrorBody), BadResponse(Str), ..])
+	poll_inbound! = |client, session| {
+		req = Events.poll_request(client.site, session.queue_id, session.last_event_id)
+		result = client.send_authed!(req)?
+		polled = Events.decode_listener_poll(result.body) ? classify_poll_error
+		Ok(({ ..session, last_event_id: next_cursor(session.last_event_id, polled.events) }, polled))
+	}
+
 	## Delete the queue server-side (best-effort cleanup on shutdown).
 	delete! : Client.Client, Session => Try({}, [Transport(Str), ApiError(Api.ErrorBody), BadResponse(Str), ..])
 	delete! = |client, session| {
