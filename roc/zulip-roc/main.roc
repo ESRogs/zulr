@@ -2,6 +2,7 @@ package
 	[
 		Api,
 		Base64,
+		Events,
 		FormUrlEncoded,
 	]
 	{
