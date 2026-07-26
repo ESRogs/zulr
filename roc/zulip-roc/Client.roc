@@ -15,7 +15,10 @@ import http.Request
 import http.Response
 import Api
 import Base64
+import Channels
+import Events
 import Messages
+import Users
 
 Client := {
 	site : Str,
@@ -73,6 +76,42 @@ Client := {
 	get_message! = |client, message_id| {
 		result = client.send_authed!(Messages.get_request(client.site, message_id))?
 		Messages.decode_message(result.body)
+	}
+
+	## Fetch a single message with sender and content (reaction notifications).
+	get_full_message! : Client, I64 => Try(Messages.FullMessage, [Transport(Str), ApiError(Api.ErrorBody), BadResponse(Str), ..])
+	get_full_message! = |client, message_id| {
+		result = client.send_authed!(Messages.get_request(client.site, message_id))?
+		Messages.decode_full_message(result.body)
+	}
+
+	## Mark messages as read for this client's user.
+	mark_read! : Client, List(I64) => Try({}, [Transport(Str), ApiError(Api.ErrorBody), BadResponse(Str), ..])
+	mark_read! = |client, message_ids| {
+		result = client.send_authed!(Messages.flags_request(client.site, { message_ids, op: "add", flag: "read" }))?
+		Api.decode_ack(result.body)
+	}
+
+	## Set a topic's visibility policy for this client's user (see
+	## Events.followed_policy / Events.inherit_policy).
+	set_topic_visibility! : Client, { stream_id : I64, topic : Str, visibility_policy : I64 } => Try({}, [Transport(Str), ApiError(Api.ErrorBody), BadResponse(Str), ..])
+	set_topic_visibility! = |client, opts| {
+		result = client.send_authed!(Events.set_visibility_request(client.site, opts))?
+		Api.decode_ack(result.body)
+	}
+
+	## Fetch the realm member list.
+	list_members! : Client => Try(List(Users.Member), [Transport(Str), ApiError(Api.ErrorBody), BadResponse(Str), ..])
+	list_members! = |client| {
+		result = client.send_authed!(Users.list_request(client.site))?
+		Users.decode_members(result.body)
+	}
+
+	## Fetch the channel list.
+	list_channels! : Client => Try(List(Channels.Channel), [Transport(Str), ApiError(Api.ErrorBody), BadResponse(Str), ..])
+	list_channels! = |client| {
+		result = client.send_authed!(Channels.list_request(client.site))?
+		Channels.decode_channels(result.body)
 	}
 }
 

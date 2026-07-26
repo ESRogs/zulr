@@ -31,7 +31,7 @@ FormUrlEncoded := [].{
 		} else if b == 32 {
 			acc.append(43) # space -> '+'
 		} else {
-			acc.append(37).append(hex_digit(b.shift_right_by(4))).append(hex_digit(b.bitwise_and(15)))
+			acc.append(37).append(hex_digit(b.shr_wrap(4))).append(hex_digit(b.bitwise_and(15)))
 		}
 
 	## WHATWG urlencoded-serializer leaves these bytes bare: A-Z a-z 0-9 * - . _

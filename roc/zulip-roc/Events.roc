@@ -129,6 +129,116 @@ Events := [].{
 		Request.from_method(DELETE).with_uri("${base}/api/v1/events?${query}")
 	}
 
+	## Zulip visibility_policy values (a subset; see UserTopic).
+	followed_policy : I64
+	followed_policy = 3
+
+	inherit_policy : I64
+	inherit_policy = 0
+
+	## Build POST /api/v1/user_topics — set a topic's visibility policy for
+	## the requesting user (mention auto-follow, resolved auto-unfollow).
+	set_visibility_request : Str, { stream_id : I64, topic : Str, visibility_policy : I64 } -> Request.Request
+	set_visibility_request = |base, opts| {
+		pairs = [
+			("stream_id", I64.to_str(opts.stream_id)),
+			("topic", opts.topic),
+			("visibility_policy", I64.to_str(opts.visibility_policy)),
+		]
+		Request.from_method(POST)
+			.with_uri("${base}/api/v1/user_topics")
+			.add_header("Content-Type", "application/x-www-form-urlencoded")
+			.with_body(Str.to_utf8(FormUrlEncoded.encode_pairs(pairs)))
+	}
+
+	## A message payload as it appears inside a message event, limited to the
+	## fields shared by stream and DM messages. `display_recipient` is
+	## deliberately absent: its JSON type differs by message type (stream name
+	## string vs recipient object list), and a wholesale batch decode cannot
+	## hold both — resolve stream names from stream_id via the channels list.
+	InboundMessage : {
+		id : I64,
+		sender_id : I64,
+		sender_email : Str,
+		sender_full_name : Str,
+		type : Str,
+		content : Str,
+		timestamp : I64,
+		subject : Try(Str, [Missing]),
+		stream_id : Try(I64, [Missing]),
+	}
+
+	## One event from a listener poll batch, classified by type. `flags` on a
+	## message event are the queue owner's flags at delivery time (mentions
+	## show up here). Unrecognized event types land in Other so the caller can
+	## count or log them.
+	InboundEvent : [
+		MessageEvent({ flags : List(Str), message : InboundMessage }),
+		ReactionAdd({ message_id : I64, user_id : I64, emoji_name : Str }),
+		TopicMoved({ stream_id : I64, subject : Str, orig_subject : Try(Str, [Missing]) }),
+		Other({ id : I64, type : Str }),
+	]
+
+	ListenerPolled : { events : List(EventMeta), inbound : List(InboundEvent) }
+
+	## Every per-type payload field is optional, so one element shape decodes
+	## a heterogeneous batch; classify_event sorts the elements out afterward.
+	RawListenerEvent : {
+		id : I64,
+		type : Str,
+		flags : Try(List(Str), [Missing]),
+		op : Try(Str, [Missing]),
+		emoji_name : Try(Str, [Missing]),
+		message_id : Try(I64, [Missing]),
+		user_id : Try(I64, [Missing]),
+		stream_id : Try(I64, [Missing]),
+		subject : Try(Str, [Missing]),
+		orig_subject : Try(Str, [Missing]),
+		message : Try(InboundMessage, [Missing]),
+	}
+
+	## Decode a poll response with full event payloads (listener flavor: the
+	## dispatcher only needs decode_poll's metadata + message ids).
+	decode_listener_poll : Str -> Try(ListenerPolled, [ApiError(Api.ErrorBody), BadResponse(Str), ..])
+	decode_listener_poll = |raw| {
+		parsed : Try({ events : List(RawListenerEvent) }, _)
+		parsed = Json.parse(raw)
+		match parsed {
+			Ok({ events }) =>
+				Ok({
+					events: events.map(|ev| { id: ev.id, type: ev.type }),
+					inbound: events.map(classify_event),
+				})
+			Err(_) => Err(Api.decode_failure(raw))
+		}
+	}
+
+	## Sort a raw event into its typed shape. A message event whose payload
+	## failed to decode (or a reaction/rename missing its fields) falls
+	## through to Other rather than being silently dropped.
+	classify_event : RawListenerEvent -> InboundEvent
+	classify_event = |ev|
+		if ev.type == "message" {
+			match ev.message {
+				Ok(message) => MessageEvent({ flags: ev.flags.ok_or([]), message })
+				Err(Missing) => Other({ id: ev.id, type: ev.type })
+			}
+		} else if ev.type == "reaction" {
+			match (ev.op, ev.message_id, ev.user_id, ev.emoji_name) {
+				(Ok("add"), Ok(message_id), Ok(user_id), Ok(emoji_name)) =>
+					ReactionAdd({ message_id, user_id, emoji_name })
+				_ => Other({ id: ev.id, type: ev.type })
+			}
+		} else if ev.type == "update_message" {
+			match (ev.stream_id, ev.subject) {
+				(Ok(stream_id), Ok(subject)) =>
+					TopicMoved({ stream_id, subject, orig_subject: ev.orig_subject })
+				_ => Other({ id: ev.id, type: ev.type })
+			}
+		} else {
+			Other({ id: ev.id, type: ev.type })
+		}
+
 	## Encode a list of strings as a JSON array (for event_types= form values).
 	json_str_list : List(Str) -> Str
 	json_str_list = |strs|
@@ -200,3 +310,56 @@ expect
 expect
 	Events.decode_poll("{\"result\":\"error\",\"msg\":\"Bad event queue ID: q:1\",\"code\":\"BAD_EVENT_QUEUE_ID\"}")
 		== Err(ApiError({ code: "BAD_EVENT_QUEUE_ID", msg: "Bad event queue ID: q:1" }))
+
+# --- listener poll decoding ---
+
+# a heterogeneous batch classifies each event; metas cover every event
+expect
+	Events.decode_listener_poll(
+		"{\"result\":\"success\",\"events\":[{\"id\":0,\"type\":\"message\",\"flags\":[\"mentioned\"],\"message\":{\"id\":77,\"sender_id\":5,\"sender_email\":\"a@x.com\",\"sender_full_name\":\"Ada\",\"type\":\"stream\",\"content\":\"hi \\\"there\\\"\",\"timestamp\":1752600000,\"subject\":\"pr-9\",\"stream_id\":7,\"display_recipient\":\"general\"}},{\"id\":1,\"type\":\"reaction\",\"op\":\"add\",\"emoji_name\":\"eyes\",\"message_id\":77,\"user_id\":9},{\"id\":2,\"type\":\"update_message\",\"stream_id\":7,\"subject\":\"\\u2714 pr-9\",\"orig_subject\":\"pr-9\"},{\"id\":3,\"type\":\"heartbeat\"}]}",
+	)
+		== Ok({
+			events: [{ id: 0, type: "message" }, { id: 1, type: "reaction" }, { id: 2, type: "update_message" }, { id: 3, type: "heartbeat" }],
+			inbound: [
+				MessageEvent({
+					flags: ["mentioned"],
+					message: { id: 77, sender_id: 5, sender_email: "a@x.com", sender_full_name: "Ada", type: "stream", content: "hi \"there\"", timestamp: 1752600000, subject: Ok("pr-9"), stream_id: Ok(7) },
+				}),
+				ReactionAdd({ message_id: 77, user_id: 9, emoji_name: "eyes" }),
+				TopicMoved({ stream_id: 7, subject: "✔ pr-9", orig_subject: Ok("pr-9") }),
+				Other({ id: 3, type: "heartbeat" }),
+			],
+		})
+
+# a DM message event: subject/stream_id are Missing, flags default to []
+expect
+	Events.decode_listener_poll(
+		"{\"result\":\"success\",\"events\":[{\"id\":4,\"type\":\"message\",\"message\":{\"id\":78,\"sender_id\":6,\"sender_email\":\"b@x.com\",\"sender_full_name\":\"Bo\",\"type\":\"private\",\"content\":\"psst\",\"timestamp\":1752600001,\"display_recipient\":[{\"email\":\"bot@x.com\"},{\"email\":\"b@x.com\"}]}}]}",
+	)
+		== Ok({
+			events: [{ id: 4, type: "message" }],
+			inbound: [
+				MessageEvent({
+					flags: [],
+					message: { id: 78, sender_id: 6, sender_email: "b@x.com", sender_full_name: "Bo", type: "private", content: "psst", timestamp: 1752600001, subject: Err(Missing), stream_id: Err(Missing) },
+				}),
+			],
+		})
+
+# reaction remove and malformed events fall through to Other
+expect
+	Events.decode_listener_poll(
+		"{\"result\":\"success\",\"events\":[{\"id\":5,\"type\":\"reaction\",\"op\":\"remove\",\"emoji_name\":\"eyes\",\"message_id\":77,\"user_id\":9},{\"id\":6,\"type\":\"update_message\",\"rendering_only\":true}]}",
+	)
+		== Ok({
+			events: [{ id: 5, type: "reaction" }, { id: 6, type: "update_message" }],
+			inbound: [Other({ id: 5, type: "reaction" }), Other({ id: 6, type: "update_message" })],
+		})
+
+expect
+	Events.decode_listener_poll("{\"result\":\"error\",\"msg\":\"Bad event queue ID: q:9\",\"code\":\"BAD_EVENT_QUEUE_ID\"}")
+		== Err(ApiError({ code: "BAD_EVENT_QUEUE_ID", msg: "Bad event queue ID: q:9" }))
+
+expect
+	Events.set_visibility_request("https://x.zulipchat.com", { stream_id: 7, topic: "pr-9", visibility_policy: Events.followed_policy }).body()
+		== Str.to_utf8("stream_id=7&topic=pr-9&visibility_policy=3")

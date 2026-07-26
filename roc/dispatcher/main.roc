@@ -13,7 +13,7 @@
 ## ZULR_REPO_ROOT + HOME to derive ~/.zulr/<slug>/state.db.
 
 app [main!] {
-	pf: platform "../../../../roc/basic-cli/platform/main.roc",
+	pf: platform "../../../../roc/basic-cli-main/platform/main.roc",
 	zulip: "../zulip-roc/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
@@ -336,8 +336,7 @@ statuses_str = |statuses|
 ## Derive the state-DB directory slug the same way state/db.ts does:
 ## the absolute repo path with every '/' replaced by '-'.
 repo_slug : Str -> Str
-repo_slug = |repo_root|
-	Str.from_utf8_lossy(Str.to_utf8(repo_root).map(|b| if b == 47 45 else b))
+repo_slug = |repo_root| repo_root.replace_each("/", "-")
 
 ## db.ts resolves the repo root before slugging; instead of porting path
 ## normalization, trailing slashes are trimmed and anything else non-absolute
@@ -427,7 +426,7 @@ wake_agent! = |name| {
 read_teammates! : Str => Try(List(Teammate), _)
 read_teammates! = |db_path|
 	Sqlite.query_many!({
-		path: Path.from_str(db_path),
+		path: Path.unix(db_path),
 		query: "SELECT name, bot_email, api_key FROM teammates ORDER BY name;",
 		bindings: [],
 		rows: decode_teammate,
@@ -443,16 +442,15 @@ decode_teammate = |cols|
 
 state_db_path! : () => Try(Str, [MissingEnv(Str), RepoRootNotAbsolute(Str), ..])
 state_db_path! = ||
-	match env_str!("ZULR_STATE_DB") {
-		Ok(path) => Ok(path)
-		Err(_) => {
+	env_str!("ZULR_STATE_DB").on_err!(
+		|_| {
 			repo_root = env_str!("ZULR_REPO_ROOT")
 				? |_| MissingEnv("set ZULR_STATE_DB or ZULR_REPO_ROOT")
 			normalized = normalize_repo_root(repo_root)?
 			home = env_str!("HOME") ? |_| MissingEnv("HOME is not set")
 			Ok("${home}/.zulr/${repo_slug(normalized)}/state.db")
-		}
-	}
+		},
+	)
 
 env_str! : Str => Try(Str, [EnvVarMissing(Str), EnvVarInvalid(Str), ..])
 env_str! = |name| {

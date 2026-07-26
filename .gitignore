@@ -41,3 +41,4 @@ scratch/
 
 # roc build output
 roc/dispatcher/main
+roc/event-listener/main

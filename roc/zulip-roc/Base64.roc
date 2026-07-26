@@ -26,20 +26,20 @@ Base64 := [].{
 		match bytes {
 			[] => acc
 			[a] => {
-				i0 = a.shift_right_by(2)
-				i1 = a.bitwise_and(3).shift_left_by(4)
+				i0 = a.shr_wrap(2)
+				i1 = a.bitwise_and(3).shl_wrap(4)
 				acc.append(char_at(i0)).append(char_at(i1)).append(61).append(61)
 			}
 			[a, b] => {
-				i0 = a.shift_right_by(2)
-				i1 = a.bitwise_and(3).shift_left_by(4).bitwise_or(b.shift_right_by(4))
-				i2 = b.bitwise_and(15).shift_left_by(2)
+				i0 = a.shr_wrap(2)
+				i1 = a.bitwise_and(3).shl_wrap(4).bitwise_or(b.shr_wrap(4))
+				i2 = b.bitwise_and(15).shl_wrap(2)
 				acc.append(char_at(i0)).append(char_at(i1)).append(char_at(i2)).append(61)
 			}
 			[a, b, c, .. as rest] => {
-				i0 = a.shift_right_by(2)
-				i1 = a.bitwise_and(3).shift_left_by(4).bitwise_or(b.shift_right_by(4))
-				i2 = b.bitwise_and(15).shift_left_by(2).bitwise_or(c.shift_right_by(6))
+				i0 = a.shr_wrap(2)
+				i1 = a.bitwise_and(3).shl_wrap(4).bitwise_or(b.shr_wrap(4))
+				i2 = b.bitwise_and(15).shl_wrap(2).bitwise_or(c.shr_wrap(6))
 				i3 = c.bitwise_and(63)
 				next = acc.append(char_at(i0)).append(char_at(i1)).append(char_at(i2)).append(char_at(i3))
 				encode_chunks(rest, next)
