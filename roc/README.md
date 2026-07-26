@@ -24,11 +24,18 @@ remain the fallback; nothing in the TS packages changed.
 
 | Component | Version |
 |---|---|
-| roc | nightly 2026-07-14 (`c9147c2`) from roc-lang/nightlies |
-| basic-cli | 0.21.0-rc4 (URL platform dep — no local clone or host build needed) |
+| roc | nightly 2026-07-25 (`b6cdced`) from roc-lang/nightlies |
+| basic-cli | `main` @ `e2d909c`, local clone (see below) |
 | roc-lang/http | 1.0.0 (URL package dep) |
 
-Both halves of the pin move fast and independently; upgrading either is a
+basic-cli's latest release (0.21.0-rc4) predates compiler changes this code
+uses, so until the next release the platform is referenced by **relative
+path**: the app headers expect a clone at `../../../../roc/basic-cli-main`
+(i.e. `roc/basic-cli-main` next to this repo's parent), with the host built
+via `python3 scripts/build.py --target arm64mac` (Rust via rustup; the
+toolchain version is auto-pinned by `rust-toolchain.toml`). When the next
+basic-cli release ships, the platform lines go back to a URL dep. Both
+halves of the pin move fast and independently; upgrading either is a
 deliberate step, not automatic.
 
 ## Build / test / run
@@ -116,7 +123,7 @@ queue dying and re-registration are lost (logged). The TS listener backfills
 unreads on reconnect; porting that needs the narrow/anchor message-search
 endpoints.
 
-## Roc gotchas encountered (nightly c9147c2)
+## Roc gotchas encountered (nightlies c9147c2–b6cdced)
 
 - `crash` in a match arm must be wrapped in a braced block.
 - `?` unwraps, so a function returning `Try` still ends with explicit `Ok(...)`.
